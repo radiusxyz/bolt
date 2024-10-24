@@ -1,11 +1,14 @@
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{
+    builder::styling::{AnsiColor, Color, Style},
+    Parser, Subcommand, ValueEnum,
+};
 use serde::Deserialize;
 
-use crate::utils::keystore::DEFAULT_KEYSTORE_PASSWORD;
+use crate::common::keystore::DEFAULT_KEYSTORE_PASSWORD;
 
-/// A CLI tool to interact with Bolt Protocol ✨
+/// `bolt` is a CLI tool to interact with Bolt Protocol ✨
 #[derive(Parser, Debug, Clone, Deserialize)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, styles = cli_styles(), about, arg_required_else_help(true))]
 pub struct Opts {
     /// The subcommand to run.
     #[clap(subcommand)]
@@ -15,39 +18,47 @@ pub struct Opts {
 #[derive(Subcommand, Debug, Clone, Deserialize)]
 pub enum Commands {
     /// Generate BLS delegation or revocation messages.
-    Delegate {
-        /// The BLS public key to which the delegation message should be signed.
-        #[clap(long, env = "DELEGATEE_PUBKEY")]
-        delegatee_pubkey: String,
-
-        /// The output file for the delegations.
-        #[clap(long, env = "OUTPUT_FILE_PATH", default_value = "delegations.json")]
-        out: String,
-
-        /// The chain for which the delegation message is intended.
-        #[clap(long, env = "CHAIN", default_value = "mainnet")]
-        chain: Chain,
-
-        /// The action to perform. The tool can be used to generate
-        /// delegation or revocation messages (default: delegate).
-        #[clap(long, env = "ACTION", default_value = "delegate")]
-        action: Action,
-
-        /// The source of the private key.
-        #[clap(subcommand)]
-        source: KeySource,
-    },
+    Delegate(DelegateCommand),
 
     /// Output a list of pubkeys in JSON format.
-    Pubkeys {
-        /// The output file for the pubkeys.
-        #[clap(long, env = "OUTPUT_FILE_PATH", default_value = "pubkeys.json")]
-        out: String,
+    Pubkeys(PubkeysCommand),
+}
 
-        /// The source of the private keys from which to extract the pubkeys.
-        #[clap(subcommand)]
-        source: KeySource,
-    },
+/// Command for generating BLS delegation or revocation messages.
+#[derive(Debug, Clone, Deserialize, Parser)]
+pub struct DelegateCommand {
+    /// The BLS public key to which the delegation message should be signed.
+    #[clap(long, env = "DELEGATEE_PUBKEY")]
+    pub delegatee_pubkey: String,
+
+    /// The output file for the delegations.
+    #[clap(long, env = "OUTPUT_FILE_PATH", default_value = "delegations.json")]
+    pub out: String,
+
+    /// The chain for which the delegation message is intended.
+    #[clap(long, env = "CHAIN", default_value = "mainnet")]
+    pub chain: Chain,
+
+    /// The action to perform. The tool can be used to generate
+    /// delegation or revocation messages (default: delegate).
+    #[clap(long, env = "ACTION", default_value = "delegate")]
+    pub action: Action,
+
+    /// The source of the private key.
+    #[clap(subcommand)]
+    pub source: KeySource,
+}
+
+/// Command for outputting a list of pubkeys in JSON format.
+#[derive(Debug, Clone, Deserialize, Parser)]
+pub struct PubkeysCommand {
+    /// The output file for the pubkeys.
+    #[clap(long, env = "OUTPUT_FILE_PATH", default_value = "pubkeys.json")]
+    pub out: String,
+
+    /// The source of the private keys from which to extract the pubkeys.
+    #[clap(subcommand)]
+    pub source: KeySource,
 }
 
 /// The action to perform.
@@ -167,6 +178,18 @@ impl Chain {
             Chain::Kurtosis => [16, 0, 0, 56],
         }
     }
+}
+
+/// Styles for the CLI application.
+const fn cli_styles() -> clap::builder::Styles {
+    clap::builder::Styles::styled()
+        .usage(Style::new().bold().underline().fg_color(Some(Color::Ansi(AnsiColor::Yellow))))
+        .header(Style::new().bold().underline().fg_color(Some(Color::Ansi(AnsiColor::Yellow))))
+        .literal(Style::new().fg_color(Some(Color::Ansi(AnsiColor::Green))))
+        .invalid(Style::new().bold().fg_color(Some(Color::Ansi(AnsiColor::Red))))
+        .error(Style::new().bold().fg_color(Some(Color::Ansi(AnsiColor::Red))))
+        .valid(Style::new().bold().underline().fg_color(Some(Color::Ansi(AnsiColor::Green))))
+        .placeholder(Style::new().fg_color(Some(Color::Ansi(AnsiColor::White))))
 }
 
 #[cfg(test)]

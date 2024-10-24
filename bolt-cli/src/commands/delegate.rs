@@ -9,15 +9,88 @@ use serde::Serialize;
 use tracing::{debug, warn};
 
 use crate::{
-    cli::{Action, Chain},
-    utils::{
+    cli::{Action, Chain, DelegateCommand, KeySource},
+    common::{
         dirk::Dirk,
         keystore::{keystore_paths, KeystoreError, KeystoreSecret},
+        parse_bls_public_key,
         signing::{
             compute_commit_boost_signing_root, compute_domain_from_mask, verify_commit_boost_root,
         },
+        write_to_file,
     },
 };
+
+impl DelegateCommand {
+    /// Run the `delegate` command.
+    pub async fn run(self) -> Result<()> {
+        match self.source {
+            KeySource::SecretKeys { secret_keys } => {
+                let delegatee_pubkey = parse_bls_public_key(&self.delegatee_pubkey)?;
+                let signed_messages = generate_from_local_keys(
+                    &secret_keys,
+                    delegatee_pubkey,
+                    self.chain,
+                    self.action,
+                )?;
+                debug!("Signed {} messages with local keys", signed_messages.len());
+
+                // Verify signatures
+                for message in &signed_messages {
+                    verify_message_signature(message, self.chain)?;
+                }
+
+                write_to_file(&self.out, &signed_messages)?;
+                println!("Signed delegation messages generated and saved to {}", self.out);
+            }
+            KeySource::LocalKeystore { opts } => {
+                let keystore_secret = KeystoreSecret::from_keystore_options(&opts)?;
+                let delegatee_pubkey = parse_bls_public_key(&self.delegatee_pubkey)?;
+                let signed_messages = generate_from_keystore(
+                    &opts.path,
+                    keystore_secret,
+                    delegatee_pubkey,
+                    self.chain,
+                    self.action,
+                )?;
+                debug!("Signed {} messages with keystore", signed_messages.len());
+
+                // Verify signatures
+                for message in &signed_messages {
+                    verify_message_signature(message, self.chain)?;
+                }
+
+                write_to_file(&self.out, &signed_messages)?;
+                println!("Signed delegation messages generated and saved to {}", self.out);
+            }
+            KeySource::Dirk { opts } => {
+                let mut dirk = Dirk::connect(opts.url, opts.tls_credentials).await?;
+
+                let delegatee_pubkey = parse_bls_public_key(&self.delegatee_pubkey)?;
+                let signed_messages = generate_from_dirk(
+                    &mut dirk,
+                    delegatee_pubkey,
+                    opts.wallet_path,
+                    opts.passphrases,
+                    self.chain,
+                    self.action,
+                )
+                .await?;
+                debug!("Signed {} messages with Dirk", signed_messages.len());
+
+                // Verify signatures
+                for message in &signed_messages {
+                    verify_message_signature(message, self.chain)?;
+                }
+
+                write_to_file(&self.out, &signed_messages)?;
+                println!("Signed delegation messages generated and saved to {}", self.out);
+            }
+        }
+
+        Ok(())
+    }
+}
 
 /// Generate signed delegations/revocations using local BLS private keys
 ///
@@ -28,7 +101,7 @@ use crate::{
 pub fn generate_from_local_keys(
     secret_keys: &[String],
     delegatee_pubkey: BlsPublicKey,
-    chain: &Chain,
+    chain: Chain,
     action: Action,
 ) -> Result<Vec<SignedMessage>> {
     let mut signed_messages = Vec::with_capacity(secret_keys.len());
@@ -39,14 +112,14 @@ pub fn generate_from_local_keys(
         match action {
             Action::Delegate => {
                 let message = DelegationMessage::new(sk.public_key(), delegatee_pubkey.clone());
-                let signing_root = compute_commit_boost_signing_root(message.digest(), chain)?;
+                let signing_root = compute_commit_boost_signing_root(message.digest(), &chain)?;
                 let signature = sk.sign(signing_root.0.as_ref());
                 let signed = SignedDelegation { message, signature };
                 signed_messages.push(SignedMessage::Delegation(signed))
             }
             Action::Revoke => {
                 let message = RevocationMessage::new(sk.public_key(), delegatee_pubkey.clone());
-                let signing_root = compute_commit_boost_signing_root(message.digest(), chain)?;
+                let signing_root = compute_commit_boost_signing_root(message.digest(), &chain)?;
                 let signature = sk.sign(signing_root.0.as_ref());
                 let signed = SignedRevocation { message, signature };
                 signed_messages.push(SignedMessage::Revocation(signed));
@@ -288,7 +361,7 @@ pub fn verify_message_signature(message: &SignedMessage, chain: Chain) -> Result
 mod tests {
     use crate::{
         cli::{Action, Chain},
-        utils::{keystore::KeystoreSecret, parse_bls_public_key},
+        common::{keystore::KeystoreSecret, parse_bls_public_key},
     };
 
     use super::{generate_from_keystore, verify_message_signature};

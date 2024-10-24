@@ -4,7 +4,7 @@ use ethereum_consensus::{
     crypto::PublicKey as BlsPublicKey,
     deneb::{compute_fork_data_root, compute_signing_root, Root},
 };
-use eyre::Result;
+use eyre::{eyre, Result};
 
 use crate::cli::Chain;
 
@@ -19,7 +19,7 @@ pub fn compute_commit_boost_signing_root(message: [u8; 32], chain: &Chain) -> Re
     compute_signing_root(&message, compute_domain_from_mask(chain.fork_version()))
         // Ethereum-consensus uses a different version of alloy so we need to do this cast
         .map(|r| B256::from_slice(r.to_vec().as_slice()))
-        .map_err(|e| eyre::eyre!("Failed to compute signing root: {}", e))
+        .map_err(|e| eyre!("Failed to compute signing root: {}", e))
 }
 
 /// Compute the commit boost domain from the fork version
@@ -62,6 +62,6 @@ pub fn verify_root(
     if res == BLST_ERROR::BLST_SUCCESS {
         Ok(())
     } else {
-        Err(eyre::eyre!("bls verification failed"))
+        Err(eyre!("bls verification failed"))
     }
 }
