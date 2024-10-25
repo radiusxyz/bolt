@@ -125,7 +125,7 @@ Bolt also relies on a few external components that are not part of this reposito
 
 - [**Web demo**](https://github.com/chainbound/bolt-web-demo-legacy): A simple web interface to interact
   with the Bolt Sidecar and submit preconfirmation requests to proposers for inclusion in blocks.
-- [**MEV-Boost-Relay**](https://github.com/chainbound/mev-boost-relay): A fork of the Flashbots
+- [**MEV-Boost-Relay**](https://github.com/chainbound/bolt-mev-boost-relay): A fork of the Flashbots
   [MEV-Boost relay][fb-relay] that includes new API endpoints to proxy requests from the Bolt Sidecar
   to the connected builders.
 
