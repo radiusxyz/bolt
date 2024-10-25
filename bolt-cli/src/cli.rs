@@ -12,11 +12,11 @@ use crate::common::keystore::DEFAULT_KEYSTORE_PASSWORD;
 pub struct Opts {
     /// The subcommand to run.
     #[clap(subcommand)]
-    pub command: Commands,
+    pub command: Cmd,
 }
 
 #[derive(Subcommand, Debug, Clone)]
-pub enum Commands {
+pub enum Cmd {
     /// Generate BLS delegation or revocation messages.
     Delegate(DelegateCommand),
 
@@ -25,6 +25,17 @@ pub enum Commands {
 
     /// Send a preconfirmation request to a Bolt proposer.
     Send(SendCommand),
+}
+
+impl Cmd {
+    /// Run the command.
+    pub async fn run(self) -> eyre::Result<()> {
+        match self {
+            Cmd::Delegate(cmd) => cmd.run().await,
+            Cmd::Pubkeys(cmd) => cmd.run().await,
+            Cmd::Send(cmd) => cmd.run().await,
+        }
+    }
 }
 
 /// Command for generating BLS delegation or revocation messages.

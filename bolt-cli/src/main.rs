@@ -1,9 +1,7 @@
 use clap::Parser;
-use eyre::Result;
 
 /// CLI command definitions and options.
 mod cli;
-use cli::{Commands, Opts};
 
 /// CLI command implementations.
 mod commands;
@@ -15,18 +13,13 @@ mod common;
 mod pb;
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> eyre::Result<()> {
     let _ = dotenvy::dotenv();
     let _ = tracing_subscriber::fmt::try_init();
-    let _ = rustls::crypto::ring::default_provider().install_default();
 
-    let cli = Opts::parse();
-
-    match cli.command {
-        Commands::Delegate(cmd) => cmd.run().await?,
-        Commands::Pubkeys(cmd) => cmd.run().await?,
-        Commands::Send(cmd) => cmd.run().await?,
+    if let Err(err) = rustls::crypto::ring::default_provider().install_default() {
+        eprintln!("Failed to install default TLS provider: {:?}", err);
     }
 
-    Ok(())
+    cli::Opts::parse().command.run().await
 }
