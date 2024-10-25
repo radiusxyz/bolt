@@ -74,6 +74,13 @@ pub struct SendCommand {
     /// The private key to sign the transaction with.
     #[clap(long, env = "PRIVATE_KEY", hide_env_values = true)]
     pub private_key: String,
+
+    /// The Bolt Sidecar URL to send requests to. If provided, this will override
+    /// the canonical bolt RPC URL and disregard any registration information.
+    ///
+    /// This is useful for testing and development purposes.
+    #[clap(long, env = "OVERRIDE_BOLT_SIDECAR_URL")]
+    pub override_bolt_sidecar_url: Option<Url>,
 }
 
 /// The action to perform.

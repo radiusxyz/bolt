@@ -1,3 +1,5 @@
+#![allow(dead_code)] // TODO: rm this
+
 use std::str::FromStr;
 
 use alloy::{

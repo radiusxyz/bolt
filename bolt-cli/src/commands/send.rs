@@ -54,11 +54,20 @@ impl SendCommand {
         };
         let tx_hash = B256::from(keccak256(&raw_tx));
 
+        // Note: it's possible for users to override the target sidecar URL
+        // for testing and development purposes. In most cases, the sidecar will
+        // reject a request for a slot that it is not responsible for.
+        let target_url = if let Some(sidecar_url) = self.override_bolt_sidecar_url {
+            sidecar_url.clone()
+        } else {
+            self.bolt_rpc_url.clone()
+        };
+
         send_rpc_request(
             vec![hex::encode(&raw_tx)],
             vec![tx_hash],
             next_preconfirmer_slot,
-            self.bolt_rpc_url,
+            target_url,
             &wallet,
         )
         .await?;
