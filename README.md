@@ -23,7 +23,8 @@
 <!-- vim-markdown-toc Marked -->
 
 - [How it works](#how-it-works)
-- [Repository structure](#repository-structure)
+- [Project structure](#project-structure)
+  - [Additional components](#additional-components)
 - [Kurtosis Devnet](#kurtosis-devnet)
   - [Requirements and setup](#requirements-and-setup)
   - [Running the devnet](#running-the-devnet-and-demo)
@@ -89,9 +90,9 @@ sequenceDiagram
 
 </details>
 
-## Repository structure
+## Project structure
 
-This monorepo contains all the necessary components of the Bolt protocol stack.
+This repository contains most of the necessary components of the Bolt protocol stack.
 In particular, the core components are:
 
 - [**Bolt Sidecar**](./bolt-sidecar/): New validator software (akin to [mev-boost][fb-mev-boost])
@@ -101,10 +102,6 @@ In particular, the core components are:
 - [**Builder**](./builder/): A fork of the [Flashbots builder][fb-builder] that
   subscribes to new constraints from relays, builds blocks that respect them, and
   includes the necessary proofs of inclusion in the bids submitted to relays.
-- [**MEV-Boost Relay**](./mev-boost-relay/): A fork of the [Flashbots relay][fb-relay] that
-  receives constraints from proposers, and forwards them to builders. It also
-  receives bids with proofs of inclusion from builders, verifies them and forwards
-  the best bid to proposers for block proposal.
 - [**MEV-Boost**](./mev-boost/): A fork of the [Flashbots MEV-Boost][fb-mev-boost] sidecar
   that includes new API endpoints to proxy requests from the Bolt Sidecar to the connected relays.
 - [**Bolt Contracts**](./bolt-contracts/): A set of smart contracts for peripheral functionality
@@ -114,15 +111,27 @@ In particular, the core components are:
 - [**Bolt CLI**](./bolt-cli/): A CLI tool to interact with Bolt contracts, register proposers,
   and submit transactions to the Bolt Sidecar.
 - [**Testnets**](./testnets/): A set of guides and scripts to deploy the Bolt contracts on testnets.
+- [**Scripts**](./scripts/): A collection of scripts to build and run the Kurtosis devnet locally.
 
-Additionally, this repository contains the necessary scripts to spin up a [Kurtosis][kurtosis]
-devnet with all the components running.
+### Additional components
 
-> [!NOTE]
-> Bolt also works with external components that aren't part of this repository,
-> such as [Helix][helix] by Gattaca, which will replace the MEV-Boost relay soon.
->
-> You can find the forked version of Helix [here](https://github.com/chainbound/helix).
+Bolt also relies on a few external components that are not part of this repository:
+
+- [**Ethereum Package**](https://github.com/chainbound/ethereum-package): A fork of the Kurtosis
+  Ethereum package that includes all necessary components to run the devnet.
+- [**Helix Relay**](https://github.com/chainbound/helix): A fork of the Gattaca Helix relay that
+  implements the Constraints API to proxy requests from the Bolt Sidecar to the connected builders.
+
+<details>
+<summary>List of legacy components that are not updated to the latest version of Bolt</summary>
+
+- [**Web demo**](https://github.com/chainbound/legacy-web-demo): A simple web interface to interact
+  with the Bolt Sidecar and submit preconfirmation requests to proposers for inclusion in blocks.
+- [**MEV-Boost-Relay**](https://github.com/chainbound/mev-boost-relay): A fork of the Flashbots
+  [MEV-Boost relay][fb-relay] that includes new API endpoints to proxy requests from the Bolt Sidecar
+  to the connected builders.
+
+</details>
 
 ## Kurtosis Devnet
 
