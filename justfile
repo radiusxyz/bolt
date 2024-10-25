@@ -124,22 +124,22 @@ grafana:
 
 # manually send a preconfirmation to the bolt devnet
 send-preconf count='1':
-    cd bolt-cli && RUST_LOG=info cargo run -- \
+    cd bolt-cli && RUST_LOG=info cargo run -- send \
         --devnet \
         --devnet.execution_url $(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc) \
         --devnet.beacon_url $(kurtosis port print bolt-devnet cl-1-lighthouse-geth http) \
         --devnet.sidecar_url http://$(kurtosis port print bolt-devnet bolt-sidecar-1-lighthouse-geth api) \
-        --private_key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
+        --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
         --count {{count}}
 
 # manually send a blob preconfirmation to the bolt devnet
 send-blob-preconf count='1':
-    cd bolt-cli && RUST_LOG=info cargo run -- \
+    cd bolt-cli && RUST_LOG=info cargo run -- send \
         --devnet \
         --devnet.execution_url $(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc) \
         --devnet.beacon_url $(kurtosis port print bolt-devnet cl-1-lighthouse-geth http) \
         --devnet.sidecar_url http://$(kurtosis port print bolt-devnet bolt-sidecar-1-lighthouse-geth api) \
-        --private_key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
+        --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
         --blob \
         --count {{count}}
 

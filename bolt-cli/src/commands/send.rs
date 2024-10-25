@@ -1,5 +1,7 @@
+use std::time::Duration;
+
 use alloy::{
-    consensus::{BlobTransactionSidecar, SidecarBuilder, SimpleCoder},
+    consensus::{BlobTransactionSidecar, SidecarBuilder, SimpleCoder, Transaction},
     eips::eip2718::Encodable2718,
     network::{EthereumWallet, TransactionBuilder, TransactionBuilder4844},
     primitives::{keccak256, Address, B256, U256},
@@ -66,15 +68,22 @@ impl SendCommand {
         let target_slot = lookahead_res[0].slot;
         info!("Target slot: {}", target_slot);
 
+        // Send the transactions to the Bolt sidecar
+        let mut next_nonce = None;
         for _ in 0..self.count {
             // generate a simple self-transfer of ETH
-            let req = create_tx_request(wallet.address(), self.blob);
+            let mut req = create_tx_request(wallet.address(), self.blob);
+            if let Some(next_nonce) = next_nonce {
+                req.set_nonce(next_nonce);
+            }
 
-            let raw_tx = match provider.fill(req).await.wrap_err("failed to fill transaction")? {
+            let (raw_tx, tx_hash) = match provider.fill(req).await.wrap_err("failed to fill")? {
                 SendableTx::Builder(_) => bail!("expected a raw transaction"),
-                SendableTx::Envelope(raw) => raw.encoded_2718(),
+                SendableTx::Envelope(raw) => {
+                    next_nonce = Some(raw.nonce() + 1);
+                    (raw.encoded_2718(), *raw.tx_hash())
+                }
             };
-            let tx_hash = B256::from(keccak256(&raw_tx));
 
             send_rpc_request(
                 vec![hex::encode(&raw_tx)],
@@ -84,6 +93,9 @@ impl SendCommand {
                 wallet,
             )
             .await?;
+
+            // Sleep for a bit to avoid spamming
+            tokio::time::sleep(Duration::from_millis(200)).await;
         }
 
         Ok(())
@@ -104,14 +116,21 @@ impl SendCommand {
         // Fetch the current slot from the devnet beacon node
         let slot = request_current_slot_number(&cl_url).await?;
 
-        // Send the transaction to the devnet sidecar
+        // Send the transactions to the devnet sidecar
+        let mut next_nonce = None;
         for _ in 0..self.count {
-            let req = create_tx_request(wallet.address(), self.blob);
-            let raw_tx = match provider.fill(req).await.wrap_err("failed to fill transaction")? {
+            let mut req = create_tx_request(wallet.address(), self.blob);
+            if let Some(next_nonce) = next_nonce {
+                req.set_nonce(next_nonce);
+            }
+
+            let (raw_tx, tx_hash) = match provider.fill(req).await.wrap_err("failed to fill")? {
                 SendableTx::Builder(_) => bail!("expected a raw transaction"),
-                SendableTx::Envelope(raw) => raw.encoded_2718(),
+                SendableTx::Envelope(raw) => {
+                    next_nonce = Some(raw.nonce() + 1);
+                    (raw.encoded_2718(), *raw.tx_hash())
+                }
             };
-            let tx_hash = B256::from(keccak256(&raw_tx));
 
             send_rpc_request(
                 vec![hex::encode(&raw_tx)],
@@ -121,6 +140,9 @@ impl SendCommand {
                 wallet,
             )
             .await?;
+
+            // Sleep for a bit to avoid spamming
+            tokio::time::sleep(Duration::from_millis(200)).await;
         }
 
         Ok(())
@@ -130,8 +152,8 @@ impl SendCommand {
 async fn request_current_slot_number(beacon_url: &Url) -> Result<u64> {
     let res = reqwest::get(beacon_url.join("eth/v1/beacon/headers/head")?).await?;
     let res = res.json::<Value>().await?;
-    let slot = res.pointer("/header/message/slot").wrap_err("missing slot")?;
-    slot.as_u64().wrap_err("slot is not a number")
+    let slot = res.pointer("/data/header/message/slot").wrap_err("missing slot")?;
+    Ok(slot.as_u64().unwrap_or(slot.as_str().wrap_err("invalid slot type")?.parse()?))
 }
 
 fn create_tx_request(to: Address, with_blob: bool) -> TransactionRequest {
@@ -142,7 +164,8 @@ fn create_tx_request(to: Address, with_blob: bool) -> TransactionRequest {
     if with_blob {
         let sidecar = SidecarBuilder::<SimpleCoder>::from_slice(b"Blobs are fun!");
         let sidecar: BlobTransactionSidecar = sidecar.build().unwrap();
-        req = req.with_blob_sidecar(sidecar)
+        req = req.with_blob_sidecar(sidecar);
+        req = req.with_max_fee_per_blob_gas(3_000_000);
     }
 
     req
