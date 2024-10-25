@@ -9,15 +9,7 @@ additional_services:
   - tx_spammer
   - blockscout
   - dora
-  # - assertoor
-  # - blob_spammer
-  # - custom_flood
-  # - goomy_blob
-  # - el_forkmon
-  # - beacon_metrics_gazer
-  # - full_beaconchain_explorer
   - prometheus_grafana
-  # - blobscan
 
 mev_type: full
 
@@ -26,12 +18,12 @@ mev_params:
   # Bolt-specific images:
   # Adding the `bolt_boost_image` will start the devnet with Bolt-Boost
   # instead of MEV-Boost by Flashbots
-  bolt_boost_image: ghcr.io/chainbound/bolt-boost:0.1.0
-  bolt_sidecar_image: ghcr.io/chainbound/bolt-sidecar:0.1.0
-  helix_relay_image: ghcr.io/chainbound/helix:0.1.0
-  mev_relay_image: ghcr.io/chainbound/bolt-relay:0.1.0
-  mev_builder_image: ghcr.io/chainbound/bolt-builder:0.1.0
-  mev_boost_image: ghcr.io/chainbound/bolt-mev-boost:0.1.0
+  bolt_boost_image: ghcr.io/chainbound/bolt-boost:$TAG
+  bolt_sidecar_image: ghcr.io/chainbound/bolt-sidecar:$TAG
+  helix_relay_image: ghcr.io/chainbound/helix:$TAG
+  mev_relay_image: ghcr.io/chainbound/bolt-relay:$TAG
+  mev_builder_image: ghcr.io/chainbound/bolt-builder:$TAG
+  mev_boost_image: ghcr.io/chainbound/bolt-mev-boost:$TAG
 
   mev_boost_args: []
   mev_relay_api_extra_args: []

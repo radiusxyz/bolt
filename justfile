@@ -15,9 +15,9 @@ demo:
 	./scripts/start-demo.sh
 
 # spin up the bolt devnet
-up:
+up env='latest':
 	chmod +x ./scripts/start-devnet.sh
-	./scripts/start-devnet.sh
+	./scripts/start-devnet.sh {{env}}
 
 # turn down the bolt devnet and remove the enclave
 down:
