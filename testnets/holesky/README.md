@@ -6,9 +6,9 @@ This document provides instructions for running the Bolt sidecar on the Holesky 
 
 * [Prerequisites](#prerequisites)
 * [Off-Chain Setup](#off-chain-setup)
-  * [Docker Mode (recommended)](#docker-mode-(recommended))
+  * [Docker Mode (recommended)](#docker-mode-recommended)
   * [Commit-Boost Mode](#commit-boost-mode)
-  * [Native Mode (advanced)](#native-mode-(advanced))
+  * [Native Mode (advanced)](#native-mode-advanced)
     * [Building and running the MEV-Boost fork binary](#building-and-running-the-mev-boost-fork-binary)
     * [Building and running the Bolt sidecar binary](#building-and-running-the-bolt-sidecar-binary)
       * [Configuration file](#configuration-file)
