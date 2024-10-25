@@ -28,5 +28,6 @@ geth --datadir=/var/lib/chaindata/geth \
         --builder \
         --builder.remote_relay_endpoint=http://helix-relay:4040 \
         --builder.beacon_endpoints=http://beacon:4000 \
+        --builder.genesis_fork_version=0x01017000 \
         --miner.etherbase=0x614561D2d143621E126e87831AEF287678B442b8 \
         --miner.extradata="Bolt Builder"
