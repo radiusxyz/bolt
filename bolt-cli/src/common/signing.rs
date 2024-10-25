@@ -1,4 +1,4 @@
-use alloy_primitives::B256;
+use alloy::primitives::B256;
 use blst::{min_pk::Signature, BLST_ERROR};
 use ethereum_consensus::{
     crypto::PublicKey as BlsPublicKey,

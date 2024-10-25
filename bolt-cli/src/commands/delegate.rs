@@ -1,5 +1,7 @@
-use alloy_primitives::B256;
-use alloy_signer::k256::sha2::{Digest, Sha256};
+use alloy::{
+    primitives::B256,
+    signers::k256::sha2::{Digest, Sha256},
+};
 use ethereum_consensus::crypto::{
     PublicKey as BlsPublicKey, SecretKey as BlsSecretKey, Signature as BlsSignature,
 };

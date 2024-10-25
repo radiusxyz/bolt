@@ -2,12 +2,12 @@ use clap::{
     builder::styling::{AnsiColor, Color, Style},
     Parser, Subcommand, ValueEnum,
 };
-use serde::Deserialize;
+use reqwest::Url;
 
 use crate::common::keystore::DEFAULT_KEYSTORE_PASSWORD;
 
 /// `bolt` is a CLI tool to interact with Bolt Protocol ✨
-#[derive(Parser, Debug, Clone, Deserialize)]
+#[derive(Parser, Debug, Clone)]
 #[command(author, version, styles = cli_styles(), about, arg_required_else_help(true))]
 pub struct Opts {
     /// The subcommand to run.
@@ -15,7 +15,7 @@ pub struct Opts {
     pub command: Commands,
 }
 
-#[derive(Subcommand, Debug, Clone, Deserialize)]
+#[derive(Subcommand, Debug, Clone)]
 pub enum Commands {
     /// Generate BLS delegation or revocation messages.
     Delegate(DelegateCommand),
@@ -28,7 +28,7 @@ pub enum Commands {
 }
 
 /// Command for generating BLS delegation or revocation messages.
-#[derive(Debug, Clone, Deserialize, Parser)]
+#[derive(Debug, Clone, Parser)]
 pub struct DelegateCommand {
     /// The BLS public key to which the delegation message should be signed.
     #[clap(long, env = "DELEGATEE_PUBKEY")]
@@ -53,7 +53,7 @@ pub struct DelegateCommand {
 }
 
 /// Command for outputting a list of pubkeys in JSON format.
-#[derive(Debug, Clone, Deserialize, Parser)]
+#[derive(Debug, Clone, Parser)]
 pub struct PubkeysCommand {
     /// The output file for the pubkeys.
     #[clap(long, env = "OUTPUT_FILE_PATH", default_value = "pubkeys.json")]
@@ -65,11 +65,11 @@ pub struct PubkeysCommand {
 }
 
 /// Command for sending a preconfirmation request to a Bolt proposer.
-#[derive(Debug, Clone, Deserialize, Parser)]
+#[derive(Debug, Clone, Parser)]
 pub struct SendCommand {
-    /// Bolt Sidecar RPC URL to send requests to.
-    #[clap(long, env = "SIDECAR_RPC_URL")]
-    pub sidecar_rpc_url: String,
+    /// Bolt RPC URL to send requests to and fetch lookahead info from.
+    #[clap(long, env = "BOLT_RPC_URL", default_value = "http://135.181.191.125:58017")]
+    pub bolt_rpc_url: Url,
 
     /// The private key to sign the transaction with.
     #[clap(long, env = "PRIVATE_KEY", hide_env_values = true)]
@@ -77,7 +77,7 @@ pub struct SendCommand {
 }
 
 /// The action to perform.
-#[derive(Debug, Clone, ValueEnum, Deserialize)]
+#[derive(Debug, Clone, ValueEnum)]
 #[clap(rename_all = "kebab_case")]
 pub enum Action {
     /// Create a delegation message.
@@ -86,7 +86,7 @@ pub enum Action {
     Revoke,
 }
 
-#[derive(Debug, Clone, Parser, Deserialize)]
+#[derive(Debug, Clone, Parser)]
 pub enum KeySource {
     /// Use local secret keys to generate the signed messages.
     SecretKeys {
@@ -112,7 +112,7 @@ pub enum KeySource {
 }
 
 /// Options for reading a keystore folder.
-#[derive(Debug, Clone, Deserialize, Parser)]
+#[derive(Debug, Clone, Parser)]
 pub struct LocalKeystoreOpts {
     /// The path to the keystore file.
     #[clap(long, env = "KEYSTORE_PATH", default_value = "validators")]
@@ -139,7 +139,7 @@ pub struct LocalKeystoreOpts {
 }
 
 /// Options for connecting to a DIRK keystore.
-#[derive(Debug, Clone, Deserialize, Parser)]
+#[derive(Debug, Clone, Parser)]
 pub struct DirkOpts {
     /// The URL of the DIRK keystore.
     #[clap(long, env = "DIRK_URL")]
@@ -160,7 +160,7 @@ pub struct DirkOpts {
 }
 
 /// TLS credentials for connecting to a remote server.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Parser)]
+#[derive(Debug, Clone, PartialEq, Eq, Parser)]
 pub struct TlsCredentials {
     /// Path to the client certificate file. (.crt)
     #[clap(long, env = "CLIENT_CERT_PATH")]
@@ -174,7 +174,7 @@ pub struct TlsCredentials {
 }
 
 /// Supported chains for the CLI
-#[derive(Debug, Clone, Copy, ValueEnum, Deserialize)]
+#[derive(Debug, Clone, Copy, ValueEnum)]
 #[clap(rename_all = "kebab_case")]
 pub enum Chain {
     Mainnet,
