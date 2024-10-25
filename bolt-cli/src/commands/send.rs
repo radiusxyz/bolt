@@ -16,7 +16,7 @@ use tracing::info;
 use crate::cli::SendCommand;
 
 /// Path to the lookahead endpoint on the Bolt RPC server.
-const BOLT_LOOKAHEAD_PATH: &str = "proposers/lookahead?activeOnly=true&futureOnly=true";
+const BOLT_LOOKAHEAD_PATH: &str = "proposers/lookahead";
 
 impl SendCommand {
     /// Run the `send` command.
@@ -30,7 +30,22 @@ impl SendCommand {
             .on_http(self.bolt_rpc_url.clone());
 
         // Fetch the lookahead info from the Bolt RPC server
-        let lookahead_url = self.bolt_rpc_url.join(BOLT_LOOKAHEAD_PATH)?;
+        let mut lookahead_url = self.bolt_rpc_url.join(BOLT_LOOKAHEAD_PATH)?;
+
+        // Note: it's possible for users to override the target sidecar URL
+        // for testing and development purposes. In most cases, the sidecar will
+        // reject a request for a slot that it is not responsible for.
+        let target_url = if let Some(sidecar_url) = self.override_bolt_sidecar_url {
+            // If using the override URL, we don't need to fetch the active proposers only.
+            // we will set the next slot as the target slot.
+            sidecar_url.clone()
+        } else {
+            // Filter out slots that are not active or in the past, to fetch the next
+            // active proposer slot.
+            lookahead_url.set_query(Some("activeOnly=true&futureOnly=true"));
+            self.bolt_rpc_url.clone()
+        };
+
         let lookahead_res = reqwest::get(lookahead_url).await?.json::<Vec<LookaheadSlot>>().await?;
         if lookahead_res.is_empty() {
             println!("no bolt proposer found in the lookahead, try again later 🥲");
@@ -38,8 +53,8 @@ impl SendCommand {
         }
 
         // Extract the next preconfirmer slot from the lookahead info
-        let next_preconfirmer_slot = lookahead_res[0].slot;
-        info!("Next preconfirmer slot: {}", next_preconfirmer_slot);
+        let target_slot = lookahead_res[0].slot;
+        info!("Target slot: {}", target_slot);
 
         // generate a simple self-transfer of ETH
         let random_data = rand::thread_rng().gen::<[u8; 32]>();
@@ -48,25 +63,16 @@ impl SendCommand {
             .with_value(U256::from(100_000))
             .with_input(random_data);
 
-        let raw_tx = match provider.fill(req).await? {
+        let raw_tx = match provider.fill(req).await.wrap_err("failed to fill transaction")? {
             SendableTx::Builder(_) => bail!("expected a raw transaction"),
             SendableTx::Envelope(raw) => raw.encoded_2718(),
         };
         let tx_hash = B256::from(keccak256(&raw_tx));
 
-        // Note: it's possible for users to override the target sidecar URL
-        // for testing and development purposes. In most cases, the sidecar will
-        // reject a request for a slot that it is not responsible for.
-        let target_url = if let Some(sidecar_url) = self.override_bolt_sidecar_url {
-            sidecar_url.clone()
-        } else {
-            self.bolt_rpc_url.clone()
-        };
-
         send_rpc_request(
             vec![hex::encode(&raw_tx)],
             vec![tx_hash],
-            next_preconfirmer_slot,
+            target_slot,
             target_url,
             &wallet,
         )
@@ -100,7 +106,8 @@ async fn send_rpc_request(
         .header("x-bolt-signature", signature)
         .body(serde_json::to_string(&request)?)
         .send()
-        .await?;
+        .await
+        .wrap_err("failed to send POST request")?;
 
     let response = response.text().await?;
 
@@ -144,8 +151,9 @@ pub struct LookaheadSlot {
     pub slot: u64,
     /// Validator index that will propose in this slot
     pub validator_index: u64,
-    /// Validator pubkey that will propose in this slot
-    pub validator_pubkey: String,
+    // TODO: add pubkey back once it's added in the rpc
+    // /// Validator pubkey that will propose in this slot
+    // pub validator_pubkey: String,
     /// Optional URL of the Bolt sidecar associated with the proposer
     pub sidecar_url: Option<String>,
 }

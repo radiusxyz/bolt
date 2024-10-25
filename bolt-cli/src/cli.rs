@@ -68,7 +68,7 @@ pub struct PubkeysCommand {
 #[derive(Debug, Clone, Parser)]
 pub struct SendCommand {
     /// Bolt RPC URL to send requests to and fetch lookahead info from.
-    #[clap(long, env = "BOLT_RPC_URL", default_value = "http://135.181.191.125:58017")]
+    #[clap(long, env = "BOLT_RPC_URL", default_value = "http://135.181.191.125:58017/rpc")]
     pub bolt_rpc_url: Url,
 
     /// The private key to sign the transaction with.
