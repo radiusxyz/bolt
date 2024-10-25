@@ -123,7 +123,7 @@ Bolt also relies on a few external components that are not part of this reposito
 <details>
 <summary>List of legacy components that are not updated to the latest version of Bolt:</summary>
 
-- [**Web demo**](https://github.com/chainbound/legacy-web-demo): A simple web interface to interact
+- [**Web demo**](https://github.com/chainbound/bolt-web-demo-legacy): A simple web interface to interact
   with the Bolt Sidecar and submit preconfirmation requests to proposers for inclusion in blocks.
 - [**MEV-Boost-Relay**](https://github.com/chainbound/mev-boost-relay): A fork of the Flashbots
   [MEV-Boost relay][fb-relay] that includes new API endpoints to proxy requests from the Bolt Sidecar
