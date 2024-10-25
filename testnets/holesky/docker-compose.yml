@@ -56,3 +56,12 @@ volumes:
     driver: local
   grafana-data:
     driver: local
+
+networks:
+  bolt-default:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.56.0.0/16
+          gateway: 172.56.0.1
