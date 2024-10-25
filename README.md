@@ -99,11 +99,6 @@ In particular, the core components are:
   that handles the receipt of preconfirmation requests from users, translates them
   into _constraints_, and forwards them to relays. Additionally, it handles the
   fallback logic to produce a block locally when relays send invalid inclusion proofs.
-- [**Builder**](./builder/): A fork of the [Flashbots builder][fb-builder] that
-  subscribes to new constraints from relays, builds blocks that respect them, and
-  includes the necessary proofs of inclusion in the bids submitted to relays.
-- [**MEV-Boost**](./mev-boost/): A fork of the [Flashbots MEV-Boost][fb-mev-boost] sidecar
-  that includes new API endpoints to proxy requests from the Bolt Sidecar to the connected relays.
 - [**Bolt Contracts**](./bolt-contracts/): A set of smart contracts for peripheral functionality
   such as proposer registration and permissionless dispute resolution for attributable faults.
 - [**Bolt Boost**](./bolt-boost/): A [Commit-Boost][commit-boost] module that implements the Constraints-API.
@@ -119,6 +114,11 @@ Bolt also relies on a few external components that are not part of this reposito
   Ethereum package with custom components for Bolt.
 - [**Helix Relay**](https://github.com/chainbound/helix): A fork of the [Gattaca Helix][helix] relay that
   implements the Constraints API to proxy requests from the Bolt Sidecar to the connected builders.
+- [**Bolt Builder**](https://github.com/chainbound/bolt-builder): A fork of the [Flashbots builder][fb-builder] that
+  subscribes to new constraints from relays, builds blocks that respect them, and
+  includes the necessary proofs of inclusion in the bids submitted to relays.
+- [**Bolt MEV-Boost**](https://github.com/chainbound/bolt-mev-boost): A fork of the [Flashbots MEV-Boost][fb-mev-boost]
+  sidecar that includes new API endpoints to proxy requests from the Bolt Sidecar to the connected relays.
 
 <details>
 <summary>List of legacy components that are not updated to the latest version of Bolt:</summary>

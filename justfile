@@ -145,27 +145,12 @@ send-blob-preconf count='1':
 
 # build all the docker images locally
 build-images:
-	@just _build-builder
-	@just _build-relay
 	@just _build-sidecar
-	@just _build-mevboost
 	@just _build-bolt-boost
-
-# build the docker image for the bolt builder
-_build-builder:
-	cd builder && docker build -t ghcr.io/chainbound/bolt-builder:0.1.0 . --load
-
-# build the docker image for the bolt relay
-_build-relay:
-	cd mev-boost-relay && docker build -t ghcr.io/chainbound/bolt-relay:0.1.0 . --load
 
 # build the docker image for the bolt sidecar
 _build-sidecar:
 	cd bolt-sidecar && docker build -t ghcr.io/chainbound/bolt-sidecar:0.1.0 . --load
-
-# build the docker image for the bolt mev-boost sidecar
-_build-mevboost:
-	cd mev-boost && docker build -t ghcr.io/chainbound/bolt-mev-boost:0.1.0 . --load
 
 # build the docker image for bolt-boost
 _build-bolt-boost:
@@ -193,6 +178,3 @@ stop-sidecar-dev chain:
 release tag:
     chmod +x ./scripts/check_version_bumps.sh && ./scripts/check_version_bumps.sh {{tag}}
     cd bolt-sidecar && docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/chainbound/bolt-sidecar:{{tag}} --push .
-    cd mev-boost-relay && docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/chainbound/bolt-relay:{{tag}} --push .
-    cd builder && docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/chainbound/bolt-builder:{{tag}} --push .
-    cd mev-boost && docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/chainbound/bolt-mev-boost:{{tag}} --push .
