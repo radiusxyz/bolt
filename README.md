@@ -106,10 +106,8 @@ In particular, the core components are:
   that includes new API endpoints to proxy requests from the Bolt Sidecar to the connected relays.
 - [**Bolt Contracts**](./bolt-contracts/): A set of smart contracts for peripheral functionality
   such as proposer registration and permissionless dispute resolution for attributable faults.
-- [**Bolt Boost**](./bolt-boost/): A [Commit-Boost][commit-boost] module that implements the
-  Constraints-API and is compatible with the Bolt Sidecar.
-- [**Bolt CLI**](./bolt-cli/): A CLI tool to interact with Bolt contracts, register proposers,
-  and submit transactions to the Bolt Sidecar.
+- [**Bolt Boost**](./bolt-boost/): A [Commit-Boost][commit-boost] module that implements the Constraints-API.
+- [**Bolt CLI**](./bolt-cli/): A CLI tool to interact with Bolt components in a safe and easy way.
 - [**Testnets**](./testnets/): A set of guides and scripts to deploy the Bolt contracts on testnets.
 - [**Scripts**](./scripts/): A collection of scripts to build and run the Kurtosis devnet locally.
 
@@ -118,12 +116,12 @@ In particular, the core components are:
 Bolt also relies on a few external components that are not part of this repository:
 
 - [**Ethereum Package**](https://github.com/chainbound/ethereum-package): A fork of the Kurtosis
-  Ethereum package that includes all necessary components to run the devnet.
-- [**Helix Relay**](https://github.com/chainbound/helix): A fork of the Gattaca Helix relay that
+  Ethereum package with custom components for Bolt.
+- [**Helix Relay**](https://github.com/chainbound/helix): A fork of the [Gattaca Helix][helix] relay that
   implements the Constraints API to proxy requests from the Bolt Sidecar to the connected builders.
 
 <details>
-<summary>List of legacy components that are not updated to the latest version of Bolt</summary>
+<summary>List of legacy components that are not updated to the latest version of Bolt:</summary>
 
 - [**Web demo**](https://github.com/chainbound/legacy-web-demo): A simple web interface to interact
   with the Bolt Sidecar and submit preconfirmation requests to proposers for inclusion in blocks.
