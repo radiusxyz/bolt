@@ -25,6 +25,7 @@ async fn main() -> Result<()> {
     match cli.command {
         Commands::Delegate(cmd) => cmd.run().await?,
         Commands::Pubkeys(cmd) => cmd.run().await?,
+        Commands::Send(cmd) => cmd.run().await?,
     }
 
     Ok(())

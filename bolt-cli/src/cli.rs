@@ -22,6 +22,9 @@ pub enum Commands {
 
     /// Output a list of pubkeys in JSON format.
     Pubkeys(PubkeysCommand),
+
+    /// Send a preconfirmation request to a Bolt proposer.
+    Send(SendCommand),
 }
 
 /// Command for generating BLS delegation or revocation messages.
@@ -59,6 +62,18 @@ pub struct PubkeysCommand {
     /// The source of the private keys from which to extract the pubkeys.
     #[clap(subcommand)]
     pub source: KeySource,
+}
+
+/// Command for sending a preconfirmation request to a Bolt proposer.
+#[derive(Debug, Clone, Deserialize, Parser)]
+pub struct SendCommand {
+    /// Bolt Sidecar RPC URL to send requests to.
+    #[clap(long, env = "SIDECAR_RPC_URL")]
+    pub sidecar_rpc_url: String,
+
+    /// The private key to sign the transaction with.
+    #[clap(long, env = "PRIVATE_KEY", hide_env_values = true)]
+    pub private_key: String,
 }
 
 /// The action to perform.
