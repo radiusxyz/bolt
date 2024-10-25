@@ -24,7 +24,7 @@ pub enum Cmd {
     Pubkeys(PubkeysCommand),
 
     /// Send a preconfirmation request to a Bolt proposer.
-    Send(SendCommand),
+    Send(Box<SendCommand>),
 }
 
 impl Cmd {
@@ -100,6 +100,23 @@ pub struct SendCommand {
     /// If set, the transaction will be blob-carrying (type 3)
     #[clap(long, env = "BLOB", default_value = "false")]
     pub blob: bool,
+
+    /// If set, the transaction will target the devnet environment.
+    /// This is only used in Kurtosis for internal testing purposes
+    #[clap(long, hide = true, env = "DEVNET", default_value = "false")]
+    pub devnet: bool,
+
+    /// The URL of the devnet execution client for filling transactions
+    #[clap(long = "devnet.execution_url", hide = true)]
+    pub devnet_execution_url: Option<Url>,
+
+    /// The URL of the devnet beacon node for fetching slot numbers
+    #[clap(long = "devnet.beacon_url", hide = true)]
+    pub devnet_beacon_url: Option<Url>,
+
+    /// The URL of the devnet sidecar for sending transactions
+    #[clap(long = "devnet.sidecar_url", hide = true)]
+    pub devnet_sidecar_url: Option<Url>,
 }
 
 /// The action to perform.

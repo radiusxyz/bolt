@@ -7,7 +7,7 @@ use alloy::{
     rpc::types::TransactionRequest,
     signers::{local::PrivateKeySigner, Signer},
 };
-use eyre::{bail, Context, Result};
+use eyre::{bail, Context, ContextCompat, Result};
 use rand::Rng;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
@@ -23,8 +23,17 @@ impl SendCommand {
     /// Run the `send` command.
     pub async fn run(self) -> Result<()> {
         let wallet: PrivateKeySigner = self.private_key.parse().wrap_err("invalid private key")?;
-        let transaction_signer = EthereumWallet::from(wallet.clone());
 
+        if self.devnet {
+            self.send_devnet_transaction(&wallet).await
+        } else {
+            self.send_transaction(&wallet).await
+        }
+    }
+
+    /// Send a transaction.
+    async fn send_transaction(self, wallet: &PrivateKeySigner) -> Result<()> {
+        let transaction_signer = EthereumWallet::from(wallet.clone());
         let provider = ProviderBuilder::new()
             .with_recommended_fillers()
             .wallet(transaction_signer)
@@ -36,7 +45,7 @@ impl SendCommand {
         // Note: it's possible for users to override the target sidecar URL
         // for testing and development purposes. In most cases, the sidecar will
         // reject a request for a slot that it is not responsible for.
-        let target_url = if let Some(sidecar_url) = self.override_bolt_sidecar_url {
+        let target_url = if let Some(sidecar_url) = &self.override_bolt_sidecar_url {
             // If using the override URL, we don't need to fetch the active proposers only.
             // we will set the next slot as the target slot.
             sidecar_url.clone()
@@ -72,13 +81,57 @@ impl SendCommand {
                 vec![tx_hash],
                 target_slot,
                 target_url.clone(),
-                &wallet,
+                wallet,
             )
             .await?;
         }
 
         Ok(())
     }
+
+    /// Send a transaction on the Kurtosis devnet.
+    async fn send_devnet_transaction(self, wallet: &PrivateKeySigner) -> Result<()> {
+        let transaction_signer = EthereumWallet::from(wallet.clone());
+        let el_url = self.devnet_execution_url.clone().wrap_err("missing devnet execution URL")?;
+        let cl_url = self.devnet_beacon_url.clone().wrap_err("missing devnet beacon URL")?;
+        let sidecar_url = self.devnet_sidecar_url.clone().wrap_err("missing devnet sidecar URL")?;
+
+        let provider = ProviderBuilder::new()
+            .with_recommended_fillers()
+            .wallet(transaction_signer)
+            .on_http(el_url);
+
+        // Fetch the current slot from the devnet beacon node
+        let slot = request_current_slot_number(&cl_url).await?;
+
+        // Send the transaction to the devnet sidecar
+        for _ in 0..self.count {
+            let req = create_tx_request(wallet.address(), self.blob);
+            let raw_tx = match provider.fill(req).await.wrap_err("failed to fill transaction")? {
+                SendableTx::Builder(_) => bail!("expected a raw transaction"),
+                SendableTx::Envelope(raw) => raw.encoded_2718(),
+            };
+            let tx_hash = B256::from(keccak256(&raw_tx));
+
+            send_rpc_request(
+                vec![hex::encode(&raw_tx)],
+                vec![tx_hash],
+                slot + 2,
+                sidecar_url.clone(),
+                wallet,
+            )
+            .await?;
+        }
+
+        Ok(())
+    }
+}
+
+async fn request_current_slot_number(beacon_url: &Url) -> Result<u64> {
+    let res = reqwest::get(beacon_url.join("eth/v1/beacon/headers/head")?).await?;
+    let res = res.json::<Value>().await?;
+    let slot = res.pointer("/header/message/slot").wrap_err("missing slot")?;
+    slot.as_u64().wrap_err("slot is not a number")
 }
 
 fn create_tx_request(to: Address, with_blob: bool) -> TransactionRequest {
