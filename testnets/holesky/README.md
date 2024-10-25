@@ -224,6 +224,19 @@ This will run all modules in Docker containers.
 > with `BOLT_SIDECAR_BUILDER_PROXY_PORT`), and your beacon node MUST be
 > configured to point the `builder-api` to this port for Bolt to work.
 
+**Observability**
+
+Commit-Boost comes with various observability tools, such as Prometheus,
+cadvisor, and Grafana. It also comes with some pre-built dashboards, which can
+be found in the `commit-boost/grafana` directory.
+
+To update these dashboards, run the following command from the `commit-boost`
+directory:
+
+`bash ./update-grafana.sh `
+In this directory, you can also find a Bolt dashboard, which will be launched
+alongside the other dashboards.
+
 ## Native Mode (advanced)
 
 For running the Bolt Sidecar as a standalone binary you need to have the
