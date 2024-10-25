@@ -344,7 +344,7 @@ to configure such sidecar options properly.
 After you've set up the configuration file you can run the Bolt sidecar with
 
 ```bash
-./bolt-sidecar-cli
+./bolt-sidecar
 ```
 
 ### Observability
