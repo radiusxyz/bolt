@@ -38,6 +38,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - bolt-default
     command:
       - --housekeeping_interval=10s
       - --docker_only
@@ -51,6 +53,8 @@ services:
       - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
       - ./grafana/datasources:/etc/grafana/provisioning/datasources
       - grafana-data:/var/lib/grafana
+    networks:
+      - bolt-default
     depends_on:
       - bolt-prometheus-holesky
 
