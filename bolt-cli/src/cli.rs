@@ -92,6 +92,10 @@ pub struct SendCommand {
     /// This is useful for testing and development purposes.
     #[clap(long, env = "OVERRIDE_BOLT_SIDECAR_URL")]
     pub override_bolt_sidecar_url: Option<Url>,
+
+    /// How many transactions to send.
+    #[clap(long, env = "TRANSACTION_COUNT", default_value = "1")]
+    pub count: u32,
 }
 
 /// The action to perform.

@@ -56,27 +56,29 @@ impl SendCommand {
         let target_slot = lookahead_res[0].slot;
         info!("Target slot: {}", target_slot);
 
-        // generate a simple self-transfer of ETH
-        let random_data = rand::thread_rng().gen::<[u8; 32]>();
-        let req = TransactionRequest::default()
-            .with_to(wallet.address())
-            .with_value(U256::from(100_000))
-            .with_input(random_data);
+        for _ in 0..self.count {
+            // generate a simple self-transfer of ETH
+            let random_data = rand::thread_rng().gen::<[u8; 32]>();
+            let req = TransactionRequest::default()
+                .with_to(wallet.address())
+                .with_value(U256::from(100_000))
+                .with_input(random_data);
 
-        let raw_tx = match provider.fill(req).await.wrap_err("failed to fill transaction")? {
-            SendableTx::Builder(_) => bail!("expected a raw transaction"),
-            SendableTx::Envelope(raw) => raw.encoded_2718(),
-        };
-        let tx_hash = B256::from(keccak256(&raw_tx));
+            let raw_tx = match provider.fill(req).await.wrap_err("failed to fill transaction")? {
+                SendableTx::Builder(_) => bail!("expected a raw transaction"),
+                SendableTx::Envelope(raw) => raw.encoded_2718(),
+            };
+            let tx_hash = B256::from(keccak256(&raw_tx));
 
-        send_rpc_request(
-            vec![hex::encode(&raw_tx)],
-            vec![tx_hash],
-            target_slot,
-            target_url,
-            &wallet,
-        )
-        .await?;
+            send_rpc_request(
+                vec![hex::encode(&raw_tx)],
+                vec![tx_hash],
+                target_slot,
+                target_url.clone(),
+                &wallet,
+            )
+            .await?;
+        }
 
         Ok(())
     }
