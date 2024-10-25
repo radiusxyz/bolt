@@ -1,7 +1,8 @@
 use alloy::{
+    consensus::{BlobTransactionSidecar, SidecarBuilder, SimpleCoder},
     eips::eip2718::Encodable2718,
-    network::{EthereumWallet, TransactionBuilder},
-    primitives::{keccak256, B256, U256},
+    network::{EthereumWallet, TransactionBuilder, TransactionBuilder4844},
+    primitives::{keccak256, Address, B256, U256},
     providers::{ProviderBuilder, SendableTx},
     rpc::types::TransactionRequest,
     signers::{local::PrivateKeySigner, Signer},
@@ -58,11 +59,7 @@ impl SendCommand {
 
         for _ in 0..self.count {
             // generate a simple self-transfer of ETH
-            let random_data = rand::thread_rng().gen::<[u8; 32]>();
-            let req = TransactionRequest::default()
-                .with_to(wallet.address())
-                .with_value(U256::from(100_000))
-                .with_input(random_data);
+            let req = create_tx_request(wallet.address(), self.blob);
 
             let raw_tx = match provider.fill(req).await.wrap_err("failed to fill transaction")? {
                 SendableTx::Builder(_) => bail!("expected a raw transaction"),
@@ -82,6 +79,20 @@ impl SendCommand {
 
         Ok(())
     }
+}
+
+fn create_tx_request(to: Address, with_blob: bool) -> TransactionRequest {
+    let mut req = TransactionRequest::default();
+    req = req.with_to(to).with_value(U256::from(100_000));
+    req = req.with_input(rand::thread_rng().gen::<[u8; 32]>());
+
+    if with_blob {
+        let sidecar = SidecarBuilder::<SimpleCoder>::from_slice(b"Blobs are fun!");
+        let sidecar: BlobTransactionSidecar = sidecar.build().unwrap();
+        req = req.with_blob_sidecar(sidecar)
+    }
+
+    req
 }
 
 async fn send_rpc_request(

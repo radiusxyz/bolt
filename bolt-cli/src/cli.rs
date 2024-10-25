@@ -96,6 +96,10 @@ pub struct SendCommand {
     /// How many transactions to send.
     #[clap(long, env = "TRANSACTION_COUNT", default_value = "1")]
     pub count: u32,
+
+    /// If set, the transaction will be blob-carrying (type 3)
+    #[clap(long, env = "BLOB", default_value = "false")]
+    pub blob: bool,
 }
 
 /// The action to perform.
