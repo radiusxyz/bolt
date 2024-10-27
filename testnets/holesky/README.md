@@ -220,8 +220,8 @@ commit-boost start --docker cb.docker-compose.yml --env .cb.env
 This will run all modules in Docker containers.
 
 > [!IMPORTANT]
-> The `bolt-boost` service will be exposed at `pbs.port` (18551 by default, set
-> with `BOLT_SIDECAR_BUILDER_PROXY_PORT`), and your beacon node MUST be
+> The `bolt-sidecar` service will be exposed at 18551 by default, set
+> with `BOLT_SIDECAR_BUILDER_PROXY_PORT`, and your beacon node MUST be
 > configured to point the `builder-api` to this port for Bolt to work.
 
 **Observability**
