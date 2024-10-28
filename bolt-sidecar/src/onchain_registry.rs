@@ -72,6 +72,13 @@ impl BoltManager {
             .into())
         }
     }
+
+    /// Checks if an address is an operator registered in Bolt.
+    pub async fn is_operator(&self, operator: Address) -> ContractResult<bool> {
+        let returndata = self.0.isOperator(operator).call().await;
+
+        returndata.map(|data| data._0)
+    }
 }
 
 sol! {
@@ -88,6 +95,8 @@ sol! {
         }
 
         function getProposerStatus(bytes32 pubkeyHash) external view returns (ProposerStatus memory);
+
+        function isOperator( address operator) external view returns (bool);
 
         error InvalidQuery();
         error ValidatorDoesNotExist();
