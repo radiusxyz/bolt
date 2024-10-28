@@ -90,7 +90,7 @@ or **authorized delegates** acting on their behalf, to issue and sign preconfirm
 To learn more about delegation, check out the [Delegations and Signing](#delegations-and-signing-options-for-native-and-docker-compose-mode)
 section.
 
-> [!INFO]
+> [!NOTE]
 > Before moving on to the actual instructions, please note that the on-chain steps must be completed before running the off-chain
 > infrastructure. The sidecar will verify that all of the associated validators and operator have been registered in the Bolt contracts,
 > else it will fail (for safety reasons).
