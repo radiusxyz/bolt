@@ -1,4 +1,8 @@
-use std::time::Duration;
+use core::fmt;
+use std::{
+    fmt::{Display, Formatter},
+    time::Duration,
+};
 
 use clap::{Args, ValueEnum};
 use ethereum_consensus::deneb::{compute_fork_data_root, Root};
@@ -20,38 +24,52 @@ pub const APPLICATION_BUILDER_DOMAIN_MASK: [u8; 4] = [0, 0, 0, 1];
 /// The domain mask for signing commit-boost messages.
 pub const COMMIT_BOOST_DOMAIN_MASK: [u8; 4] = [109, 109, 111, 67];
 
+pub const DEFAULT_CHAIN_CONFIG: ChainConfig = ChainConfig {
+    chain: Chain::Mainnet,
+    commitment_deadline: DEFAULT_COMMITMENT_DEADLINE_IN_MILLIS,
+    slot_time: DEFAULT_SLOT_TIME_IN_SECONDS,
+    enable_unsafe_lookahead: false,
+};
+
 /// Configuration for the chain the sidecar is running on.
-/// This allows to customize the slot time for custom Kurtosis devnets.
 #[derive(Debug, Clone, Copy, Args, Deserialize)]
 pub struct ChainConfig {
     /// Chain on which the sidecar is running
-    #[clap(long, env = "BOLT_SIDECAR_CHAIN", default_value = "mainnet")]
-    chain: Chain,
+    #[clap(
+        long,
+        env = "BOLT_SIDECAR_CHAIN",
+        default_value_t = DEFAULT_CHAIN_CONFIG.chain
+    )]
+    pub(crate) chain: Chain,
     /// The deadline in the slot at which the sidecar will stop accepting
     /// new commitments for the next block (parsed as milliseconds).
     #[clap(
         long,
         env = "BOLT_SIDECAR_COMMITMENT_DEADLINE",
-        default_value_t = DEFAULT_COMMITMENT_DEADLINE_IN_MILLIS
+        default_value_t = DEFAULT_CHAIN_CONFIG.commitment_deadline
     )]
-    commitment_deadline: u64,
+    pub(crate) commitment_deadline: u64,
     /// The slot time duration in seconds. If provided,
     /// it overrides the default for the selected [Chain].
     #[clap(
         long,
         env = "BOLT_SIDECAR_SLOT_TIME",
-        default_value_t = DEFAULT_SLOT_TIME_IN_SECONDS
+        default_value_t = DEFAULT_CHAIN_CONFIG.slot_time,
     )]
-    slot_time: u64,
+    pub(crate) slot_time: u64,
+    /// Toggle to enable unsafe lookahead for the sidecar. If `true`, commitments requests will be
+    /// validated against a two-epoch lookahead window.
+    #[clap(
+        long,
+        env = "BOLT_SIDECAR_ENABLE_UNSAFE_LOOKAHEAD",
+        default_value_t = DEFAULT_CHAIN_CONFIG.enable_unsafe_lookahead
+    )]
+    pub(crate) enable_unsafe_lookahead: bool,
 }
 
 impl Default for ChainConfig {
     fn default() -> Self {
-        Self {
-            chain: Chain::Mainnet,
-            commitment_deadline: DEFAULT_COMMITMENT_DEADLINE_IN_MILLIS,
-            slot_time: DEFAULT_SLOT_TIME_IN_SECONDS,
-        }
+        DEFAULT_CHAIN_CONFIG
     }
 }
 
@@ -63,6 +81,33 @@ pub enum Chain {
     Holesky,
     Helder,
     Kurtosis,
+}
+
+impl Chain {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Chain::Mainnet => "mainnet",
+            Chain::Holesky => "holesky",
+            Chain::Helder => "helder",
+            Chain::Kurtosis => "kurtosis",
+        }
+    }
+
+    /// Get the fork version for the given chain.
+    pub fn fork_version(&self) -> [u8; 4] {
+        match self {
+            Chain::Mainnet => [0, 0, 0, 0],
+            Chain::Holesky => [1, 1, 112, 0],
+            Chain::Helder => [16, 0, 0, 0],
+            Chain::Kurtosis => [16, 0, 0, 56],
+        }
+    }
+}
+
+impl Display for Chain {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name())
+    }
 }
 
 impl ChainConfig {
@@ -78,12 +123,7 @@ impl ChainConfig {
 
     /// Get the chain name for the given chain.
     pub fn name(&self) -> &'static str {
-        match self.chain {
-            Chain::Mainnet => "mainnet",
-            Chain::Holesky => "holesky",
-            Chain::Helder => "helder",
-            Chain::Kurtosis => "kurtosis",
-        }
+        self.chain.name()
     }
 
     /// Get the slot time for the given chain in seconds.
@@ -101,16 +141,6 @@ impl ChainConfig {
         self.compute_domain_from_mask(COMMIT_BOOST_DOMAIN_MASK)
     }
 
-    /// Get the fork version for the given chain.
-    pub fn fork_version(&self) -> [u8; 4] {
-        match self.chain {
-            Chain::Mainnet => [0, 0, 0, 0],
-            Chain::Holesky => [1, 1, 112, 0],
-            Chain::Helder => [16, 0, 0, 0],
-            Chain::Kurtosis => [16, 0, 0, 56],
-        }
-    }
-
     /// Get the commitment deadline duration for the given chain.
     pub fn commitment_deadline(&self) -> Duration {
         Duration::from_millis(self.commitment_deadline)
@@ -120,7 +150,7 @@ impl ChainConfig {
     fn compute_domain_from_mask(&self, mask: [u8; 4]) -> [u8; 32] {
         let mut domain = [0; 32];
 
-        let fork_version = self.fork_version();
+        let fork_version = self.chain.fork_version();
 
         // Note: the application builder domain specs require the genesis_validators_root
         // to be 0x00 for any out-of-protocol message. The commit-boost domain follows the
@@ -149,7 +179,12 @@ impl ChainConfig {
     }
 
     pub fn kurtosis(slot_time_in_seconds: u64, commitment_deadline: u64) -> Self {
-        Self { chain: Chain::Kurtosis, slot_time: slot_time_in_seconds, commitment_deadline }
+        Self {
+            chain: Chain::Kurtosis,
+            slot_time: slot_time_in_seconds,
+            commitment_deadline,
+            ..Default::default()
+        }
     }
 }
 
