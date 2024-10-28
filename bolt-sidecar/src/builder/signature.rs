@@ -122,25 +122,25 @@ mod tests {
     fn test_compute_builder_domain() {
         let mainnet = ChainConfig::mainnet();
         assert_eq!(
-            compute_builder_domain(mainnet.fork_version(), None),
+            compute_builder_domain(mainnet.chain.fork_version(), None),
             mainnet.application_builder_domain()
         );
 
         let holesky = ChainConfig::holesky();
         assert_eq!(
-            compute_builder_domain(holesky.fork_version(), None),
+            compute_builder_domain(holesky.chain.fork_version(), None),
             holesky.application_builder_domain()
         );
 
         let kurtosis = ChainConfig::kurtosis(0, 0);
         assert_eq!(
-            compute_builder_domain(kurtosis.fork_version(), None),
+            compute_builder_domain(kurtosis.chain.fork_version(), None),
             kurtosis.application_builder_domain()
         );
 
         let helder = ChainConfig::helder();
         assert_eq!(
-            compute_builder_domain(helder.fork_version(), None),
+            compute_builder_domain(helder.chain.fork_version(), None),
             helder.application_builder_domain()
         );
     }

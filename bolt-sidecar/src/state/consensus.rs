@@ -5,6 +5,7 @@ use std::{
 
 use beacon_api_client::{mainnet::Client, ProposerDuty};
 use ethereum_consensus::{crypto::PublicKey as BlsPublicKey, phase0::mainnet::SLOTS_PER_EPOCH};
+use tokio::join;
 use tracing::debug;
 
 use super::CommitmentDeadline;
@@ -32,10 +33,15 @@ pub enum ConsensusError {
 
 /// Represents an epoch in the beacon chain.
 #[derive(Debug, Default)]
-#[allow(missing_docs)]
-pub struct Epoch {
+struct Epoch {
+    /// The epoch number
     pub value: u64,
+    /// The start slot of the epoch
     pub start_slot: Slot,
+    /// The proposer duties of the epoch.
+    ///
+    /// NOTE: if the unsafe lookhead flag is enabled, then this field represents the proposer
+    /// duties also for the next epoch.
     pub proposer_duties: Vec<ProposerDuty>,
 }
 
@@ -58,6 +64,8 @@ pub struct ConsensusState {
     pub commitment_deadline: CommitmentDeadline,
     /// The duration of the commitment deadline.
     commitment_deadline_duration: Duration,
+    /// If commitment requests should be validated also against the unsafe lookahead
+    pub unsafe_lookahead_enabled: bool,
 }
 
 impl fmt::Debug for ConsensusState {
@@ -77,6 +85,7 @@ impl ConsensusState {
         beacon_api_client: BeaconClient,
         validator_indexes: ValidatorIndexes,
         commitment_deadline_duration: Duration,
+        unsafe_lookahead_enabled: bool,
     ) -> Self {
         ConsensusState {
             beacon_api_client,
@@ -86,6 +95,7 @@ impl ConsensusState {
             latest_slot_timestamp: Instant::now(),
             commitment_deadline: CommitmentDeadline::new(0, commitment_deadline_duration),
             commitment_deadline_duration,
+            unsafe_lookahead_enabled,
         }
     }
 
@@ -101,14 +111,14 @@ impl ConsensusState {
     ) -> Result<BlsPublicKey, ConsensusError> {
         let CommitmentRequest::Inclusion(req) = request;
 
-        // Check if the slot is in the current epoch
-        if req.slot < self.epoch.start_slot || req.slot >= self.epoch.start_slot + SLOTS_PER_EPOCH {
+        // Check if the slot is in the current epoch or next epoch (if unsafe lookahead is enabled)
+        if req.slot < self.epoch.start_slot || req.slot >= self.furthest_slot() {
             return Err(ConsensusError::InvalidSlot(req.slot));
         }
 
         // If the request is for the next slot, check if it's within the commitment deadline
-        if req.slot == self.latest_slot + 1 &&
-            self.latest_slot_timestamp + self.commitment_deadline_duration < Instant::now()
+        if req.slot == self.latest_slot + 1
+            && self.latest_slot_timestamp + self.commitment_deadline_duration < Instant::now()
         {
             return Err(ConsensusError::DeadlineExceeded);
         }
@@ -151,11 +161,27 @@ impl ConsensusState {
         Ok(())
     }
 
-    /// Fetch proposer duties for the given epoch.
+    /// Fetch proposer duties for the given epoch and the next one if the unsafe lookahead flag is set
     async fn fetch_proposer_duties(&mut self, epoch: u64) -> Result<(), ConsensusError> {
-        let duties = self.beacon_api_client.get_proposer_duties(epoch).await?;
+        let duties = if self.unsafe_lookahead_enabled {
+            let two_epoch_duties = join!(
+                self.beacon_api_client.get_proposer_duties(epoch),
+                self.beacon_api_client.get_proposer_duties(epoch + 1)
+            );
 
-        self.epoch.proposer_duties = duties.1;
+            match two_epoch_duties {
+                (Ok((_, mut duties)), Ok((_, next_duties))) => {
+                    duties.extend(next_duties);
+                    duties
+                }
+                (Err(e), _) | (_, Err(e)) => return Err(ConsensusError::BeaconApiError(e)),
+            }
+        } else {
+            self.beacon_api_client.get_proposer_duties(epoch).await?.1
+        };
+
+        self.epoch.proposer_duties = duties;
+
         Ok(())
     }
 
@@ -170,11 +196,19 @@ impl ConsensusState {
             .map(|duty| duty.public_key.clone())
             .ok_or(ConsensusError::ValidatorNotFound)
     }
+
+    /// Returns the furthest slot for which a commitment request is considered valid, whether in
+    /// the current epoch or next epoch (if unsafe lookahead is enabled)
+    fn furthest_slot(&self) -> u64 {
+        self.epoch.start_slot
+            + SLOTS_PER_EPOCH
+            + if self.unsafe_lookahead_enabled { SLOTS_PER_EPOCH } else { 0 }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use beacon_api_client::ProposerDuty;
+    use beacon_api_client::{BlockId, ProposerDuty};
     use reqwest::Url;
     use tracing::warn;
 
@@ -202,6 +236,7 @@ mod tests {
             validator_indexes,
             commitment_deadline_duration: Duration::from_secs(1),
             latest_slot: 0,
+            unsafe_lookahead_enabled: false,
         };
 
         // Test finding a valid slot
@@ -238,6 +273,7 @@ mod tests {
             validator_indexes,
             commitment_deadline: CommitmentDeadline::new(0, commitment_deadline_duration),
             commitment_deadline_duration,
+            unsafe_lookahead_enabled: false,
         };
 
         // Update the slot to 32
@@ -257,6 +293,42 @@ mod tests {
         assert!(state.latest_slot_timestamp.elapsed().as_secs() < 1);
         assert_eq!(state.epoch.value, 1);
         assert_eq!(state.epoch.start_slot, 32);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fetch_proposer_duties() -> eyre::Result<()> {
+        let _ = tracing_subscriber::fmt::try_init();
+
+        let Some(url) = try_get_beacon_api_url().await else {
+            warn!("skipping test: beacon API URL is not reachable");
+            return Ok(());
+        };
+
+        let beacon_client = BeaconClient::new(Url::parse(url).unwrap());
+
+        let commitment_deadline_duration = Duration::from_secs(1);
+
+        // Create the initial ConsensusState
+        let mut state = ConsensusState {
+            beacon_api_client: beacon_client,
+            epoch: Epoch::default(),
+            latest_slot: Default::default(),
+            latest_slot_timestamp: Instant::now(),
+            validator_indexes: Default::default(),
+            commitment_deadline: CommitmentDeadline::new(0, commitment_deadline_duration),
+            commitment_deadline_duration,
+            // We test for both epochs
+            unsafe_lookahead_enabled: true,
+        };
+
+        let epoch =
+            state.beacon_api_client.get_beacon_header(BlockId::Head).await?.header.message.slot
+                / SLOTS_PER_EPOCH;
+
+        state.fetch_proposer_duties(epoch).await?;
+        assert_eq!(state.epoch.proposer_duties.len(), SLOTS_PER_EPOCH as usize * 2);
 
         Ok(())
     }

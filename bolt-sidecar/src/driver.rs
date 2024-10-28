@@ -176,6 +176,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             beacon_client,
             opts.validator_indexes.clone(),
             opts.chain.commitment_deadline(),
+            opts.chain.enable_unsafe_lookahead,
         );
 
         let (payload_requests_tx, payload_requests_rx) = mpsc::channel(16);
