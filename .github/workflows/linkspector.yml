@@ -22,4 +22,4 @@ jobs:
           github_token: ${{ secrets.github_token }}
           reporter: github-pr-review
           config_file: .github/.linkspector.yml
-          # fail_level: error
+          fail_level: error
