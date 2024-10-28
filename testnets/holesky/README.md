@@ -1,4 +1,6 @@
+# Holesky Launch Instructions
 This document provides instructions for running the Bolt sidecar on the Holesky testnet.
+
 
 # Table of Contents
 
@@ -88,292 +90,10 @@ or **authorized delegates** acting on their behalf, to issue and sign preconfirm
 To learn more about delegation, check out the [Delegations and Signing](#delegations-and-signing-options-for-native-and-docker-compose-mode)
 section.
 
-# Off-Chain Setup
-
-There are various way to run the Bolt Sidecar depending on what infrastructure
-you want to use and your preferred signing methods:
-
-- Docker mode (recommended)
-- [Commit-Boost](https://commit-boost.github.io/commit-boost-client) mode
-  (requires Docker)
-- Native mode (advanced, requires building everything from source)
-
-Running the Bolt sidecar as a standalone binary requires building it from
-source. Both the standalone binary and the Docker container requires reading
-signing keys from [ERC-2335](https://eips.ethereum.org/EIPS/eip-2335) keystores,
-while the Commit-Boost module relies on an internal signer and a custom PBS
-module instead of regular [MEV-Boost](https://boost.flashbots.net/).
-
-In this section we're going to explore each of these options and its
-requirements.
-
-## Docker Mode (recommended)
-
-First, make sure to have [Docker](https://docs.docker.com/engine/install/),
-[Docker Compose](https://docs.docker.com/compose/install/) and
-[git](https://git-scm.com/downloads) installed in your machine.
-
-Then clone the Bolt repository by running:
-
-```bash
-git clone --branch v0.3.0-alpha htts://github.com/chainbound/bolt.git
-cd bolt/testnets/holesky
-```
-
-The Docker Compose setup will spin up the Bolt sidecar along with the Bolt
-MEV-Boost fork which includes supports the [Constraints API][constraints-api].
-
-Before starting the services, you'll need to provide configuration files
-containing the necessary environment variables:
-
-1. **Bolt Sidecar Configuration:**
-
-   Change directory to the `testnets/holesky` folder and create a
-   `bolt-sidecar.env` file starting from the reference template:
-
-   ```bash
-   cd testnets/holesky
-   cp bolt-sidecar.env.example bolt-sidecar.env
-   ```
-
-   Next up, fill out the values that are left blank. Please also review the
-   default values and see that they work for your setup. For proper
-   configuration of the signing options, please refer to the [Delegations and
-   Signing](#delegations-and-signing-options-for-native-and-docker-compose-mode)
-   section of this guide.
-
-   If you've generated a `delegation.json` file using the Bolt CLI please
-   place it in the `testnets/holesky` directory by replacing the existing empty
-   one.
-
-2. **MEV-Boost Configuration:**
-
-   Change directory to the `testnets/holesky` folder if you haven't already and
-   copy over the example configuration file:
-
-   ```bash
-   cp ./mev-boost.env.example ./mev-boost.env
-   ```
-
-Then configure it accordingly and review the default values chosen.
-
-If you prefer not to restart your beacon node, follow the instructions in the
-[Avoid Restarting the Beacon Node](#avoid-restarting-the-beacon-node) section.
-
-Once the configuration files are in place, make sure you are in the
-`testnets/holesky` directory and then run:
-
-```bash
-docker compose up -d --env-file bolt-sidecar.env
-```
-
-The docker compose setup comes with various observability tools, such as
-Prometheus and Grafana. It also comes with some pre-built dashboards which you
-can find at `http://localhost:28017`.
-
-## Commit-Boost Mode
-
-> [!IMPORTANT]
-> Running with commit-boost is still in the process of being tested. Keep track of the issue
-> here: https://github.com/chainbound/bolt/issues/328.
-
-First download the `commit-boost-cli` binary from the Commit-Boost [official
-releases page](https://github.com/Commit-Boost/commit-boost-client/releases)
-
-A commit-boost configuration file with Bolt support is provided at
-[`cb-bolt-config.toml`](./commit-boost/cb-bolt-config.toml). This file has support for the
-custom PBS module ([bolt-boost](../../bolt-boost)) that implements the
-[Constraints API][constraints-api], as well
-as the [bolt-sidecar](../../bolt-sidecar) module. This file can be used as a
-template for your own configuration.
-
-The important fields to configure are under the `[modules.env]` section of the
-`BOLT` module, which contain the environment variables to configure the bolt
-sidecar:
-
-```toml
-[modules.env]
-BOLT_SIDECAR_CHAIN = "holesky"
-
-BOLT_SIDECAR_CONSTRAINTS_API = "http://cb_pbs:18550"     # The address of the PBS module (static)
-BOLT_SIDECAR_BEACON_API = ""
-BOLT_SIDECAR_EXECUTION_API = ""
-BOLT_SIDECAR_ENGINE_API = ""                             # The execution layer engine API endpoint
-BOLT_SIDECAR_JWT_HEX = ""                                # The engine JWT used to authenticate with the engine API
-BOLT_SIDECAR_BUILDER_PROXY_PORT = "18551"                # The port on which the sidecar builder-API will listen on. This is what your beacon node should connect to.
-BOLT_SIDECAR_FEE_RECIPIENT = ""                          # The fee recipient
-BOLT_SIDECAR_VALIDATOR_INDEXES = ""                      # The active validator indexes (can be defined as a comma-separated list, or a range)
-                                                         # e.g. "0,1,2,3,4" or "0..4", or a combination of both
-```
-
-To initialize commit-boost, run the following command:
-
-```bash
-commit-boost init --config cb-bolt-config.toml
-```
-
-This will create three files:
-
-- `cb.docker-compose.yml`: which contains the full setup of the Commit-Boost services
-- `.cb.env`: with local env variables, including JWTs for modules
-- `target.json`: which enables dynamic discovery of services for metrics scraping via Prometheus
-
-**Running**
-
-The final step is to run the Commit-Boost services. This can be done with the following command:
-
-```bash
-commit-boost start --docker cb.docker-compose.yml --env .cb.env
-```
-
-This will run all modules in Docker containers.
-
-> [!IMPORTANT]
-> The `bolt-sidecar` service will be exposed at 18551 by default, set
-> with `BOLT_SIDECAR_BUILDER_PROXY_PORT`, and your beacon node MUST be
-> configured to point the `builder-api` to this port for Bolt to work.
-
-**Observability**
-
-Commit-Boost comes with various observability tools, such as Prometheus,
-cadvisor, and Grafana. It also comes with some pre-built dashboards, which can
-be found in the `commit-boost/grafana` directory.
-
-To update these dashboards, run the following command from the `commit-boost`
-directory:
-
-`bash ./update-grafana.sh `
-In this directory, you can also find a Bolt dashboard, which will be launched
-alongside the other dashboards.
-
-## Native Mode (advanced)
-
-For running the Bolt Sidecar as a standalone binary you need to have the
-following dependencies installed:
-
-- [git](https://git-scm.com/downloads);
-- [Rust](https://www.rust-lang.org/tools/install).
-- [Golang](https://golang.org/doc/install).
-
-Depending on your platform you may need to install additional dependencies.
-
-<details>
-<summary><b>Linux</b></summary>
-
-Debian-based distributions:
-
-```bash
-sudo apt update && sudo apt install -y git build-essential libssl-dev build-essential ca-certificates
-```
-
-Fedora/Red Hat/CentOS distributions:
-
-```bash
-sudo dnf groupinstall "Development Tools" && sudo dnf install -y git openssl-devel ca-certificates pkgconfig
-```
-
-Arch/Manjaro-based distributions:
-
-```bash
-sudo pacman -Syu --needed base-devel git openssl ca-certificates pkgconf
-```
-
-Alpine Linux
-
-```bash
-sudo apk add git build-base openssl-dev ca-certificates pkgconf
-```
-
-</details>
-
-<br>
-
-<details>
-  <summary><b>MacOS</b></summary>
-
-On MacOS after installing XCode Command Line tools (equivalent to `build-essential` on Linux) you can install the other dependencies with [Homebew](https://brew.sh/):
-
-```zsh
-xcode-select --install
-brew install pkg-config openssl
-```
-
-</details>
-
----
-
-After having installed the dependencies you can clone the Bolt repository by
-running:
-
-```bash
-git clone --branch v0.3.0 https://github.com/chainbound/bolt.git && cd bolt
-```
-
-### Building and running the MEV-Boost fork binary
-
-The Bolt protocol relies on a modified version of
-[MEV-Boost](https://boost.flashbots.net/) that supports the [Constraints
-API][constraints-api]. This modified version is
-available in the `mev-boost` directory of the project and can be built by
-running
-
-```bash
-make build
-```
-
-in the `mev-boost` directory. The output of the command is a `mev-boost` binary.
-To run the `mev-boost` binary please read the official [documentation](https://boost.flashbots.net/).
-
-If you're already running MEV-Boost along with your beacon client it is
-recommended to choose another port this service in order to [avoid restarting
-your beacon client](#avoid-restarting-the-beacon-node). Check out the linked
-section for more details.
-
-### Building and running the Bolt sidecar binary
-
-Then you can build the Bolt sidecar by running:
-
-```bash
-cargo build --release && mv target/release/bolt-sidecar .
-```
-
-In order to run correctly the sidecar you need to provide either a list command
-line options or a configuration file (recommended). All the options available
-can be found by running `./bolt-sidecar --help`, or you can find them in the
-[reference](#command-line-options) section of this guide.
-
-#### Configuration file
-
-You can use a `.env` file to configure the sidecar, for which you can
-find a template in the `.env.example` file.
-
-Please read the section on [Delegations and Signing](#delegations-and-signing-options-for-native-and-docker-compose-mode)
-to configure such sidecar options properly.
-
-After you've set up the configuration file you can run the Bolt sidecar with
-
-```bash
-./bolt-sidecar
-```
-
-### Observability
-
-The bolt sidecar comes with various observability tools, such as Prometheus
-and Grafana. It also comes with some pre-built dashboards, which can
-be found in the `grafana` directory.
-
-To run these dashboards change directory to the `bolt-sidecar/infra` folder and
-run:
-
-```bash
-docker compose -f telemetry.compose.yml up -d
-```
-
-To stop the services run:
-
-```bash
-docker compose -f telemetry.compose.yml down
-```
+> [!INFO]
+> Before moving on to the actual instructions, please note that the on-chain steps must be completed before running the off-chain
+> infrastructure. The sidecar will verify that all of the associated validators and operator have been registered in the Bolt contracts,
+> else it will fail (for safety reasons).
 
 # On-Chain Registration
 
@@ -391,7 +111,7 @@ on Holesky:
   - [`wstETH`](https://holesky.etherscan.io/address/0xc79c533a77691641d52ebD5e87E51dCbCaeb0D78)
   - [`rETH`](https://holesky.etherscan.io/address/0xe5708788c90e971f73D928b7c5A8FD09137010e0)
   - [`stETH`](https://holesky.etherscan.io/address/0x11c5b9A9cd8269580aDDbeE38857eE451c1CFacd)
-  - [`WETH`](https://holesky.etherscan.io/address/0xC56Ba584929c6f381744fA2d7a028fA927817f2b)
+  - [`wETH`](https://holesky.etherscan.io/address/0xC56Ba584929c6f381744fA2d7a028fA927817f2b)
   - [`cbETH`](https://holesky.etherscan.io/address/0xcDdeFfcD2bA579B8801af1d603812fF64c301462)
   - [`mETH`](https://holesky.etherscan.io/address/0x91e84e12Bb65576C0a6614c5E6EbbB2eA595E10f)
 - [EigenLayer Strategies](https://github.com/Layr-Labs/eigenlayer-contracts#current-testnet-deployment)
@@ -678,6 +398,293 @@ forge script script/holesky/operators/RegisterEigenLayerOperator.s.sol \
   --sig "S03_checkOperatorRegistration" \
   --rpc-url $HOLESKY_RPC \
   -vvvv
+```
+
+# Off-Chain Setup
+
+There are various way to run the Bolt Sidecar depending on what infrastructure
+you want to use and your preferred signing methods:
+
+- Docker mode (recommended)
+- [Commit-Boost](https://commit-boost.github.io/commit-boost-client) mode
+  (requires Docker)
+- Native mode (advanced, requires building everything from source)
+
+Running the Bolt sidecar as a standalone binary requires building it from
+source. Both the standalone binary and the Docker container requires reading
+signing keys from [ERC-2335](https://eips.ethereum.org/EIPS/eip-2335) keystores,
+while the Commit-Boost module relies on an internal signer and a custom PBS
+module instead of regular [MEV-Boost](https://boost.flashbots.net/).
+
+In this section we're going to explore each of these options and its
+requirements.
+
+## Docker Mode (recommended)
+
+First, make sure to have [Docker](https://docs.docker.com/engine/install/),
+[Docker Compose](https://docs.docker.com/compose/install/) and
+[git](https://git-scm.com/downloads) installed in your machine.
+
+Then clone the Bolt repository by running:
+
+```bash
+git clone --branch v0.3.0-alpha htts://github.com/chainbound/bolt.git
+cd bolt/testnets/holesky
+```
+
+The Docker Compose setup will spin up the Bolt sidecar along with the Bolt
+MEV-Boost fork which includes supports the [Constraints API][constraints-api].
+
+Before starting the services, you'll need to provide configuration files
+containing the necessary environment variables:
+
+1. **Bolt Sidecar Configuration:**
+
+   Change directory to the `testnets/holesky` folder and create a
+   `bolt-sidecar.env` file starting from the reference template:
+
+   ```bash
+   cd testnets/holesky
+   cp bolt-sidecar.env.example bolt-sidecar.env
+   ```
+
+   Next up, fill out the values that are left blank. Please also review the
+   default values and see that they work for your setup. For proper
+   configuration of the signing options, please refer to the [Delegations and
+   Signing](#delegations-and-signing-options-for-native-and-docker-compose-mode)
+   section of this guide.
+
+   If you've generated a `delegation.json` file using the Bolt CLI please
+   place it in the `testnets/holesky` directory by replacing the existing empty
+   one.
+
+2. **MEV-Boost Configuration:**
+
+   Change directory to the `testnets/holesky` folder if you haven't already and
+   copy over the example configuration file:
+
+   ```bash
+   cp ./mev-boost.env.example ./mev-boost.env
+   ```
+
+Then configure it accordingly and review the default values chosen.
+
+If you prefer not to restart your beacon node, follow the instructions in the
+[Avoid Restarting the Beacon Node](#avoid-restarting-the-beacon-node) section.
+
+Once the configuration files are in place, make sure you are in the
+`testnets/holesky` directory and then run:
+
+```bash
+docker compose up -d --env-file bolt-sidecar.env
+```
+
+The docker compose setup comes with various observability tools, such as
+Prometheus and Grafana. It also comes with some pre-built dashboards which you
+can find at `http://localhost:28017`.
+
+## Commit-Boost Mode
+
+> [!IMPORTANT]
+> Running with commit-boost is still in the process of being tested. Keep track of the issue
+> here: https://github.com/chainbound/bolt/issues/328.
+
+First download the `commit-boost-cli` binary from the Commit-Boost [official
+releases page](https://github.com/Commit-Boost/commit-boost-client/releases)
+
+A commit-boost configuration file with Bolt support is provided at
+[`cb-bolt-config.toml`](./commit-boost/cb-bolt-config.toml). This file has support for the
+custom PBS module ([bolt-boost](../../bolt-boost)) that implements the
+[Constraints API][constraints-api], as well
+as the [bolt-sidecar](../../bolt-sidecar) module. This file can be used as a
+template for your own configuration.
+
+The important fields to configure are under the `[modules.env]` section of the
+`BOLT` module, which contain the environment variables to configure the bolt
+sidecar:
+
+```toml
+[modules.env]
+BOLT_SIDECAR_CHAIN = "holesky"
+
+BOLT_SIDECAR_CONSTRAINTS_API = "http://cb_pbs:18550"     # The address of the PBS module (static)
+BOLT_SIDECAR_BEACON_API = ""
+BOLT_SIDECAR_EXECUTION_API = ""
+BOLT_SIDECAR_ENGINE_API = ""                             # The execution layer engine API endpoint
+BOLT_SIDECAR_JWT_HEX = ""                                # The engine JWT used to authenticate with the engine API
+BOLT_SIDECAR_BUILDER_PROXY_PORT = "18551"                # The port on which the sidecar builder-API will listen on. This is what your beacon node should connect to.
+BOLT_SIDECAR_FEE_RECIPIENT = ""                          # The fee recipient
+BOLT_SIDECAR_VALIDATOR_INDEXES = ""                      # The active validator indexes (can be defined as a comma-separated list, or a range)
+                                                         # e.g. "0,1,2,3,4" or "0..4", or a combination of both
+```
+
+To initialize commit-boost, run the following command:
+
+```bash
+commit-boost init --config cb-bolt-config.toml
+```
+
+This will create three files:
+
+- `cb.docker-compose.yml`: which contains the full setup of the Commit-Boost services
+- `.cb.env`: with local env variables, including JWTs for modules
+- `target.json`: which enables dynamic discovery of services for metrics scraping via Prometheus
+
+**Running**
+
+The final step is to run the Commit-Boost services. This can be done with the following command:
+
+```bash
+commit-boost start --docker cb.docker-compose.yml --env .cb.env
+```
+
+This will run all modules in Docker containers.
+
+> [!IMPORTANT]
+> The `bolt-sidecar` service will be exposed at 18551 by default, set
+> with `BOLT_SIDECAR_BUILDER_PROXY_PORT`, and your beacon node MUST be
+> configured to point the `builder-api` to this port for Bolt to work.
+
+**Observability**
+
+Commit-Boost comes with various observability tools, such as Prometheus,
+cadvisor, and Grafana. It also comes with some pre-built dashboards, which can
+be found in the `commit-boost/grafana` directory.
+
+To update these dashboards, run the following command from the `commit-boost`
+directory:
+
+`bash ./update-grafana.sh `
+In this directory, you can also find a Bolt dashboard, which will be launched
+alongside the other dashboards.
+
+## Native Mode (advanced)
+
+For running the Bolt Sidecar as a standalone binary you need to have the
+following dependencies installed:
+
+- [git](https://git-scm.com/downloads);
+- [Rust](https://www.rust-lang.org/tools/install).
+- [Golang](https://golang.org/doc/install).
+
+Depending on your platform you may need to install additional dependencies.
+
+<details>
+<summary><b>Linux</b></summary>
+
+Debian-based distributions:
+
+```bash
+sudo apt update && sudo apt install -y git build-essential libssl-dev build-essential ca-certificates
+```
+
+Fedora/Red Hat/CentOS distributions:
+
+```bash
+sudo dnf groupinstall "Development Tools" && sudo dnf install -y git openssl-devel ca-certificates pkgconfig
+```
+
+Arch/Manjaro-based distributions:
+
+```bash
+sudo pacman -Syu --needed base-devel git openssl ca-certificates pkgconf
+```
+
+Alpine Linux
+
+```bash
+sudo apk add git build-base openssl-dev ca-certificates pkgconf
+```
+
+</details>
+
+<br>
+
+<details>
+  <summary><b>MacOS</b></summary>
+
+On MacOS after installing XCode Command Line tools (equivalent to `build-essential` on Linux) you can install the other dependencies with [Homebew](https://brew.sh/):
+
+```zsh
+xcode-select --install
+brew install pkg-config openssl
+```
+
+</details>
+
+---
+
+After having installed the dependencies you can clone the Bolt repository by
+running:
+
+```bash
+git clone --branch v0.3.0 https://github.com/chainbound/bolt.git && cd bolt
+```
+
+### Building and running the MEV-Boost fork binary
+
+The Bolt protocol relies on a modified version of
+[MEV-Boost](https://boost.flashbots.net/) that supports the [Constraints
+API][constraints-api]. This modified version is
+available in the `mev-boost` directory of the project and can be built by
+running
+
+```bash
+make build
+```
+
+in the `mev-boost` directory. The output of the command is a `mev-boost` binary.
+To run the `mev-boost` binary please read the official [documentation](https://boost.flashbots.net/).
+
+If you're already running MEV-Boost along with your beacon client it is
+recommended to choose another port this service in order to [avoid restarting
+your beacon client](#avoid-restarting-the-beacon-node). Check out the linked
+section for more details.
+
+### Building and running the Bolt sidecar binary
+
+Then you can build the Bolt sidecar by running:
+
+```bash
+cargo build --release && mv target/release/bolt-sidecar .
+```
+
+In order to run correctly the sidecar you need to provide either a list command
+line options or a configuration file (recommended). All the options available
+can be found by running `./bolt-sidecar --help`, or you can find them in the
+[reference](#command-line-options) section of this guide.
+
+#### Configuration file
+
+You can use a `.env` file to configure the sidecar, for which you can
+find a template in the `.env.example` file.
+
+Please read the section on [Delegations and Signing](#delegations-and-signing-options-for-native-and-docker-compose-mode)
+to configure such sidecar options properly.
+
+After you've set up the configuration file you can run the Bolt sidecar with
+
+```bash
+./bolt-sidecar
+```
+
+### Observability
+
+The bolt sidecar comes with various observability tools, such as Prometheus
+and Grafana. It also comes with some pre-built dashboards, which can
+be found in the `grafana` directory.
+
+To run these dashboards change directory to the `bolt-sidecar/infra` folder and
+run:
+
+```bash
+docker compose -f telemetry.compose.yml up -d
+```
+
+To stop the services run:
+
+```bash
+docker compose -f telemetry.compose.yml down
 ```
 
 # Reference
