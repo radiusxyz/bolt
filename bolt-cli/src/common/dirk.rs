@@ -1,6 +1,6 @@
 use std::fs;
 
-use alloy_primitives::B256;
+use alloy::primitives::B256;
 use ethereum_consensus::crypto::bls::Signature as BlsSignature;
 use eyre::{bail, Context, Result};
 use tonic::transport::{Certificate, Channel, ClientTlsConfig, Identity};

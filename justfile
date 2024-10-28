@@ -124,30 +124,29 @@ grafana:
 
 # manually send a preconfirmation to the bolt devnet
 send-preconf count='1':
-	cd bolt-kurtosis-client && RUST_LOG=info cargo run -- \
-		--provider-url $(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc) \
-		--beacon-client-url $(kurtosis port print bolt-devnet cl-1-lighthouse-geth http) \
-		--bolt-sidecar-url http://$(kurtosis port print bolt-devnet bolt-sidecar-1-lighthouse-geth api)  \
-		--private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
-		--slot head \
-		--count {{count}}
+    cd bolt-cli && RUST_LOG=info cargo run -- send \
+        --devnet \
+        --devnet.execution_url $(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc) \
+        --devnet.beacon_url $(kurtosis port print bolt-devnet cl-1-lighthouse-geth http) \
+        --devnet.sidecar_url http://$(kurtosis port print bolt-devnet bolt-sidecar-1-lighthouse-geth api) \
+        --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
+        --count {{count}}
 
 # manually send a blob preconfirmation to the bolt devnet
 send-blob-preconf count='1':
-	cd bolt-kurtosis-client && RUST_LOG=info cargo run -- \
-		--provider-url $(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc) \
-		--beacon-client-url $(kurtosis port print bolt-devnet cl-1-lighthouse-geth http) \
-		--bolt-sidecar-url http://$(kurtosis port print bolt-devnet bolt-sidecar-1-lighthouse-geth api)  \
-		--private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
-		--slot head \
-		--blob \
-		--count {{count}} \
+    cd bolt-cli && RUST_LOG=info cargo run -- send \
+        --devnet \
+        --devnet.execution_url $(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc) \
+        --devnet.beacon_url $(kurtosis port print bolt-devnet cl-1-lighthouse-geth http) \
+        --devnet.sidecar_url http://$(kurtosis port print bolt-devnet bolt-sidecar-1-lighthouse-geth api) \
+        --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
+        --blob \
+        --count {{count}}
 
 # build all the docker images locally
 build-images:
 	@just _build-sidecar
 	@just _build-bolt-boost
-
 
 # build the docker image for the bolt sidecar
 _build-sidecar:

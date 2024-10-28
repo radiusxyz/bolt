@@ -4,6 +4,9 @@ use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
 use eyre::{Context, Result};
 use serde::Serialize;
 
+/// BoltManager contract bindings.
+pub mod bolt_manager;
+
 /// Utilities for working with DIRK remote keystores.
 pub mod dirk;
 

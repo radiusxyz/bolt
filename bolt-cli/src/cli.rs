@@ -1,57 +1,126 @@
-use clap::{Parser, Subcommand, ValueEnum};
-use serde::Deserialize;
+use clap::{
+    builder::styling::{AnsiColor, Color, Style},
+    Parser, Subcommand, ValueEnum,
+};
+use reqwest::Url;
 
-use crate::utils::keystore::DEFAULT_KEYSTORE_PASSWORD;
+use crate::common::keystore::DEFAULT_KEYSTORE_PASSWORD;
 
-/// A CLI tool to interact with Bolt Protocol ✨
-#[derive(Parser, Debug, Clone, Deserialize)]
-#[command(author, version, about, long_about = None)]
+/// `bolt` is a CLI tool to interact with Bolt Protocol ✨
+#[derive(Parser, Debug, Clone)]
+#[command(author, version, styles = cli_styles(), about, arg_required_else_help(true))]
 pub struct Opts {
     /// The subcommand to run.
     #[clap(subcommand)]
-    pub command: Commands,
+    pub command: Cmd,
 }
 
-#[derive(Subcommand, Debug, Clone, Deserialize)]
-pub enum Commands {
+#[derive(Subcommand, Debug, Clone)]
+pub enum Cmd {
     /// Generate BLS delegation or revocation messages.
-    Delegate {
-        /// The BLS public key to which the delegation message should be signed.
-        #[clap(long, env = "DELEGATEE_PUBKEY")]
-        delegatee_pubkey: String,
-
-        /// The output file for the delegations.
-        #[clap(long, env = "OUTPUT_FILE_PATH", default_value = "delegations.json")]
-        out: String,
-
-        /// The chain for which the delegation message is intended.
-        #[clap(long, env = "CHAIN", default_value = "mainnet")]
-        chain: Chain,
-
-        /// The action to perform. The tool can be used to generate
-        /// delegation or revocation messages (default: delegate).
-        #[clap(long, env = "ACTION", default_value = "delegate")]
-        action: Action,
-
-        /// The source of the private key.
-        #[clap(subcommand)]
-        source: KeySource,
-    },
+    Delegate(DelegateCommand),
 
     /// Output a list of pubkeys in JSON format.
-    Pubkeys {
-        /// The output file for the pubkeys.
-        #[clap(long, env = "OUTPUT_FILE_PATH", default_value = "pubkeys.json")]
-        out: String,
+    Pubkeys(PubkeysCommand),
 
-        /// The source of the private keys from which to extract the pubkeys.
-        #[clap(subcommand)]
-        source: KeySource,
-    },
+    /// Send a preconfirmation request to a Bolt proposer.
+    Send(Box<SendCommand>),
+}
+
+impl Cmd {
+    /// Run the command.
+    pub async fn run(self) -> eyre::Result<()> {
+        match self {
+            Cmd::Delegate(cmd) => cmd.run().await,
+            Cmd::Pubkeys(cmd) => cmd.run().await,
+            Cmd::Send(cmd) => cmd.run().await,
+        }
+    }
+}
+
+/// Command for generating BLS delegation or revocation messages.
+#[derive(Debug, Clone, Parser)]
+pub struct DelegateCommand {
+    /// The BLS public key to which the delegation message should be signed.
+    #[clap(long, env = "DELEGATEE_PUBKEY")]
+    pub delegatee_pubkey: String,
+
+    /// The output file for the delegations.
+    #[clap(long, env = "OUTPUT_FILE_PATH", default_value = "delegations.json")]
+    pub out: String,
+
+    /// The chain for which the delegation message is intended.
+    #[clap(long, env = "CHAIN", default_value = "mainnet")]
+    pub chain: Chain,
+
+    /// The action to perform. The tool can be used to generate
+    /// delegation or revocation messages (default: delegate).
+    #[clap(long, env = "ACTION", default_value = "delegate")]
+    pub action: Action,
+
+    /// The source of the private key.
+    #[clap(subcommand)]
+    pub source: KeySource,
+}
+
+/// Command for outputting a list of pubkeys in JSON format.
+#[derive(Debug, Clone, Parser)]
+pub struct PubkeysCommand {
+    /// The output file for the pubkeys.
+    #[clap(long, env = "OUTPUT_FILE_PATH", default_value = "pubkeys.json")]
+    pub out: String,
+
+    /// The source of the private keys from which to extract the pubkeys.
+    #[clap(subcommand)]
+    pub source: KeySource,
+}
+
+/// Command for sending a preconfirmation request to a Bolt proposer.
+#[derive(Debug, Clone, Parser)]
+pub struct SendCommand {
+    /// Bolt RPC URL to send requests to and fetch lookahead info from.
+    #[clap(long, env = "BOLT_RPC_URL", default_value = "http://135.181.191.125:58017/rpc")]
+    pub bolt_rpc_url: Url,
+
+    /// The private key to sign the transaction with.
+    #[clap(long, env = "PRIVATE_KEY", hide_env_values = true)]
+    pub private_key: String,
+
+    /// The Bolt Sidecar URL to send requests to. If provided, this will override
+    /// the canonical bolt RPC URL and disregard any registration information.
+    ///
+    /// This is useful for testing and development purposes.
+    #[clap(long, env = "OVERRIDE_BOLT_SIDECAR_URL")]
+    pub override_bolt_sidecar_url: Option<Url>,
+
+    /// How many transactions to send.
+    #[clap(long, env = "TRANSACTION_COUNT", default_value = "1")]
+    pub count: u32,
+
+    /// If set, the transaction will be blob-carrying (type 3)
+    #[clap(long, env = "BLOB", default_value = "false")]
+    pub blob: bool,
+
+    /// If set, the transaction will target the devnet environment.
+    /// This is only used in Kurtosis for internal testing purposes
+    #[clap(long, hide = true, env = "DEVNET", default_value = "false")]
+    pub devnet: bool,
+
+    /// The URL of the devnet execution client for filling transactions
+    #[clap(long = "devnet.execution_url", hide = true)]
+    pub devnet_execution_url: Option<Url>,
+
+    /// The URL of the devnet beacon node for fetching slot numbers
+    #[clap(long = "devnet.beacon_url", hide = true)]
+    pub devnet_beacon_url: Option<Url>,
+
+    /// The URL of the devnet sidecar for sending transactions
+    #[clap(long = "devnet.sidecar_url", hide = true)]
+    pub devnet_sidecar_url: Option<Url>,
 }
 
 /// The action to perform.
-#[derive(Debug, Clone, ValueEnum, Deserialize)]
+#[derive(Debug, Clone, ValueEnum)]
 #[clap(rename_all = "kebab_case")]
 pub enum Action {
     /// Create a delegation message.
@@ -60,7 +129,7 @@ pub enum Action {
     Revoke,
 }
 
-#[derive(Debug, Clone, Parser, Deserialize)]
+#[derive(Debug, Clone, Parser)]
 pub enum KeySource {
     /// Use local secret keys to generate the signed messages.
     SecretKeys {
@@ -86,7 +155,7 @@ pub enum KeySource {
 }
 
 /// Options for reading a keystore folder.
-#[derive(Debug, Clone, Deserialize, Parser)]
+#[derive(Debug, Clone, Parser)]
 pub struct LocalKeystoreOpts {
     /// The path to the keystore file.
     #[clap(long, env = "KEYSTORE_PATH", default_value = "validators")]
@@ -113,7 +182,7 @@ pub struct LocalKeystoreOpts {
 }
 
 /// Options for connecting to a DIRK keystore.
-#[derive(Debug, Clone, Deserialize, Parser)]
+#[derive(Debug, Clone, Parser)]
 pub struct DirkOpts {
     /// The URL of the DIRK keystore.
     #[clap(long, env = "DIRK_URL")]
@@ -134,7 +203,7 @@ pub struct DirkOpts {
 }
 
 /// TLS credentials for connecting to a remote server.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Parser)]
+#[derive(Debug, Clone, PartialEq, Eq, Parser)]
 pub struct TlsCredentials {
     /// Path to the client certificate file. (.crt)
     #[clap(long, env = "CLIENT_CERT_PATH")]
@@ -148,7 +217,7 @@ pub struct TlsCredentials {
 }
 
 /// Supported chains for the CLI
-#[derive(Debug, Clone, Copy, ValueEnum, Deserialize)]
+#[derive(Debug, Clone, Copy, ValueEnum)]
 #[clap(rename_all = "kebab_case")]
 pub enum Chain {
     Mainnet,
@@ -167,6 +236,18 @@ impl Chain {
             Chain::Kurtosis => [16, 0, 0, 56],
         }
     }
+}
+
+/// Styles for the CLI application.
+const fn cli_styles() -> clap::builder::Styles {
+    clap::builder::Styles::styled()
+        .usage(Style::new().bold().underline().fg_color(Some(Color::Ansi(AnsiColor::Yellow))))
+        .header(Style::new().bold().underline().fg_color(Some(Color::Ansi(AnsiColor::Yellow))))
+        .literal(Style::new().fg_color(Some(Color::Ansi(AnsiColor::Green))))
+        .invalid(Style::new().bold().fg_color(Some(Color::Ansi(AnsiColor::Red))))
+        .error(Style::new().bold().fg_color(Some(Color::Ansi(AnsiColor::Red))))
+        .valid(Style::new().bold().underline().fg_color(Some(Color::Ansi(AnsiColor::Green))))
+        .placeholder(Style::new().fg_color(Some(Color::Ansi(AnsiColor::White))))
 }
 
 #[cfg(test)]

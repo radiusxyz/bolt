@@ -31,12 +31,7 @@ Available commands:
 
 - [`delegate`](#delegate) - Generate BLS delegation messages for the Constraints API.
 - [`pubkeys`](#pubkeys) - List available BLS public keys from various key sources.
-
-All above commands support three key sources:
-
-- Local BLS secret keys (as hex-encoded strings) via `secret-keys`
-- Local EIP-2335 filesystem keystore directories via `local-keystore`
-- Remote Dirk keystore via `dirk` (requires TLS credentials)
+- [`send`](#send) - Send a preconfirmation request to a Bolt sidecar.
 
 ---
 
@@ -44,6 +39,12 @@ All above commands support three key sources:
 
 The `delegate` command generates signed delegation messages for the Constraints API.
 To learn more about the Constraints API, please refer to the [Bolt documentation][bolt-docs].
+
+The `delegate` command supports three key sources:
+
+- Local BLS secret keys (as hex-encoded strings) via `secret-keys`
+- Local EIP-2335 filesystem keystore directories via `local-keystore`
+- Remote Dirk keystore via `dirk` (requires TLS credentials)
 
 <details>
 <summary>Usage</summary>
@@ -136,7 +137,11 @@ bolt delegate \
 
 ### `Pubkeys`
 
-The `pubkeys` command lists available BLS public keys from different key sources.
+The `pubkeys` command lists available BLS public keys from different key sources:
+
+- Local BLS secret keys (as hex-encoded strings) via `secret-keys`
+- Local EIP-2335 filesystem keystore directories via `local-keystore`
+- Remote Dirk keystore via `dirk` (requires TLS credentials)
 
 <details>
 <summary>Usage</summary>
@@ -186,6 +191,69 @@ bolt pubkeys dirk --url https://localhost:9091 \
   --client-key-path ./test_data/dirk/client1.key \
   --ca-cert-path ./test_data/dirk/security/ca.crt \
   --wallet-path wallet1 --passphrases secret
+```
+
+</details>
+
+---
+
+### `Send`
+
+The `send` command sends a preconfirmation request to a Bolt sidecar.
+
+<details>
+<summary>Usage</summary>
+
+```text
+❯ bolt send --help
+
+Send a preconfirmation request to a Bolt proposer
+
+Usage: bolt send [OPTIONS] --private-key <PRIVATE_KEY>
+
+Options:
+      --bolt-rpc-url <BOLT_RPC_URL>
+          Bolt RPC URL to send requests to and fetch lookahead info from
+
+          [env: BOLT_RPC_URL=]
+          [default: http://135.181.191.125:58017/rpc]
+
+      --private-key <PRIVATE_KEY>
+          The private key to sign the transaction with
+
+          [env: PRIVATE_KEY]
+
+      --override-bolt-sidecar-url <OVERRIDE_BOLT_SIDECAR_URL>
+          The Bolt Sidecar URL to send requests to. If provided, this will override the canonical bolt RPC URL and disregard any registration information.
+
+          This is useful for testing and development purposes.
+
+          [env: OVERRIDE_BOLT_SIDECAR_URL=]
+
+      --count <COUNT>
+          How many transactions to send
+
+          [env: TRANSACTION_COUNT=]
+          [default: 1]
+
+      --blob
+          If set, the transaction will be blob-carrying (type 3)
+
+          [env: BLOB=]
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
+</details>
+
+<details>
+<summary>Examples</summary>
+
+1. Sending a preconfirmation request to a Bolt sidecar
+
+```text
+bolt send --private-key $(openssl rand -hex 32)
 ```
 
 </details>

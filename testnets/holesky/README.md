@@ -23,7 +23,7 @@ This document provides instructions for running the Bolt sidecar on the Holesky 
 * [Reference](#reference)
   * [Command-line options](#command-line-options)
   * [Delegations and signing options for Native and Docker Compose Mode](#delegations-and-signing-options-for-native-and-docker-compose-mode)
-    * [`bolt` CLI](#`bolt`-cli)
+    * [`bolt` CLI](#bolt-cli)
       * [Installation and usage](#installation-and-usage)
     * [Using a private key directly](#using-a-private-key-directly)
     * [Using a ERC-2335 Keystore](#using-a-erc-2335-keystore)
