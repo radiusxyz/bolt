@@ -610,6 +610,8 @@ file:
 $EDITOR ./config/holesky/operators/eigenlayer/depositIntoStrategy.json
 ```
 
+Note that the amount is in ether (so for 1 ether, specify `1` instead of 1e18).
+
 Then you can run the following Forge script:
 
 ```bash
@@ -663,8 +665,8 @@ forge script script/holesky/operators/RegisterEigenLayerOperator.s.sol \
   --broadcast
 ```
 
-To check if your operator is correctly registered, set the operator public key
-in the `OPERATOR_PK` environment variable and run the following script:
+To check if your operator is correctly registered, set the operator address
+in the `OPERATOR_ADDRESS` environment variable and run the following script:
 
 ```bash
 forge script script/holesky/operators/RegisterEigenLayerOperator.s.sol \
