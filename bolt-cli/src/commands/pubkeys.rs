@@ -3,9 +3,46 @@ use eyre::Result;
 use lighthouse_eth2_keystore::Keystore;
 
 use crate::{
+    cli::{KeySource, PubkeysCommand},
+    common::{
+        dirk::Dirk,
+        keystore::{keystore_paths, KeystoreError, KeystoreSecret},
+        write_to_file,
+    },
     pb::eth2_signer_api::Account,
-    utils::keystore::{keystore_paths, KeystoreError, KeystoreSecret},
 };
+
+impl PubkeysCommand {
+    pub async fn run(self) -> Result<()> {
+        match self.source {
+            KeySource::SecretKeys { secret_keys } => {
+                let pubkeys = list_from_local_keys(&secret_keys)?;
+
+                write_to_file(&self.out, &pubkeys)?;
+                println!("Pubkeys generated and saved to {}", self.out);
+            }
+            KeySource::LocalKeystore { opts } => {
+                let keystore_secret = KeystoreSecret::from_keystore_options(&opts)?;
+                let pubkeys = list_from_keystore(&opts.path, keystore_secret)?;
+
+                write_to_file(&self.out, &pubkeys)?;
+                println!("Pubkeys generated and saved to {}", self.out);
+            }
+            KeySource::Dirk { opts } => {
+                // Note: we don't need to unlock wallets to list pubkeys
+                let mut dirk = Dirk::connect(opts.url, opts.tls_credentials).await?;
+
+                let accounts = dirk.list_accounts(opts.wallet_path).await?;
+                let pubkeys = list_from_dirk_accounts(&accounts)?;
+
+                write_to_file(&self.out, &pubkeys)?;
+                println!("Pubkeys generated and saved to {}", self.out);
+            }
+        }
+
+        Ok(())
+    }
+}
 
 /// Derive public keys from the provided secret keys.
 pub fn list_from_local_keys(secret_keys: &[String]) -> Result<Vec<BlsPublicKey>> {
