@@ -6,9 +6,9 @@ This document provides instructions for running the Bolt sidecar on the Holesky 
 
 * [Prerequisites](#prerequisites)
 * [Off-Chain Setup](#off-chain-setup)
-  * [Docker Mode (recommended)](#docker-mode-recommended)
+  * [Docker Mode (recommended)](#docker-mode-(recommended))
   * [Commit-Boost Mode](#commit-boost-mode)
-  * [Native Mode (advanced)](#native-mode-advanced)
+  * [Native Mode (advanced)](#native-mode-(advanced))
     * [Building and running the MEV-Boost fork binary](#building-and-running-the-mev-boost-fork-binary)
     * [Building and running the Bolt sidecar binary](#building-and-running-the-bolt-sidecar-binary)
       * [Configuration file](#configuration-file)
@@ -23,13 +23,18 @@ This document provides instructions for running the Bolt sidecar on the Holesky 
 * [Reference](#reference)
   * [Command-line options](#command-line-options)
   * [Delegations and signing options for Native and Docker Compose Mode](#delegations-and-signing-options-for-native-and-docker-compose-mode)
-    * [`bolt` CLI](#bolt-cli)
+    * [`bolt` CLI](#`bolt`-cli)
       * [Installation and usage](#installation-and-usage)
     * [Using a private key directly](#using-a-private-key-directly)
     * [Using a ERC-2335 Keystore](#using-a-erc-2335-keystore)
   * [Avoid restarting the beacon node](#avoid-restarting-the-beacon-node)
 
 <!-- vim-markdown-toc -->
+
+<!-- Links -->
+
+[bolt]: https://docs.boltprotocol.xyz
+[constraints-api]: https://docs.boltprotocol.xyz/technical-docs/api/builder
 
 # Prerequisites
 
@@ -116,7 +121,7 @@ cd bolt/testnets/holesky
 ```
 
 The Docker Compose setup will spin up the Bolt sidecar along with the Bolt
-MEV-Boost fork which includes supports the [Constraints API](https://docs.boltprotocol.xyz/api/builder).
+MEV-Boost fork which includes supports the [Constraints API][constraints-api].
 
 Before starting the services, you'll need to provide configuration files
 containing the necessary environment variables:
@@ -176,9 +181,9 @@ First download the `commit-boost-cli` binary from the Commit-Boost [official
 releases page](https://github.com/Commit-Boost/commit-boost-client/releases)
 
 A commit-boost configuration file with Bolt support is provided at
-[`cb-bolt-config.toml`](./cb-bolt-config.toml). This file has support for the
+[`cb-bolt-config.toml`](./commit-boost/cb-bolt-config.toml). This file has support for the
 custom PBS module ([bolt-boost](../../bolt-boost)) that implements the
-[constraints-API](https://chainbound.github.io/bolt-docs/api/builder), as well
+[Constraints API][constraints-api], as well
 as the [bolt-sidecar](../../bolt-sidecar) module. This file can be used as a
 template for your own configuration.
 
@@ -308,7 +313,7 @@ git clone --branch v0.3.0 https://github.com/chainbound/bolt.git && cd bolt
 
 The Bolt protocol relies on a modified version of
 [MEV-Boost](https://boost.flashbots.net/) that supports the [Constraints
-API](https://docs.boltprotocol.xyz/api/builder). This modified version is
+API][constraints-api]. This modified version is
 available in the `mev-boost` directory of the project and can be built by
 running
 
@@ -427,7 +432,7 @@ forge install
 
 ## Validator Registration
 
-The [`BoltValidators`](./src/contracts/BoltValidators.sol) contract is the only
+The [`BoltValidators`](../../bolt-contracts/src/contracts/BoltValidators.sol) contract is the only
 point of entry for validators to signal their intent to participate in Bolt
 Protocol and authenticate with their BLS private key.
 
@@ -463,7 +468,7 @@ validator or change any preferences.
 > all of the `forge` commands below.
 
 To register your validators, we provide the following Foundry script:
-[`RegisterValidators.s.sol`](../../bolt-contracts/script/RegisterValidators.s.sol).
+[`RegisterValidators.s.sol`](../../bolt-contracts/script/holesky/validators/RegisterValidators.s.sol).
 Note that in order to run these scripts, you must be in the `bolt-contracts`
 directory.
 
@@ -864,8 +869,8 @@ If you don't want to use it you can skip the following section.
 ### `bolt` CLI
 
 `bolt` CLI is an offline tool for safely generating delegation and revocation messages
-signed with a BLS12-381 key for the [Constraints API](https://docs.boltprotocol.xyz/api/builder)
-in [Bolt](https://docs.boltprotocol.xyz/).
+signed with a BLS12-381 key for the [Constraints API][constraints-api]
+in [Bolt][bolt].
 
 The tool supports three key sources:
 
