@@ -48,6 +48,9 @@ pub mod state;
 mod signer;
 pub use signer::{commit_boost::CommitBoostSigner, SignerBLS};
 
+mod onchain_registry;
+pub use onchain_registry::BoltManager;
+
 /// Utilities for testing
 #[cfg(test)]
 mod test_util;
