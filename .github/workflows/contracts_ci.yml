@@ -1,6 +1,14 @@
 name: Bolt-contracts CI
 
-on: [push, pull_request]
+on:
+  push:
+    paths:
+      - "bolt-contracts/**"
+    branches:
+      - unstable
+  pull_request:
+    paths:
+      - "bolt-contracts/**"
 
 jobs:
   check:
