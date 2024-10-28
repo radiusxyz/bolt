@@ -168,6 +168,10 @@ can find at `http://localhost:28017`.
 
 ## Commit-Boost Mode
 
+> [!IMPORTANT]
+> Running with commit-boost is still in the process of being tested. Keep track of the issue
+> here: https://github.com/chainbound/bolt/issues/328.
+
 First download the `commit-boost-cli` binary from the Commit-Boost [official
 releases page](https://github.com/Commit-Boost/commit-boost-client/releases)
 
