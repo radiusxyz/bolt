@@ -1,0 +1,7 @@
+dirs:
+  - .
+
+excludedDirs:
+  - bolt-contracts/lib
+
+useGitIgnore: true
