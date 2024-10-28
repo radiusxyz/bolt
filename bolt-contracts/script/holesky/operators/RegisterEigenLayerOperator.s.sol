@@ -29,7 +29,7 @@ contract RegisterEigenLayerOperator is Script {
 
         IStrategy strategy = IStrategy(vm.parseJsonAddress(json, ".strategy"));
         IERC20 token = IERC20(vm.parseJsonAddress(json, ".token"));
-        uint256 amount = vm.parseJsonUint(json, ".amount");
+        uint256 amount = vm.parseJsonUint(json, ".amount") * 1 ether;
 
         vm.startBroadcast(operatorSk);
         // Allowance must be set before depositing
@@ -73,13 +73,22 @@ contract RegisterEigenLayerOperator is Script {
     }
 
     function S03_checkOperatorRegistration() public view {
-        address operatorPublicKey = vm.envAddress("OPERATOR_PK");
-        console.log("Checking operator registration for address", operatorPublicKey);
+        address operatorAddress = vm.envAddress("OPERATOR_ADDRESS");
+        console.log("Checking operator registration for address", operatorAddress);
 
         IBoltManagerV1 boltManager = _readBoltManager();
-        bool isRegistered = boltManager.isOperator(operatorPublicKey);
+        bool isRegistered = boltManager.isOperator(operatorAddress);
         console.log("Operator is registered:", isRegistered);
         require(isRegistered, "Operator is not registered");
+
+        BoltEigenLayerMiddlewareV1 middleware = _readMiddleware();
+        (address[] memory tokens, uint256[] memory amounts) = middleware.getOperatorCollaterals(operatorAddress);
+
+        for (uint256 i; i < tokens.length; ++i) {
+            if (amounts[i] > 0) {
+                console.log("Collateral found:", tokens[i], "- amount:", amounts[i]);
+            }
+        }
     }
 
     function _readMiddleware() public view returns (BoltEigenLayerMiddlewareV1) {
