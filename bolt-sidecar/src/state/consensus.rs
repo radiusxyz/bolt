@@ -111,12 +111,8 @@ impl ConsensusState {
     ) -> Result<BlsPublicKey, ConsensusError> {
         let CommitmentRequest::Inclusion(req) = request;
 
-        let furthest_slot = self.epoch.start_slot
-            + SLOTS_PER_EPOCH
-            + if self.unsafe_lookahead_enabled { SLOTS_PER_EPOCH } else { 0 };
-
         // Check if the slot is in the current epoch or next epoch (if unsafe lookahead is enabled)
-        if req.slot < self.epoch.start_slot || req.slot >= furthest_slot {
+        if req.slot < self.epoch.start_slot || req.slot >= self.furthest_slot() {
             return Err(ConsensusError::InvalidSlot(req.slot));
         }
 
@@ -199,6 +195,14 @@ impl ConsensusState {
             })
             .map(|duty| duty.public_key.clone())
             .ok_or(ConsensusError::ValidatorNotFound)
+    }
+
+    /// Returns the furthest slot for which a commitment request is considered valid, whether in
+    /// the current epoch or next epoch (if unsafe lookahead is enabled)
+    fn furthest_slot(&self) -> u64 {
+        self.epoch.start_slot
+            + SLOTS_PER_EPOCH
+            + if self.unsafe_lookahead_enabled { SLOTS_PER_EPOCH } else { 0 }
     }
 }
 
