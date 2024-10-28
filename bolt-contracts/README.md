@@ -7,11 +7,10 @@
 - [Admin Privileges](#admin-privileges)
 - [Validator Registration: `BoltValidators`](#validator-registration-boltvalidators)
 - [Bolt Network Entrypoint: `BoltManager`](#bolt-network-entrypoint-boltmanager)
-- [Fault Proof Challenge and Slashing: `BoltChallenger`](#fault-proof-challenge-and-slashing-boltchallenger)
+- [Fault Proof Challenge: `BoltChallenger`](#fault-proof-challenge-boltchallenger)
 - [Holesky Deployments](#holesky-deployments)
 - [Testing](#testing)
 - [Security Considerations](#security-considerations)
-- [Conclusion](#conclusion)
 
 ## Overview
 
@@ -38,7 +37,7 @@ and multiple system-wide parameters can be changed by this administrator in the 
 
 ## System-wide Parameters: `BoltParameters`
 
-[`BoltParameters`](./src/contracts/BoltParameters.sol) is an upgradeable storage contract that stores system-wide parameters that the other
+[`BoltParameters`](./src/contracts/BoltParametersV1.sol) is an upgradeable storage contract that stores system-wide parameters that the other
 contracts can read from. An overview is given in the table below:
 
 | Parameter            | Initial Value   | Mutable after deployment |
@@ -58,7 +57,7 @@ The values of these parameters can also be found in [`parameters.json`](./config
 
 ## Validator Registration: `BoltValidators`
 
-The [`BoltValidators`](./src/contracts/BoltValidators.sol) contract is the only point of entry for
+The [`BoltValidators`](./src/contracts/BoltValidatorsV1.sol) contract is the only point of entry for
 validators to signal their intent to participate in Bolt Protocol and authenticate with their BLS private key.
 
 The registration process includes the following steps:
@@ -77,7 +76,7 @@ will allow us to test the registration flow in a controlled environment.
 
 ## Bolt Network Entrypoint: `BoltManager`
 
-The [`BoltManager`](./src/contracts/BoltManager.sol) contract is a crucial component of Bolt that
+The [`BoltManager`](./src/contracts/BoltManagerV1.sol) contract is a crucial component of Bolt that
 integrates with restaking ecosystems Symbiotic and Eigenlayer. It manages the registration and
 coordination of validators, operators, and vaults within the Bolt network.
 
@@ -92,7 +91,7 @@ the `IBoltMiddleware` contracts, such as `BoltSymbioticMiddleware` and `BoltEige
 
 ## Fault Proof Challenge: `BoltChallenger`
 
-The [`BoltChallenger`](./src/contracts/BoltChallenger.sol) contract is the component responsible
+The [`BoltChallenger`](./src/contracts/BoltChallengerV1.sol) contract is the component responsible
 for handling fault attribution in the case of a validator failing to meet their commitments.
 
 In short, the challenger contract allows any user to challenge a validator's commitment by opening

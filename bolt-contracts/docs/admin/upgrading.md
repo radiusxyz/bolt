@@ -13,7 +13,7 @@ bytes memory initManager = abi.encodeCall(BoltManagerV2.initialize, (params));
 Upgrades.upgradeProxy(proxy, "BoltManagerV2.sol", initManager, opts);
 ```
 
-Before an upgrade, update the [`Upgrade.s.sol`](../script/holesky/Upgrade.s.sol) script to include the correct contracts, references and configurations.
+Before an upgrade, update the [`Upgrade.s.sol](../../script/holesky/admin/Upgrade.s.sol) script to include the correct contracts, references and configurations.
 
 ## Unsafe
 In order to run an unsafe upgrade, set `Options.unsafeSkipAllChecks` to `true`:

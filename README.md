@@ -27,9 +27,8 @@
   - [Additional components](#additional-components)
 - [Kurtosis Devnet](#kurtosis-devnet)
   - [Requirements and setup](#requirements-and-setup)
-  - [Running the devnet](#running-the-devnet-and-demo)
-  - [Stopping the devnet](#stopping-the-devnet-and-demo)
-- [Telemetry & Metrics](#telemetry-&-metrics)
+  - [Running the devnet](#running-the-devnet)
+  - [Stopping the devnet](#stopping-the-devnet)
 - [License](#license)
 
 <!-- vim-markdown-toc -->
@@ -178,7 +177,7 @@ just up
 **Commit-Boost support**
 
 The devnet by default will run using a fork of MEV-Boost which supports
-the [Constraints-API](https://docs.boltprotocol.xyz/api/builder). Bolt also
+the [Constraints-API](https://docs.boltprotocol.xyz/technical-docs/api/builder). Bolt also
 supports [Commit-Boost][commit-boost] by providing a compatible MEV-Boost module
 called _Bolt-Boost_ that implements the Constraints-API. To use it in the devnet
 add the appropriate `bolt_boost_image` in the `kurtosis_config.yaml` file:

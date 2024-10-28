@@ -1,0 +1,8 @@
+dirs:
+  - .
+
+excludedDirs:
+  - bolt-contracts/lib
+  - testnets/helder
+
+useGitIgnore: true
