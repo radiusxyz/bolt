@@ -204,7 +204,7 @@ impl ConsensusState {
 
 #[cfg(test)]
 mod tests {
-    use beacon_api_client::ProposerDuty;
+    use beacon_api_client::{BlockId, ProposerDuty};
     use reqwest::Url;
     use tracing::warn;
 
@@ -232,6 +232,7 @@ mod tests {
             validator_indexes,
             commitment_deadline_duration: Duration::from_secs(1),
             latest_slot: 0,
+            unsafe_lookahead_enabled: false,
         };
 
         // Test finding a valid slot
@@ -268,6 +269,7 @@ mod tests {
             validator_indexes,
             commitment_deadline: CommitmentDeadline::new(0, commitment_deadline_duration),
             commitment_deadline_duration,
+            unsafe_lookahead_enabled: false,
         };
 
         // Update the slot to 32
@@ -287,6 +289,42 @@ mod tests {
         assert!(state.latest_slot_timestamp.elapsed().as_secs() < 1);
         assert_eq!(state.epoch.value, 1);
         assert_eq!(state.epoch.start_slot, 32);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fetch_proposer_duties() -> eyre::Result<()> {
+        let _ = tracing_subscriber::fmt::try_init();
+
+        let Some(url) = try_get_beacon_api_url().await else {
+            warn!("skipping test: beacon API URL is not reachable");
+            return Ok(());
+        };
+
+        let beacon_client = BeaconClient::new(Url::parse(url).unwrap());
+
+        let commitment_deadline_duration = Duration::from_secs(1);
+
+        // Create the initial ConsensusState
+        let mut state = ConsensusState {
+            beacon_api_client: beacon_client,
+            epoch: Epoch::default(),
+            latest_slot: Default::default(),
+            latest_slot_timestamp: Instant::now(),
+            validator_indexes: Default::default(),
+            commitment_deadline: CommitmentDeadline::new(0, commitment_deadline_duration),
+            commitment_deadline_duration,
+            // We test for both epochs
+            unsafe_lookahead_enabled: true,
+        };
+
+        let epoch =
+            state.beacon_api_client.get_beacon_header(BlockId::Head).await?.header.message.slot
+                / SLOTS_PER_EPOCH;
+
+        state.fetch_proposer_duties(epoch).await?;
+        assert_eq!(state.epoch.proposer_duties.len(), SLOTS_PER_EPOCH as usize * 2);
 
         Ok(())
     }
