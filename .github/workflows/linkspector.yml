@@ -23,3 +23,4 @@ jobs:
           reporter: github-pr-review
           config_file: .github/.linkspector.yml
           fail_on_error: true
+          filter_mode: nofilter
