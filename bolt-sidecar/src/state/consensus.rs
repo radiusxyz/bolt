@@ -64,7 +64,7 @@ pub struct ConsensusState {
     pub commitment_deadline: CommitmentDeadline,
     /// The duration of the commitment deadline.
     commitment_deadline_duration: Duration,
-    /// If commitment requests should be validated against also against the unsafe lookahead
+    /// If commitment requests should be validated also against the unsafe lookahead
     pub unsafe_lookahead_enabled: bool,
 }
 
