@@ -20,7 +20,7 @@ jobs:
         uses: umbrelladocs/action-linkspector@v1.1.3
         with:
           github_token: ${{ secrets.github_token }}
-          reporter: github-pr-check
+          reporter: github-pr-review
           config_file: .github/.linkspector.yml
           fail_on_error: true
           filter_mode: nofilter
