@@ -10,6 +10,8 @@ services:
     env_file: ./bolt-sidecar.env
     volumes:
       - "./delegations.json:${BOLT_SIDECAR_DELEGATIONS_PATH:-/etc/delegations.json}"
+    networks:
+      - bolt-default
 
   bolt-mev-boost-holesky:
     image: ghcr.io/chainbound/bolt-mev-boost:v0.3.0-alpha.rc1
@@ -17,6 +19,8 @@ services:
     restart: unless-stopped
     env_file: ./mev-boost.env
     entrypoint: /bin/sh -c '/app/mev-boost'
+    networks:
+      - bolt-default
 
   bolt-prometheus-holesky:
     image: prom/prometheus:latest
@@ -27,6 +31,8 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
       - ./targets.json:/etc/prometheus/targets.json
       - prometheus-data:/prometheus
+    networks:
+      - bolt-default
 
   bolt-cadvisor-holesky:
     image: gcr.io/cadvisor/cadvisor:latest
