@@ -4,19 +4,19 @@ pragma solidity 0.8.25;
 import {Test, console} from "forge-std/Test.sol";
 
 import {BoltParametersV1} from "../src/contracts/BoltParametersV1.sol";
-import {BoltValidatorsV1} from "../src/contracts/BoltValidatorsV1.sol";
-import {IBoltValidatorsV1} from "../src/interfaces/IBoltValidatorsV1.sol";
+import {BoltValidatorsV2} from "../src/contracts/BoltValidatorsV2.sol";
+import {IBoltValidatorsV2} from "../src/interfaces/IBoltValidatorsV2.sol";
 import {BLS12381} from "../src/lib/bls/BLS12381.sol";
 import {BoltConfig} from "../src/lib/Config.sol";
 import {Utils} from "./Utils.sol";
 
-contract BoltValidatorsTest is Test {
+contract BoltValidatorsV2Test is Test {
     using BLS12381 for BLS12381.G1Point;
 
     BoltParametersV1 public parameters;
-    BoltValidatorsV1 public validators;
+    BoltValidatorsV2 public validators;
 
-    uint128 public constant PRECONF_MAX_GAS_LIMIT = 5_000_000;
+    uint32 public constant PRECONF_MAX_GAS_LIMIT = 5_000_000;
 
     address admin = makeAddr("admin");
     address provider = makeAddr("provider");
@@ -42,77 +42,22 @@ contract BoltValidatorsTest is Test {
             config.minimumOperatorStake
         );
 
-        validators = new BoltValidatorsV1();
+        validators = new BoltValidatorsV2();
         validators.initialize(admin, address(parameters));
     }
 
-    function testUnsafeRegistration() public {
-        // pubkeys aren't checked, any point will be fine
-        BLS12381.G1Point memory pubkey = BLS12381.generatorG1();
+    function testUnsafeBatchRegistrationV2GasUsage() public {
+        BLS12381.G1Point[] memory pubkeys = _readPubkeysFromFile(620);
 
-        vm.resumeGasMetering();
-        vm.prank(validator);
-        validators.registerValidatorUnsafe(pubkey, 1_000_000, operator);
-        vm.pauseGasMetering();
-
-        BoltValidatorsV1.Validator memory registered = validators.getValidatorByPubkey(pubkey);
-        assertEq(registered.exists, true);
-        assertEq(registered.maxCommittedGasLimit, 1_000_000);
-        assertEq(registered.authorizedOperator, operator);
-        assertEq(registered.controller, validator);
-    }
-
-    function testUnsafeRegistrationFailsIfAlreadyRegistered() public {
-        BLS12381.G1Point memory pubkey = BLS12381.generatorG1();
-
-        vm.prank(validator);
-        vm.resumeGasMetering();
-        validators.registerValidatorUnsafe(pubkey, PRECONF_MAX_GAS_LIMIT, operator);
-        vm.pauseGasMetering();
-
-        vm.prank(validator);
-        vm.expectRevert(IBoltValidatorsV1.ValidatorAlreadyExists.selector);
-        validators.registerValidatorUnsafe(pubkey, PRECONF_MAX_GAS_LIMIT, operator);
-    }
-
-    function testUnsafeRegistrationWhenNotAllowed() public {
-        BLS12381.G1Point memory pubkey = BLS12381.generatorG1();
-
-        vm.prank(admin);
-        parameters.setAllowUnsafeRegistration(false);
-
-        vm.prank(validator);
-        vm.expectRevert(IBoltValidatorsV1.UnsafeRegistrationNotAllowed.selector);
-        vm.resumeGasMetering();
-        validators.registerValidatorUnsafe(pubkey, PRECONF_MAX_GAS_LIMIT, operator);
-        vm.pauseGasMetering();
-    }
-
-    function testUnsafeRegistrationInvalidOperator() public {
-        BLS12381.G1Point memory pubkey = BLS12381.generatorG1();
-
-        vm.prank(validator);
-        vm.resumeGasMetering();
-        vm.expectRevert(IBoltValidatorsV1.InvalidAuthorizedOperator.selector);
-        validators.registerValidatorUnsafe(pubkey, PRECONF_MAX_GAS_LIMIT, address(0));
-        vm.pauseGasMetering();
-    }
-
-    function testUnsafeBatchRegistrationGasUsage() public {
-        BLS12381.G1Point[] memory pubkeys = _readPubkeysFromFile(290);
-
-        vm.prank(validator);
-        vm.resumeGasMetering();
-        validators.batchRegisterValidatorsUnsafe(pubkeys, PRECONF_MAX_GAS_LIMIT, operator);
-        vm.pauseGasMetering();
-
+        bytes20[] memory pubkeyHashes = new bytes20[](pubkeys.length);
         for (uint256 i = 0; i < pubkeys.length; i++) {
-            BoltValidatorsV1.Validator memory registered = validators.getValidatorByPubkey(pubkeys[i]);
-            assertEq(registered.exists, true);
-            assertEq(registered.maxCommittedGasLimit, PRECONF_MAX_GAS_LIMIT);
-            assertEq(registered.authorizedOperator, operator);
-            assertEq(registered.controller, validator);
+            pubkeyHashes[i] = validators.hashPubkey(pubkeys[i]);
         }
+
+        vm.prank(validator);
+        vm.resumeGasMetering();
+        validators.batchRegisterValidatorsUnsafe(pubkeyHashes, PRECONF_MAX_GAS_LIMIT, operator);
+        vm.pauseGasMetering();
     }
 
     /// @notice Read validator pubkeys from a file and convert them to G1 points

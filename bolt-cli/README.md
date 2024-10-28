@@ -7,7 +7,7 @@ The Bolt CLI is a collection of command-line tools for interacting with Bolt pro
 Prerequisites:
 
 - [Rust toolchain][rust]
-- [Protoc][protoc]
+- [Protoc][protoc] (as well as `libprotobuf-dev` for some Linux distributions)
 
 Once you have the necessary prerequisites, you can build the binary in the following way:
 
