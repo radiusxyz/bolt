@@ -30,8 +30,8 @@ use crate::{
     start_builder_proxy_server,
     state::{fetcher::StateFetcher, ConsensusState, ExecutionState, HeadTracker, StateClient},
     telemetry::ApiMetrics,
-    BuilderProxyConfig, CommitBoostSigner, ConstraintsApi, ConstraintsClient, LocalBuilder, Opts,
-    SignerBLS,
+    BoltManager, BuilderProxyConfig, CommitBoostSigner, ConstraintsApi, ConstraintsClient,
+    LocalBuilder, Opts, SignerBLS,
 };
 
 /// The driver for the sidecar, responsible for managing the main event loop.
@@ -161,6 +161,16 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         commitment_signer: ECDSA,
         fetcher: C,
     ) -> eyre::Result<Self> {
+        // Verify the operator and validator keys with the bolt manager
+        let bolt_manager =
+            BoltManager::from_chain(opts.execution_api_url.clone(), opts.chain.chain);
+        if let Some(bolt_manager) = bolt_manager {
+            bolt_manager.verify_operator(commitment_signer.public_key()).await?;
+            bolt_manager
+                .verify_validator_pubkeys(&Vec::from_iter(constraint_signer.available_pubkeys()))
+                .await?;
+        }
+
         let beacon_client = BeaconClient::new(opts.beacon_api_url.clone());
         let execution = ExecutionState::new(fetcher, opts.limits).await?;
 
