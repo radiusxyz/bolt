@@ -3,14 +3,14 @@ pragma solidity 0.8.25;
 
 import {Script, console} from "forge-std/Script.sol";
 
-import {BoltEigenLayerMiddlewareV1} from "../../../../src/contracts/BoltEigenLayerMiddlewareV1.sol";
+import {BoltEigenLayerMiddlewareV2} from "../../../../src/contracts/BoltEigenLayerMiddlewareV2.sol";
 
 contract RegisterAVS is Script {
     function run() public {
         address admin = msg.sender;
         console.log("Running with admin address:", admin);
 
-        BoltEigenLayerMiddlewareV1 middleware = BoltEigenLayerMiddlewareV1(readMiddleware());
+        BoltEigenLayerMiddlewareV2 middleware = BoltEigenLayerMiddlewareV2(readMiddleware());
 
         string memory avsURI = "https://boltprotocol.xyz/avs.json";
         console.log("Setting AVS metadata URI to:", avsURI);

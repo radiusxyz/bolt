@@ -13,8 +13,6 @@ interface IBoltValidatorsV2 {
 
     error InvalidBLSSignature();
     error InvalidAuthorizedOperator();
-    error ValidatorAlreadyExists();
-    error ValidatorDoesNotExist();
     error UnsafeRegistrationNotAllowed();
     error UnauthorizedCaller();
     error InvalidPubkey();

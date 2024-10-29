@@ -217,15 +217,16 @@ contract BoltValidatorsV2 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpg
 
     // ========= HELPERS =========
 
+    /// @notice Internal helper to register a single validator
+    /// @param pubkeyHash BLS public key hash of the validator
+    /// @param authorizedOperator Address of the authorized operator
+    /// @param maxCommittedGasLimit Maximum gas limit that the validator can commit for preconfirmations
     function _registerValidator(bytes20 pubkeyHash, address authorizedOperator, uint32 maxCommittedGasLimit) internal {
         if (authorizedOperator == address(0)) {
             revert InvalidAuthorizedOperator();
         }
         if (pubkeyHash == bytes20(0)) {
             revert InvalidPubkey();
-        }
-        if (VALIDATORS.contains(pubkeyHash)) {
-            revert ValidatorAlreadyExists();
         }
 
         VALIDATORS.insert(
@@ -237,6 +238,10 @@ contract BoltValidatorsV2 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpg
         emit ValidatorRegistered(pubkeyHash);
     }
 
+    /// @notice Internal helper to register a batch of validators
+    /// @param pubkeyHashes List of BLS public key hashes of the validators
+    /// @param authorizedOperator Address of the authorized operator
+    /// @param maxCommittedGasLimit Maximum gas limit that the validators can commit for preconfirmations
     function _batchRegisterValidators(
         bytes20[] memory pubkeyHashes,
         address authorizedOperator,
@@ -255,9 +260,6 @@ contract BoltValidatorsV2 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpg
 
             if (pubkeyHash == bytes20(0)) {
                 revert InvalidPubkey();
-            }
-            if (VALIDATORS.contains(pubkeyHash)) {
-                revert ValidatorAlreadyExists();
             }
 
             VALIDATORS.insert(pubkeyHash, maxCommittedGasLimit, controllerIndex, authorizedOperatorIndex);
@@ -279,7 +281,7 @@ contract BoltValidatorsV2 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpg
         });
     }
 
-    /// @notice Compute the hash of a BLS public key
+    /// @notice Helper to compute the hash of a BLS public key
     /// @param pubkey Decompressed BLS public key
     /// @return Hash of the public key in compressed form
     function hashPubkey(

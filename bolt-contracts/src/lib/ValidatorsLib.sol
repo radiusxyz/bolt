@@ -4,7 +4,8 @@ pragma solidity 0.8.25;
 /// @title ValidatorsLib
 /// @notice A library for managing a set of validators along with their information
 library ValidatorsLib {
-    error ValidatorDoesNotExist();
+    error ValidatorAlreadyExists(bytes20 pubkeyHash);
+    error ValidatorDoesNotExist(bytes20 pubkeyHash);
 
     struct _AddressSet {
         address[] _values;
@@ -33,7 +34,7 @@ library ValidatorsLib {
     function get(ValidatorSet storage self, bytes20 pubkeyHash) internal view returns (_Validator memory) {
         uint32 index = self._indexes[pubkeyHash];
         if (index == 0) {
-            revert ValidatorDoesNotExist();
+            revert ValidatorDoesNotExist(pubkeyHash);
         }
 
         return self._values[index - 1];
@@ -63,6 +64,10 @@ library ValidatorsLib {
         uint32 controllerIndex,
         uint32 authorizedOperatorIndex
     ) internal {
+        if (self._indexes[pubkeyHash] != 0) {
+            revert ValidatorAlreadyExists(pubkeyHash);
+        }
+
         self._values.push(_Validator(pubkeyHash, maxCommittedGasLimit, controllerIndex, authorizedOperatorIndex));
         self._indexes[pubkeyHash] = uint32(self._values.length);
     }
@@ -74,7 +79,7 @@ library ValidatorsLib {
     ) internal {
         uint32 index = self._indexes[pubkeyHash];
         if (index == 0) {
-            revert ValidatorDoesNotExist();
+            revert ValidatorDoesNotExist(pubkeyHash);
         }
 
         self._values[index - 1].maxCommittedGasLimit = maxCommittedGasLimit;

@@ -9,9 +9,9 @@ import {IStrategyManager} from "@eigenlayer/src/contracts/interfaces/IStrategyMa
 import {IStrategy, IERC20} from "@eigenlayer/src/contracts/interfaces/IStrategy.sol";
 import {ISignatureUtils} from "@eigenlayer/src/contracts/interfaces/ISignatureUtils.sol";
 
-import {BoltEigenLayerMiddlewareV1} from "../../../src/contracts/BoltEigenLayerMiddlewareV1.sol";
+import {BoltEigenLayerMiddlewareV2} from "../../../src/contracts/BoltEigenLayerMiddlewareV2.sol";
 import {IBoltMiddlewareV1} from "../../../src/interfaces/IBoltMiddlewareV1.sol";
-import {IBoltManagerV1} from "../../../src/interfaces/IBoltManagerV1.sol";
+import {IBoltManagerV2} from "../../../src/interfaces/IBoltManagerV2.sol";
 
 contract RegisterEigenLayerOperator is Script {
     struct OperatorConfig {
@@ -43,7 +43,7 @@ contract RegisterEigenLayerOperator is Script {
         uint256 operatorSk = vm.envUint("OPERATOR_SK");
         address operator = vm.addr(operatorSk);
 
-        BoltEigenLayerMiddlewareV1 middleware = _readMiddleware();
+        BoltEigenLayerMiddlewareV2 middleware = _readMiddleware();
         IAVSDirectory avsDirectory = _readAvsDirectory();
         OperatorConfig memory config = _readConfig("config/holesky/operators/eigenlayer/registerIntoBoltAVS.json");
 
@@ -76,7 +76,7 @@ contract RegisterEigenLayerOperator is Script {
         address operatorAddress = vm.envAddress("OPERATOR_ADDRESS");
         console.log("Checking operator registration for address", operatorAddress);
 
-        IBoltManagerV1 boltManager = _readBoltManager();
+        IBoltManagerV2 boltManager = _readBoltManager();
         bool isRegistered = boltManager.isOperator(operatorAddress);
         console.log("Operator is registered:", isRegistered);
         require(isRegistered, "Operator is not registered");
@@ -91,12 +91,12 @@ contract RegisterEigenLayerOperator is Script {
         }
     }
 
-    function _readMiddleware() public view returns (BoltEigenLayerMiddlewareV1) {
+    function _readMiddleware() public view returns (BoltEigenLayerMiddlewareV2) {
         string memory root = vm.projectRoot();
         string memory path = string.concat(root, "/config/holesky/deployments.json");
         string memory json = vm.readFile(path);
 
-        return BoltEigenLayerMiddlewareV1(vm.parseJsonAddress(json, ".eigenLayer.middleware"));
+        return BoltEigenLayerMiddlewareV2(vm.parseJsonAddress(json, ".eigenLayer.middleware"));
     }
 
     function _readAvsDirectory() public view returns (IAVSDirectory) {
@@ -122,11 +122,11 @@ contract RegisterEigenLayerOperator is Script {
         return IStrategyManager(vm.parseJsonAddress(json, ".eigenLayer.strategyManager"));
     }
 
-    function _readBoltManager() public view returns (IBoltManagerV1) {
+    function _readBoltManager() public view returns (IBoltManagerV2) {
         string memory root = vm.projectRoot();
         string memory path = string.concat(root, "/config/holesky/deployments.json");
         string memory json = vm.readFile(path);
-        return IBoltManagerV1(vm.parseJsonAddress(json, ".bolt.manager"));
+        return IBoltManagerV2(vm.parseJsonAddress(json, ".bolt.manager"));
     }
 
     function _readConfig(
