@@ -13,12 +13,15 @@ import {BoltEigenLayerMiddlewareV1} from "../../../src/contracts/BoltEigenLayerM
 import {BoltEigenLayerMiddlewareV2} from "../../../src/contracts/BoltEigenLayerMiddlewareV2.sol";
 import {BoltSymbioticMiddlewareV1} from "../../../src/contracts/BoltSymbioticMiddlewareV1.sol";
 import {BoltSymbioticMiddlewareV2} from "../../../src/contracts/BoltSymbioticMiddlewareV2.sol";
+import {BoltValidatorsV1} from "../../../src/contracts/BoltValidatorsV1.sol";
+import {BoltValidatorsV2} from "../../../src/contracts/BoltValidatorsV2.sol";
 import {BoltConfig} from "../../../src/lib/Config.sol";
 
 contract UpgradeBolt is Script {
     struct Deployments {
         address boltManager;
         address boltParameters;
+        address boltValidators;
         address symbioticNetwork;
         address symbioticOperatorRegistry;
         address symbioticOperatorNetOptIn;
@@ -103,6 +106,31 @@ contract UpgradeBolt is Script {
         console.log("BoltSymbioticMiddleware proxy upgraded from %s to %s", opts.referenceContract, upgradeTo);
     }
 
+    function upgradeBoltValidators() public {
+        address admin = msg.sender;
+        console.log("Upgrading BoltValidators with admin", admin);
+        // TODO: Validate upgrades with Upgrades.validateUpgrade
+
+        Options memory opts;
+        opts.unsafeSkipAllChecks = true;
+        opts.referenceContract = "BoltValidatorsV1.sol";
+
+        string memory upgradeTo = "BoltValidatorsV2.sol";
+
+        Deployments memory deployments = _readDeployments();
+
+        bytes memory initBoltValidators =
+            abi.encodeCall(BoltValidatorsV2.initializeV2, (admin, deployments.boltParameters));
+
+        vm.startBroadcast(admin);
+
+        Upgrades.upgradeProxy(deployments.boltValidators, upgradeTo, initBoltValidators, opts);
+
+        vm.stopBroadcast();
+
+        console.log("BoltValidators proxy upgraded from %s to %s", opts.referenceContract, upgradeTo);
+    }
+
     function _readDeployments() public view returns (Deployments memory) {
         string memory root = vm.projectRoot();
         string memory path = string.concat(root, "/config/holesky/deployments.json");
@@ -111,6 +139,7 @@ contract UpgradeBolt is Script {
         return Deployments({
             boltParameters: vm.parseJsonAddress(json, ".bolt.parameters"),
             boltManager: vm.parseJsonAddress(json, ".bolt.manager"),
+            boltValidators: vm.parseJsonAddress(json, ".bolt.validators"),
             symbioticNetwork: vm.parseJsonAddress(json, ".symbiotic.network"),
             symbioticOperatorRegistry: vm.parseJsonAddress(json, ".symbiotic.operatorRegistry"),
             symbioticOperatorNetOptIn: vm.parseJsonAddress(json, ".symbiotic.networkOptInService"),
