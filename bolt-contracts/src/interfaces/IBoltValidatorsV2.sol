@@ -11,13 +11,6 @@ interface IBoltValidatorsV2 {
         address controller;
     }
 
-    struct _Validator {
-        bytes20 pubkeyHash;
-        uint32 maxCommittedGasLimit;
-        uint32 controllerIndex;
-        uint32 authorizedOperatorIndex;
-    }
-
     error InvalidBLSSignature();
     error InvalidAuthorizedOperator();
     error ValidatorAlreadyExists();
@@ -34,10 +27,6 @@ interface IBoltValidatorsV2 {
 
     function getValidatorByPubkeyHash(
         bytes20 pubkeyHash
-    ) external view returns (ValidatorInfo memory);
-
-    function getValidatorBySequenceNumber(
-        uint32 sequenceNumber
     ) external view returns (ValidatorInfo memory);
 
     function registerValidatorUnsafe(

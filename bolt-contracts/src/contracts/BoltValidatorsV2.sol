@@ -6,6 +6,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeab
 
 import {BLS12381} from "../lib/bls/BLS12381.sol";
 import {BLSSignatureVerifier} from "../lib/bls/BLSSignatureVerifier.sol";
+import {ValidatorsLib} from "../lib/ValidatorsLib.sol";
 import {IBoltValidatorsV2} from "../interfaces/IBoltValidatorsV2.sol";
 import {IBoltParametersV1} from "../interfaces/IBoltParametersV1.sol";
 
@@ -18,6 +19,7 @@ import {IBoltParametersV1} from "../interfaces/IBoltParametersV1.sol";
 /// You can also validate manually with forge: forge inspect <contract> storage-layout --pretty
 contract BoltValidatorsV2 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpgradeable, UUPSUpgradeable {
     using BLS12381 for BLS12381.G1Point;
+    using ValidatorsLib for ValidatorsLib.ValidatorSet;
 
     // ========= STORAGE =========
 
@@ -25,35 +27,10 @@ contract BoltValidatorsV2 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpg
     IBoltParametersV1 public parameters;
 
     /// @notice Validators (aka Blockspace providers)
-    /// @dev Validators are blockspace providers for commitments.
-    ///
-    /// Validators in this mapping are identified by their sequence number.
-    /// The sequence number is an incremental index assigned to each validator
-    /// in the registry and is guaranteed to be unique.
-    mapping(uint32 => _Validator) internal VALIDATORS;
+    /// @dev This struct occupies 6 storage slots.
+    ValidatorsLib.ValidatorSet internal VALIDATORS;
 
-    /// @notice Mapping of BLS public key hash to the sequence number of the validator 
-    /// in the VALIDATORS mapping. This mapping is used to quickly lookup a validator
-    /// by its BLS public key hash without iterating over the VALIDATORS mapping.
-    mapping(bytes20 => uint32) internal validatorPubkeyHashToSequenceNumber;
-
-    /// @notice Sequence number of the next validator to be registered
-    uint32 internal nextValidatorSequenceNumber;
-
-    /// @notice Mapping of controller index to its address. A controller map is 
-    /// used to identify entities with a 32-bit index instead of their full address.
-    mapping(uint32 => address) internal controllerIndexToAddress;
-    mapping(address => uint32) internal controllerAddressToIndex;
-    uint32 internal nextControllerIndex;
-
-    /// @notice Mapping of authorized operator index to its address. An authorized operator map is
-    /// used to identify entities with a 32-bit index instead of their full address.
-    mapping(uint32 => address) internal authorizedOperatorIndexToAddress;
-    mapping(address => uint32) internal authorizedOperatorToIndex;
-    uint32 internal nextAuthorizedOperatorIndex;
-
-    // TODO: adjust
-    // --> Storage layout marker: 4 slots
+    // --> Storage layout marker: 7 slots
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new
@@ -63,13 +40,13 @@ contract BoltValidatorsV2 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpg
      *
      * Total storage slots: 50
      */
-    uint256[46] private __gap;
+    uint256[43] private __gap;
 
     // ========= EVENTS =========
 
     /// @notice Emitted when a validator is registered
     /// @param pubkeyHash BLS public key hash of the validator
-    event ValidatorRegistered(bytes32 indexed pubkeyHash, uint32 indexed sequenceNumber);
+    event ValidatorRegistered(bytes32 indexed pubkeyHash);
 
     // ========= INITIALIZER =========
 
@@ -94,21 +71,21 @@ contract BoltValidatorsV2 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpg
 
     // ========= VIEW FUNCTIONS =========
 
-    /// @notice Get all validators
+    /// @notice Get all validators in the system
     /// @dev This function should be used with caution as it can return a large amount of data.
-    /// @return Validator[] memory Array of validator structs
+    /// @return ValidatorInfo[] Array of validator info structs
     function getAllValidators() public view returns (ValidatorInfo[] memory) {
-        uint32 validatorCount = nextValidatorSequenceNumber;
-        ValidatorInfo[] memory validators = new ValidatorInfo[](validatorCount);
-        for (uint32 i = 0; i < validatorCount; i++) {
-            validators[i] = _getValidatorInfo(VALIDATORS[i]);
+        ValidatorsLib._Validator[] memory _vals = VALIDATORS.getAll();
+        ValidatorInfo[] memory vals = new ValidatorInfo[](_vals.length);
+        for (uint256 i = 0; i < _vals.length; i++) {
+            vals[i] = _getValidatorInfo(_vals[i]);
         }
-        return validators;
+        return vals;
     }
 
     /// @notice Get a validator by its BLS public key
     /// @param pubkey BLS public key of the validator
-    /// @return Validator memory Validator struct
+    /// @return ValidatorInfo struct
     function getValidatorByPubkey(
         BLS12381.G1Point calldata pubkey
     ) public view returns (ValidatorInfo memory) {
@@ -117,28 +94,11 @@ contract BoltValidatorsV2 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpg
 
     /// @notice Get a validator by its BLS public key hash
     /// @param pubkeyHash BLS public key hash of the validator
-    /// @return Validator memory Validator struct
+    /// @return ValidatorInfo struct
     function getValidatorByPubkeyHash(
         bytes20 pubkeyHash
     ) public view returns (ValidatorInfo memory) {
-        uint32 sequenceNumber = validatorPubkeyHashToSequenceNumber[pubkeyHash];
-        _Validator memory _val = VALIDATORS[sequenceNumber];
-        if (_val.pubkeyHash == bytes20(0)) {
-            revert ValidatorDoesNotExist();
-        }
-        return _getValidatorInfo(_val);
-    }
-
-    /// @notice Get a validator by its sequence number
-    /// @param sequenceNumber Sequence number of the validator
-    /// @return Validator memory Validator struct
-    function getValidatorBySequenceNumber(
-        uint32 sequenceNumber
-    ) public view returns (ValidatorInfo memory) {
-        _Validator memory _val = VALIDATORS[sequenceNumber];
-        if (_val.pubkeyHash == bytes20(0)) {
-            revert ValidatorDoesNotExist();
-        }
+        ValidatorsLib._Validator memory _val = VALIDATORS.get(pubkeyHash);
         return _getValidatorInfo(_val);
     }
 
@@ -176,7 +136,8 @@ contract BoltValidatorsV2 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpg
         uint32 maxCommittedGasLimit,
         address authorizedOperator
     ) public {
-        bytes memory message = abi.encodePacked(block.chainid, msg.sender, nextValidatorSequenceNumber);
+        uint32 sequenceNumber = uint32(VALIDATORS.length() + 1);
+        bytes memory message = abi.encodePacked(block.chainid, msg.sender, sequenceNumber);
         if (!_verifySignature(message, signature, pubkey)) {
             revert InvalidBLSSignature();
         }
@@ -197,6 +158,7 @@ contract BoltValidatorsV2 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpg
         address authorizedOperator
     ) public {
         uint32[] memory expectedValidatorSequenceNumbers = new uint32[](pubkeys.length);
+        uint32 nextValidatorSequenceNumber = uint32(VALIDATORS.length() + 1);
         for (uint32 i = 0; i < pubkeys.length; i++) {
             expectedValidatorSequenceNumbers[i] = nextValidatorSequenceNumber + i;
         }
@@ -245,19 +207,12 @@ contract BoltValidatorsV2 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpg
     /// @param pubkeyHash The hash of the BLS public key of the validator
     /// @param maxCommittedGasLimit The new maximum gas limit
     function updateMaxCommittedGasLimit(bytes20 pubkeyHash, uint32 maxCommittedGasLimit) public {
-        uint32 sequenceNumber = validatorPubkeyHashToSequenceNumber[pubkeyHash];
-        _Validator storage _val = VALIDATORS[sequenceNumber];
-
-        if (_val.pubkeyHash == bytes20(0)) {
-            revert ValidatorDoesNotExist();
-        }
-
-        address controller = controllerIndexToAddress[_val.controllerIndex];
+        address controller = VALIDATORS.getController(pubkeyHash);
         if (msg.sender != controller) {
             revert UnauthorizedCaller();
         }
 
-        _val.maxCommittedGasLimit = maxCommittedGasLimit;
+        VALIDATORS.updateMaxCommittedGasLimit(pubkeyHash, maxCommittedGasLimit);
     }
 
     // ========= HELPERS =========
@@ -269,20 +224,17 @@ contract BoltValidatorsV2 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpg
         if (pubkeyHash == bytes20(0)) {
             revert InvalidPubkey();
         }
-        if (validatorPubkeyHashToSequenceNumber[pubkeyHash] != 0) {
+        if (VALIDATORS.contains(pubkeyHash)) {
             revert ValidatorAlreadyExists();
         }
 
-        VALIDATORS[nextValidatorSequenceNumber] = _Validator({
-            pubkeyHash: pubkeyHash,
-            maxCommittedGasLimit: maxCommittedGasLimit,
-            authorizedOperatorIndex: _getOrCreateAuthorizedOperatorIndex(authorizedOperator),
-            controllerIndex: _getOrCreateControllerIndex(msg.sender)
-        });
-        emit ValidatorRegistered(pubkeyHash, nextValidatorSequenceNumber);
-
-        validatorPubkeyHashToSequenceNumber[pubkeyHash] = nextValidatorSequenceNumber;
-        nextValidatorSequenceNumber += 1;
+        VALIDATORS.insert(
+            pubkeyHash,
+            maxCommittedGasLimit,
+            VALIDATORS.getOrInsertController(msg.sender),
+            VALIDATORS.getOrInsertAuthorizedOperator(authorizedOperator)
+        );
+        emit ValidatorRegistered(pubkeyHash);
     }
 
     function _batchRegisterValidators(
@@ -294,78 +246,36 @@ contract BoltValidatorsV2 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpg
             revert InvalidAuthorizedOperator();
         }
 
-        uint32 authorizedOperatorIndex = _getOrCreateAuthorizedOperatorIndex(authorizedOperator);
-        uint32 controllerIndex = _getOrCreateControllerIndex(msg.sender);
+        uint32 authorizedOperatorIndex = VALIDATORS.getOrInsertAuthorizedOperator(authorizedOperator);
+        uint32 controllerIndex = VALIDATORS.getOrInsertController(msg.sender);
         uint256 pubkeysLength = pubkeyHashes.length;
 
         for (uint32 i; i < pubkeysLength; i++) {
             bytes20 pubkeyHash = pubkeyHashes[i];
-            uint32 sequenceNumber = nextValidatorSequenceNumber + i;
 
             if (pubkeyHash == bytes20(0)) {
                 revert InvalidPubkey();
             }
-            if (validatorPubkeyHashToSequenceNumber[pubkeyHash] != 0) {
+            if (VALIDATORS.contains(pubkeyHash)) {
                 revert ValidatorAlreadyExists();
             }
 
-            VALIDATORS[sequenceNumber] = _Validator({
-                pubkeyHash: pubkeyHash,
-                maxCommittedGasLimit: maxCommittedGasLimit,
-                authorizedOperatorIndex: authorizedOperatorIndex,
-                controllerIndex: controllerIndex
-            });
-            emit ValidatorRegistered(pubkeyHash, sequenceNumber);
-
-            validatorPubkeyHashToSequenceNumber[pubkeyHash] = sequenceNumber;
+            VALIDATORS.insert(pubkeyHash, maxCommittedGasLimit, controllerIndex, authorizedOperatorIndex);
+            emit ValidatorRegistered(pubkeyHash);
         }
-
-        nextValidatorSequenceNumber += uint32(pubkeysLength);
-    }
-
-    /// @notice Internal helper to get the index of a new or existing operator by its address.
-    /// @param authorizedOperator Address of the operator
-    /// @return Index of the operator
-    function _getOrCreateAuthorizedOperatorIndex(
-        address authorizedOperator
-    ) internal returns (uint32) {
-        uint32 authorizedOperatorIndex = authorizedOperatorToIndex[authorizedOperator];
-        if (authorizedOperatorIndex == 0) {
-            authorizedOperatorIndex = nextAuthorizedOperatorIndex;
-            authorizedOperatorToIndex[authorizedOperator] = authorizedOperatorIndex;
-            authorizedOperatorIndexToAddress[authorizedOperatorIndex] = authorizedOperator;
-            nextAuthorizedOperatorIndex += 1;
-        }
-
-        return authorizedOperatorIndex;
-    }
-
-    /// @notice Internal helper to get the index of a new or existing controller by its address.
-    /// @param controller Address of the controller
-    /// @return Index of the controller
-    function _getOrCreateControllerIndex(
-        address controller
-    ) internal returns (uint32) {
-        uint32 controllerIndex = controllerAddressToIndex[controller];
-        if (controllerIndex == 0) {
-            controllerIndex = nextControllerIndex;
-            controllerAddressToIndex[controller] = controllerIndex;
-            controllerIndexToAddress[controllerIndex] = controller;
-            nextControllerIndex += 1;
-        }
-
-        return controllerIndex;
     }
 
     /// @notice Internal helper to get the ValidatorInfo struct from a _Validator struct
     /// @param _val Validator struct
     /// @return ValidatorInfo struct
-    function _getValidatorInfo(_Validator memory _val) internal view returns (ValidatorInfo memory) {
+    function _getValidatorInfo(
+        ValidatorsLib._Validator memory _val
+    ) internal view returns (ValidatorInfo memory) {
         return ValidatorInfo({
             pubkeyHash: _val.pubkeyHash,
             maxCommittedGasLimit: _val.maxCommittedGasLimit,
-            authorizedOperator: authorizedOperatorIndexToAddress[_val.authorizedOperatorIndex],
-            controller: controllerIndexToAddress[_val.controllerIndex]
+            authorizedOperator: VALIDATORS.getAuthorizedOperator(_val.pubkeyHash),
+            controller: VALIDATORS.getController(_val.pubkeyHash)
         });
     }
 

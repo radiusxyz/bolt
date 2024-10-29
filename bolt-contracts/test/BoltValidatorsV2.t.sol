@@ -47,7 +47,7 @@ contract BoltValidatorsV2Test is Test {
     }
 
     function testUnsafeBatchRegistrationV2GasUsage() public {
-        BLS12381.G1Point[] memory pubkeys = _readPubkeysFromFile(620);
+        BLS12381.G1Point[] memory pubkeys = _readPubkeysFromFile(615);
 
         bytes20[] memory pubkeyHashes = new bytes20[](pubkeys.length);
         for (uint256 i = 0; i < pubkeys.length; i++) {
