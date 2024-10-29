@@ -1,3 +1,5 @@
+# Holesky Launch Instructions
+
 This document provides instructions for running the Bolt sidecar on the Holesky testnet.
 
 # Table of Contents
@@ -5,6 +7,13 @@ This document provides instructions for running the Bolt sidecar on the Holesky 
 <!-- vim-markdown-toc GFM -->
 
 * [Prerequisites](#prerequisites)
+* [On-Chain Registration](#on-chain-registration)
+  * [Validator Registration](#validator-registration)
+    * [Registration Steps](#registration-steps)
+  * [Bolt Network Entrypoint](#bolt-network-entrypoint)
+  * [Operator Registration](#operator-registration)
+    * [Symbiotic Registration Steps](#symbiotic-registration-steps)
+    * [EigenLayer Registration Steps](#eigenlayer-registration-steps)
 * [Off-Chain Setup](#off-chain-setup)
   * [Docker Mode (recommended)](#docker-mode-recommended)
   * [Commit-Boost Mode](#commit-boost-mode)
@@ -13,13 +22,6 @@ This document provides instructions for running the Bolt sidecar on the Holesky 
     * [Building and running the Bolt sidecar binary](#building-and-running-the-bolt-sidecar-binary)
       * [Configuration file](#configuration-file)
     * [Observability](#observability)
-* [On-Chain Registration](#on-chain-registration)
-  * [Validator Registration](#validator-registration)
-    * [Registration Steps](#registration-steps)
-  * [Bolt Network Entrypoint](#bolt-network-entrypoint)
-  * [Operator Registration](#operator-registration)
-    * [Symbiotic Registration Steps](#symbiotic-registration-steps)
-    * [EigenLayer Registration Steps](#eigenlayer-registration-steps)
 * [Reference](#reference)
   * [Command-line options](#command-line-options)
   * [Delegations and signing options for Native and Docker Compose Mode](#delegations-and-signing-options-for-native-and-docker-compose-mode)
@@ -88,10 +90,322 @@ or **authorized delegates** acting on their behalf, to issue and sign preconfirm
 To learn more about delegation, check out the [Delegations and Signing](#delegations-and-signing-options-for-native-and-docker-compose-mode)
 section.
 
+> [!NOTE]
+> Before moving on to the actual instructions, please note that the on-chain steps must be completed before running the off-chain
+> infrastructure. The sidecar will verify that all of the associated validators and operator have been registered in the Bolt contracts,
+> else it will fail (for safety reasons).
+
+# On-Chain Registration
+
+The first step for integrating Bolt is registering into the Bolt smart contracts. This is required for signalling
+participation, depositing collateral, and specifying endpoints and other metadata to start receiving preconfirmation
+requests. What follows is a quick overview of the required steps.
+
+First you'll need to deposit some collateral in the form of whitelisted ETH derivative tokens that need to
+be restaked in either the Symbiotic or EigenLayer restaking protocols. Bolt is compatible with the following ETH derivative tokens on Holesky:
+
+- [Symbiotic Vaults](https://docs.symbiotic.fi/deployments#vaults)
+  - [`wstETH`](https://holesky.etherscan.io/address/0xc79c533a77691641d52ebD5e87E51dCbCaeb0D78)
+  - [`rETH`](https://holesky.etherscan.io/address/0xe5708788c90e971f73D928b7c5A8FD09137010e0)
+  - [`stETH`](https://holesky.etherscan.io/address/0x11c5b9A9cd8269580aDDbeE38857eE451c1CFacd)
+  - [`wETH`](https://holesky.etherscan.io/address/0xC56Ba584929c6f381744fA2d7a028fA927817f2b)
+  - [`cbETH`](https://holesky.etherscan.io/address/0xcDdeFfcD2bA579B8801af1d603812fF64c301462)
+  - [`mETH`](https://holesky.etherscan.io/address/0x91e84e12Bb65576C0a6614c5E6EbbB2eA595E10f)
+- [EigenLayer Strategies](https://github.com/Layr-Labs/eigenlayer-contracts#current-testnet-deployment)
+  - [`stETH`](https://holesky.etherscan.io/address/0x3F1c547b21f65e10480dE3ad8E19fAAC46C95034)
+  - [`rETH`](https://holesky.etherscan.io/address/0x7322c24752f79c05FFD1E2a6FCB97020C1C264F1)
+  - [`wETH`](https://holesky.etherscan.io/address/0x94373a4919B3240D86eA41593D5eBa789FEF3848)
+  - [`cbETH`](https://holesky.etherscan.io/address/0x8720095Fa5739Ab051799211B146a2EEE4Dd8B37)
+  - [`mETH`](https://holesky.etherscan.io/address/0xe3C063B1BEe9de02eb28352b55D49D85514C67FF)
+
+> [!NOTE]
+> These Vaults and Strategies have been deployed on Holesky by us, and are permissionless to opt in to.
+> For now, these are the only vaults & strategies that have been whitelisted by the Bolt protocol.
+
+After that, you need to interact with two contracts on Holesky:
+`BoltValidators` and `BoltManager`. The former is used to register your
+active validators into the protocol, while the latter is used to
+register as an operator into the system and integrate with the restaking
+protocols.
+
+> [!IMPORTANT]
+> When registering your operator in the `BoltManager` contract you must use the
+> public key associated to the private key used to sign commitments with the
+> Bolt Sidecar (the `--commitment-private-key` flag).
+
+**Prerequisites**
+
+- Install the Foundry toolkit:
+
+```bash
+curl -L https://foundry.paradigm.xyz | bash
+source $HOME/.bashrc
+foundryup
+```
+
+- Clone the Bolt repo and navigate to the [contracts](https://github.com/chainbound/bolt/tree/unstable/bolt-contracts) directory:
+
+```bash
+git clone https://github.com/chainbound/bolt
+cd bolt-contracts
+forge install
+```
+
+## Validator Registration
+
+The [`BoltValidators`](../../bolt-contracts/src/contracts/BoltValidatorsV1.sol) contract is the only
+point of entry for validators to signal their intent to participate in Bolt
+Protocol and authenticate with their BLS private key (unsupported until Pectra).
+
+The registration process includes the following steps:
+
+1. Validator signs a message with their BLS private key. This is required to
+   prove that the validator private key is under their control and that they are
+   indeed its owner.
+2. Validator calls the `registerValidator` function providing:
+   1. Their BLS public key
+   2. The BLS signature of the registration message
+   3. The address of the authorized collateral provider & operator (commitment signer)
+
+Until the Pectra hard-fork will be activated, the contract will also expose a
+`registerValidatorUnsafe` function that will not check the BLS signature. This
+is gated by a feature flag that will be turned off post-Pectra and will allow us
+to test the registration flow in a controlled environment.
+
+Note that the account initiating the registration will be the `controller`
+account for those validators. Only the `controller` can then deregister
+validator or change any preferences.
+
+### Registration Steps
+
+> [!NOTE]
+> All of these scripts can be simulated on a Holesky fork using Anvil with the
+> following command:
+>
+> `anvil --fork-url https://holesky.drpc.org --port 8545`
+>
+> In order to use this local fork, replace `$HOLESKY_RPC` with `localhost:8545` in
+> all of the `forge` commands below.
+
+To register your validators, we provide the following Foundry script:
+[`RegisterValidators.s.sol`](../../bolt-contracts/script/holesky/validators/RegisterValidators.s.sol).
+Note that in order to run these scripts, you must be in the `bolt-contracts`
+directory.
+
+- First, configure
+  [`bolt-contracts/config/holesky/validators.json`](../../bolt-contracts/config/holesky/validators.json)
+  to your requirements. Note that both `maxCommittedGasLimit` and
+  `authorizedOperator` must reflect the values you'll specify in later steps, during
+  the configuration of the sidecar. `pubkeys` should be configured with all of the
+  validator public keys that you wish to register.
+
+- Next up, decide on a controller account and save the key in an environment
+  variable: `export CONTROLLER_KEY=0x...`. This controller key will be used to run
+  the script and will mark the corresponding account as the [controller
+  account](https://github.com/chainbound/bolt/blob/06bdd8e75d759d91f6178ad73f962b1f4ad43fd8/bolt-contracts/src/interfaces/IBoltValidatorsV1.sol#L18-L19)
+  for these validators.
+
+- Finally, run the script:
+
+```bash
+forge script script/holesky/validators/RegisterValidators.s.sol -vvvv --rpc-url $HOLESKY_RPC --private-key $CONTROLLER_KEY --broadcast
+```
+
+If the script executed succesfully, your validators were registered.
+
+## Bolt Network Entrypoint
+
+The [`BoltManager`](../../bolt-contracts/src/contracts/BoltManagerV1.sol)
+contract is a crucial component of Bolt that integrates with restaking
+ecosystems Symbiotic and Eigenlayer. It manages the registration and
+coordination of validators, operators, and vaults within the Bolt network.
+
+Key features include:
+
+1. Retrieval of operator stake and proposer status from their pubkey
+2. Integration with Symbiotic
+3. Integration with Eigenlayer
+
+Specific functionalities about the restaking protocols are handled inside the
+`IBoltMiddleware` contracts, such as [`BoltSymbioticMiddleware`](../../bolt-contracts/src/contracts/BoltSymbioticMiddlewareV2.sol) and
+[`BoltEigenlayerMiddleware`](../../bolt-contracts/src/contracts/BoltEigenLayerMiddlewareV2.sol).
+
+## Operator Registration
+
+In this section we outline how to register as an operator, i.e. an entity
+uniquely identified by an Ethereum address and responsible for duties like
+signing commitments. Note that in Bolt, there is no real separation between
+validators and an operator. An operator is only real in the sense that its
+private key will be used to sign commitments on the corresponding validators'
+sidecars. However, we need a way to logically connect validators to an on-chain
+address associated with some stake, which is what the operator abstraction takes care of.
+
+**In the next sections we assume you have saved the private key corresponding to
+the operator address in `$OPERATOR_SK`.** This private key will be read by the
+Forge scripts for registering operators and needs to be set correctly. You also
+have to invoke the scripts from the [`bolt-contracts`](../../bolt-contracts)
+directory.
+
+### Symbiotic Registration Steps
+
+As an operator, you will need to opt-in to the Bolt Network and any Vault that
+trusts you to provide commitments on their behalf.
+
+**External Steps**
+
+> [!NOTE]
+> The network and supported vault addresses can be found in
+> [`deployments.json`](../../bolt-contracts/config/holesky/deployments.json).
+
+Make sure you have installed the [Symbiotic
+CLI](https://docs.symbiotic.fi/guides/cli/).
+
+The opt-in process requires the following steps:
+
+1. if you haven't done it already, register as a Symbiotic Operator with the
+   [`register-operator`](https://docs.symbiotic.fi/guides/cli/#register-operator)
+   command;
+2. opt-in to the Bolt network with the
+   [`opt-in-network`](https://docs.symbiotic.fi/guides/cli/#opt-in-network)
+   command;
+3. opt-in to any vault using the
+   [`opt-in-vault`](https://docs.symbiotic.fi/guides/cli/#opt-in-vault) command;
+4. deposit collateral into the vault using the
+   [`deposit`](https://docs.symbiotic.fi/guides/cli/#deposit) command. For this deployment,
+   you have to deposit `1 ether` of the collateral token.
+
+**Internal Steps**
+
+After having deposited collateral into a vault you need to register into
+Bolt as a Symbiotic operator. We've provided a script to facilitate the
+procedure. If you want to use it, please follow these steps:
+
+1. set the operator private key to the `OPERATOR_SK` environment variable;
+2. set the operator RPC URL which supports the Commitments API to the
+   `OPERATOR_RPC` environment variable;
+3. run the following Forge script from the `bolt-contracts` directory:
+
+   ```bash
+   forge script script/holesky/operators/RegisterSymbioticOperator.s.sol \
+     --sig "S01_registerIntoBolt" \
+     --rpc-url $HOLESKY_RPC \
+     -vvvv \
+     --broadcast
+   ```
+
+To check if your operator is correctly registered, set the operator address
+in the `OPERATOR_ADDRESS` environment variable and run the following script:
+
+```bash
+forge script script/holesky/operators/RegisterSymbioticOperator.s.sol \
+  --sig "S02_checkOperatorRegistration" \
+  --rpc-url $HOLESKY_RPC \
+  -vvvv
+```
+
+### EigenLayer Registration Steps
+
+**External Steps**
+
+> [!NOTE]
+> The supported strategies can be found in
+> [`deployments.json`](../../bolt-contracts/config/holesky/deployments.json).
+
+If you're not registered as an operator in EigenLayer yet, you need to do so by
+following [the official
+guide](https://docs.eigenlayer.xyz/eigenlayer/operator-guides/operator-introduction).
+This requires installing the EigenLayer CLI and opt into the protocol by
+registering via the
+[`DelegationManager.registerAsOperator`](https://docs.eigenlayer.xyz/eigenlayer/operator-guides/operator-installation)
+function.
+
+After that you need to deposit into a supported EigenLayer
+strategy using
+[`StrategyManager.depositIntoStrategy`](https://github.com/Layr-Labs/eigenlayer-contracts/blob/testnet-holesky/src/contracts/core/StrategyManager.sol#L303-L322).
+This will add the deposit into the collateral of the operator so that Bolt can
+read it. Note that you need to deposit a minimum of `1 ether` of the strategies
+underlying token in order to opt in.
+
+We've provided a script to facilitate the procedure. If you want to use it,
+please set the operator private key to an `OPERATOR_SK` environment variable.
+
+First, you need to first configure the deposit details in this JSON
+file:
+
+```bash
+$EDITOR ./config/holesky/operators/eigenlayer/depositIntoStrategy.json
+```
+
+Note that the amount is in ether (so for 1 ether, specify `1` instead of 1e18).
+
+Then you can run the following Forge script:
+
+```bash
+forge script script/holesky/operators/RegisterEigenLayerOperator.s.sol \
+  --sig "S01_depositIntoStrategy()" \
+  --rpc-url $HOLESKY_RPC \
+  -vvvv \
+  --broadcast
+```
+
+**Internal Steps**
+
+After having deposited collateral into a strategy you need to register into the
+Bolt AVS. We've provided a script to facilitate the procedure. If you want to
+use it, please set follow these steps:
+
+1. configure the operator details in this JSON file
+
+   ```bash
+   $EDITOR ./config/holesky/operators/eigenlayer/registerIntoBoltAVS.json
+   ```
+
+   In there you'll need to set the the following fields:
+
+   - `rpc` -- the RPC URL of your operator which supports the Commitments API
+   - `salt` -- an unique 32 bytes value to avoid replay attacks. To generate it on
+     both Linux and MacOS you can run:
+
+     ```bash
+     echo -n "0x"; head -c 32 /dev/urandom | hexdump -e '32/1 "%02x" "\n"'
+     ```
+
+   - `expiry` -- the timestamp of the signature expiry in seconds. To generate it
+     on both Linux and MacOS run the following command, replacing
+     `<EXPIRY_TIMESTAMP>` with the desired timestamp:
+
+     ```bash
+     echo -n "0x"; printf "%064x\n" <EXPIRY_TIMESTAMP>
+     ```
+
+2. set the operator private key to an `OPERATOR_SK` environment
+   variable;
+3. run the following Forge script from the `bolt-contracts`
+   directory:
+
+```bash
+forge script script/holesky/operators/RegisterEigenLayerOperator.s.sol \
+  --sig "S02_registerIntoBoltAVS" \
+  --rpc-url $HOLESKY_RPC \
+  -vvvv \
+  --broadcast
+```
+
+To check if your operator is correctly registered, set the operator address
+in the `OPERATOR_ADDRESS` environment variable and run the following script:
+
+```bash
+forge script script/holesky/operators/RegisterEigenLayerOperator.s.sol \
+  --sig "S03_checkOperatorRegistration" \
+  --rpc-url $HOLESKY_RPC \
+  -vvvv
+```
+
 # Off-Chain Setup
 
-There are various way to run the Bolt Sidecar depending on what infrastructure
-you want to use and your preferred signing methods:
+After all of the steps above have been completed, we can proceed with running the off-chain infrastructure.
+
+There are various way to run the Bolt Sidecar depending on your preferences and your preferred signing methods:
 
 - Docker mode (recommended)
 - [Commit-Boost](https://commit-boost.github.io/commit-boost-client) mode
@@ -373,311 +687,6 @@ To stop the services run:
 
 ```bash
 docker compose -f telemetry.compose.yml down
-```
-
-# On-Chain Registration
-
-Once you are successfully running the Bolt sidecar you need to register on-chain
-on the Bolt Registry to successfully receive preconfirmation requests from users
-and RPCs. This step is needed to provide economic security to your
-commitments.
-
-In order to do that you need some collateral in the form of whitelisted ETH derivative
-tokens that need to be restaked in either the Symbiotic or
-EigenLayer protocol. Bolt is compatible with the following ETH derivative tokens
-on Holesky:
-
-- [Symbiotic Vaults](https://docs.symbiotic.fi/deployments#vaults)
-  - [`wstETH`](https://holesky.etherscan.io/address/0xc79c533a77691641d52ebD5e87E51dCbCaeb0D78)
-  - [`rETH`](https://holesky.etherscan.io/address/0xe5708788c90e971f73D928b7c5A8FD09137010e0)
-  - [`stETH`](https://holesky.etherscan.io/address/0x11c5b9A9cd8269580aDDbeE38857eE451c1CFacd)
-  - [`WETH`](https://holesky.etherscan.io/address/0xC56Ba584929c6f381744fA2d7a028fA927817f2b)
-  - [`cbETH`](https://holesky.etherscan.io/address/0xcDdeFfcD2bA579B8801af1d603812fF64c301462)
-  - [`mETH`](https://holesky.etherscan.io/address/0x91e84e12Bb65576C0a6614c5E6EbbB2eA595E10f)
-- [EigenLayer Strategies](https://github.com/Layr-Labs/eigenlayer-contracts#current-testnet-deployment)
-  - [`stETH`](https://holesky.etherscan.io/address/0x3F1c547b21f65e10480dE3ad8E19fAAC46C95034)
-  - [`rETH`](https://holesky.etherscan.io/address/0x7322c24752f79c05FFD1E2a6FCB97020C1C264F1)
-  - [`wETH`](https://holesky.etherscan.io/address/0x94373a4919B3240D86eA41593D5eBa789FEF3848)
-  - [`cbETH`](https://holesky.etherscan.io/address/0x8720095Fa5739Ab051799211B146a2EEE4Dd8B37)
-  - [`mETH`](https://holesky.etherscan.io/address/0xe3C063B1BEe9de02eb28352b55D49D85514C67FF)
-
-Then you need to interact with two contracts on Holesky:
-`BoltValidators` and `BoltManager`. The former is used to register your
-active validators into the protocol, while the latter is used to manage to
-register as an operator into the system and integrate with the restaking
-protocols.
-
-> [!IMPORTANT]
-> When registering your operator in the `BoltManager` contract you must use the
-> public key associated to the private key used to sign commitments with the
-> Bolt Sidecar (the `--commitment-private-key` flag).
-
-**Prerequisites**
-
-- Install the Foundry tools:
-
-```bash
-curl -L https://foundry.paradigm.xyz | bash
-source $HOME/.bashrc
-foundryup
-```
-
-- Clone the Bolt repo and navigate to the [contracts](https://github.com/chainbound/bolt/tree/unstable/bolt-contracts) directory:
-
-```bash
-git clone https://github.com/chainbound/bolt
-cd bolt-contracts
-forge install
-```
-
-## Validator Registration
-
-The [`BoltValidators`](../../bolt-contracts/src/contracts/BoltValidators.sol) contract is the only
-point of entry for validators to signal their intent to participate in Bolt
-Protocol and authenticate with their BLS private key.
-
-The registration process includes the following steps:
-
-1. Validator signs a message with their BLS private key. This is required to
-   prove that the validator private key is under their control and that they are
-   indeed its owner.
-2. Validator calls the `registerValidator` function providing:
-   1. Their BLS public key
-   2. The BLS signature of the registration message
-   3. The address of the authorized collateral provider
-   4. The address of the authorized operator
-
-Until the Pectra hard-fork will be activated, the contract will also expose a
-`registerValidatorUnsafe` function that will not check the BLS signature. This
-is gated by a feature flag that will be turned off post-Pectra and will allow us
-to test the registration flow in a controlled environment.
-
-Note that the account initiating the registration will be the `controller`
-account for those validators. Only the `controller` can then deregister
-validator or change any preferences.
-
-### Registration Steps
-
-> [!NOTE]
-> All of these scripts can be simulated on a Holesky fork using Anvil with the
-> following command:
->
-> `anvil --fork-url https://holesky.drpc.org --port 8545`
->
-> In order to use this local fork, replace `$HOLESKY_RPC` with `localhost:8545` in
-> all of the `forge` commands below.
-
-To register your validators, we provide the following Foundry script:
-[`RegisterValidators.s.sol`](../../bolt-contracts/script/holesky/validators/RegisterValidators.s.sol).
-Note that in order to run these scripts, you must be in the `bolt-contracts`
-directory.
-
-- First, configure
-  [`bolt-contracts/config/holesky/validators.json`](../../bolt-contracts/config/holesky/validators.json)
-  to your requirements. Note that both `maxCommittedGasLimit` and
-  `authorizedOperator` must reflect the values specified in previous steps, during
-  the configuration of the sidecar. `pubkeys` should be configured with all of the
-  validator public keys that you wish to register.
-
-- Next up, decide on a controller account and save the key in an environment
-  variable: `export CONTROLLER_KEY=0x...`. This controller key will be used to run
-  the script and will mark the corresponding account as the [controller
-  account](https://github.com/chainbound/bolt/blob/06bdd8e75d759d91f6178ad73f962b1f4ad43fd8/bolt-contracts/src/interfaces/IBoltValidatorsV1.sol#L18-L19)
-  for these validators.
-
-- Finally, run the script:
-
-```bash
-forge script script/holesky/validators/RegisterValidators.s.sol -vvvv --rpc-url $HOLESKY_RPC --private-key $CONTROLLER_KEY --broadcast
-```
-
-If the script executed succesfully, your validators were registered.
-
-## Bolt Network Entrypoint
-
-The [`BoltManager`](../../bolt-contracts/src/contracts/BoltManagerV1.sol)
-contract is a crucial component of Bolt that integrates with restaking
-ecosystems Symbiotic and Eigenlayer. It manages the registration and
-coordination of validators, operators, and vaults within the Bolt network.
-
-Key features include:
-
-1. Retrieval of operator stake and proposer status from their pubkey
-2. Integration with Symbiotic
-3. Integration with Eigenlayer
-
-Specific functionalities about the restaking protocols are handled inside the
-`IBoltMiddleware` contracts, such as `BoltSymbioticMiddleware` and
-`BoltEigenlayerMiddleware`.
-
-## Operator Registration
-
-In this section we outline how to register as an operator, i.e. an entity
-uniquely identified by an Ethereum address and responsible for duties like
-signing commitments. Note that in Bolt, there is no real separation between
-validators and an operator. An operator is only real in the sense that its
-private key will be used to sign commitments on the corresponding validators'
-sidecars. However, we need a way to logically connect validators to an on-chain
-address associated with some stake, which is what the operator is.
-
-**In the next sections we assume you have saved the private key corresponding to
-the operator address in `$OPERATOR_SK`.** This private key will be read by the
-Forge scripts for registering operators and needs to be set correctly. You also
-have to invoke the scripts from the [`bolt-contracts`](../../bolt-contracts)
-directory.
-
-### Symbiotic Registration Steps
-
-As an operator, you will need to opt-in to the Bolt Network and any Vault that
-trusts you to provide commitments on their behalf.
-
-**External Steps**
-
-> [!NOTE]
-> The network and supported vault addresses can be found in
-> [`deployments.json`](../../bolt-contracts/config/holesky/deployments.json).
-
-Make sure you have installed the [Symbiotic
-CLI](https://docs.symbiotic.fi/guides/cli/).
-
-The opt-in process requires the following steps:
-
-1. if you haven't done it already, register as a Symbiotic Operator with the
-   [`register-operator`](https://docs.symbiotic.fi/guides/cli/#register-operator)
-   command;
-2. opt-in to the Bolt network with the
-   [`opt-in-network`](https://docs.symbiotic.fi/guides/cli/#opt-in-network)
-   command;
-3. opt-in to any vault using the
-   [`opt-in-vault`](https://docs.symbiotic.fi/guides/cli/#opt-in-vault) command;
-4. deposit collateral into the vault using the
-   [`deposit`](https://docs.symbiotic.fi/guides/cli/#deposit) command.
-
-**Internal Steps**
-
-After having deposited collateral into a vault you need to register into
-Bolt as a Symbiotic operator. We've provided a script to facilitate the
-procedure. If you want to use it, please follow these steps:
-
-1. set the operator private key to the `OPERATOR_SK` environment variable;
-2. set the operator RPC URL which supports the Commitments API to the
-   `OPERATOR_RPC` environment variable;
-3. run the following Forge script from the `bolt-contracts` directory:
-
-   ```bash
-   forge script script/holesky/operators/RegisterSymbioticOperator.s.sol \
-     --sig "S01_registerIntoBolt" \
-     --rpc-url $HOLESKY_RPC \
-     -vvvv \
-     --broadcast
-   ```
-
-To check if your operator is correctly registered, set the operator address
-in the `OPERATOR_ADDRESS` environment variable and run the following script:
-
-```bash
-forge script script/holesky/operators/RegisterSymbioticOperator.s.sol \
-  --sig "S02_checkOperatorRegistration" \
-  --rpc-url $HOLESKY_RPC \
-  -vvvv
-```
-
-### EigenLayer Registration Steps
-
-**External Steps**
-
-> [!NOTE]
-> The supported strategies can be found in
-> [`deployments.json`](../../bolt-contracts/config/holesky/deployments.json).
-
-If you're not registered as an operator in EigenLayer yet, you need to do so by
-following [the official
-guide](https://docs.eigenlayer.xyz/eigenlayer/operator-guides/operator-introduction).
-This requires installing the EigenLayer CLI and opt into the protocol by
-registering via the
-[`DelegationManager.registerAsOperator`](https://docs.eigenlayer.xyz/eigenlayer/operator-guides/operator-installation)
-function.
-
-After that you need to deposit into a supported EigenLayer
-strategy using
-[`StrategyManager.depositIntoStrategy`](https://github.com/Layr-Labs/eigenlayer-contracts/blob/testnet-holesky/src/contracts/core/StrategyManager.sol#L303-L322).
-This will add the deposit into the collateral of the operator so that Bolt can
-read it. Note that you need to deposit a minimum of `1 ether` of the strategies
-underlying token in order to opt in.
-
-We've provided a script to facilitate the procedure. If you want to use it,
-please set the operator private key to an `OPERATOR_SK` environment variable.
-
-First, you need to first configure the deposit details in this JSON
-file:
-
-```bash
-$EDITOR ./config/holesky/operators/eigenlayer/depositIntoStrategy.json
-```
-
-Note that the amount is in ether (so for 1 ether, specify `1` instead of 1e18).
-
-Then you can run the following Forge script:
-
-```bash
-forge script script/holesky/operators/RegisterEigenLayerOperator.s.sol \
-  --sig "S01_depositIntoStrategy()" \
-  --rpc-url $HOLESKY_RPC \
-  -vvvv \
-  --broadcast
-```
-
-**Internal Steps**
-
-After having deposited collateral into a strategy you need to register into the
-Bolt AVS. We've provided a script to facilitate the procedure. If you want to
-use it, please set follow these steps:
-
-1. configure the operator details in this JSON file
-
-   ```bash
-   $EDITOR ./config/holesky/operators/eigenlayer/registerIntoBoltAVS.json
-   ```
-
-   In there you'll need to set the the following fields:
-
-   - `rpc` -- the RPC URL of your operator which supports the Commitments API
-   - `salt` -- an unique 32 bytes value to avoid replay attacks. To generate it on
-     both Linux and MacOS you can run:
-
-     ```bash
-     echo -n "0x"; head -c 32 /dev/urandom | hexdump -e '32/1 "%02x" "\n"'
-     ```
-
-   - `expiry` -- the timestamp of the signature expiry in seconds. To generate it
-     on both Linux and MacOS run the following command, replacing
-     `<EXPIRY_TIMESTAMP>` with the desired timestamp:
-
-     ```bash
-     echo -n "0x"; printf "%064x\n" <EXPIRY_TIMESTAMP>
-     ```
-
-2. set the operator private key to an `OPERATOR_SK` environment
-   variable;
-3. run the following Forge script from the `bolt-contracts`
-   directory:
-
-```bash
-forge script script/holesky/operators/RegisterEigenLayerOperator.s.sol \
-  --sig "S02_registerIntoBoltAVS" \
-  --rpc-url $HOLESKY_RPC \
-  -vvvv \
-  --broadcast
-```
-
-To check if your operator is correctly registered, set the operator address
-in the `OPERATOR_ADDRESS` environment variable and run the following script:
-
-```bash
-forge script script/holesky/operators/RegisterEigenLayerOperator.s.sol \
-  --sig "S03_checkOperatorRegistration" \
-  --rpc-url $HOLESKY_RPC \
-  -vvvv
 ```
 
 # Reference
