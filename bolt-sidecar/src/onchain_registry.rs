@@ -1,55 +1,89 @@
 use std::str::FromStr;
 
 use alloy::{
-    contract::{Error as ContractError, Result as ContractResult},
-    primitives::{Address, Bytes},
+    contract::Error as ContractError,
+    primitives::{Address, Bytes, B256, B512},
     providers::{ProviderBuilder, RootProvider},
     sol,
     sol_types::{Error as SolError, SolInterface},
     transports::{http::Http, TransportError},
 };
+use ethereum_consensus::primitives::BlsPublicKey;
+use eyre::bail;
 use reqwest::{Client, Url};
-use reth_primitives::B256;
+use reth_primitives::keccak256;
 use serde::Serialize;
 
 use BoltManagerContract::{BoltManagerContractErrors, BoltManagerContractInstance, ProposerStatus};
+
+use crate::config::chain::Chain;
 
 /// A wrapper over a BoltManagerContract that exposes various utility methods.
 #[derive(Debug, Clone)]
 pub struct BoltManager(BoltManagerContractInstance<Http<Client>, RootProvider<Http<Client>>>);
 
 impl BoltManager {
+    /// Returns the address of the canonical BoltManager contract for a given chain, if present
+    pub fn address(chain: Chain) -> Option<Address> {
+        match chain {
+            Chain::Holesky => Some(
+                Address::from_str("0x440202829b493F9FF43E730EB5e8379EEa3678CF")
+                    .expect("valid address"),
+            ),
+            _ => None,
+        }
+    }
+
+    /// Creates a new BoltRegistry instance. Returns `None` if a canonical BoltManager contract is
+    /// not deployed on such chain.
+    pub fn from_chain<U: Into<Url>>(execution_client_url: U, chain: Chain) -> Option<Self> {
+        let address = Self::address(chain)?;
+        Some(Self::from_address(execution_client_url, address))
+    }
+
     /// Creates a new BoltRegistry instance.
-    pub fn new<U: Into<Url>>(execution_client_url: U, manager_address: Address) -> Self {
+    pub fn from_address<U: Into<Url>>(execution_client_url: U, manager_address: Address) -> Self {
         let provider = ProviderBuilder::new().on_http(execution_client_url.into());
         let registry = BoltManagerContract::new(manager_address, provider);
 
         Self(registry)
     }
 
-    /// Gets the sidecar RPC URL for a given validator index.
-    ///
-    /// Returns Ok(None) if the operator is not found in the registry.
-    pub async fn get_sidecar_rpc_url_for_validator(
-        &self,
-        pubkey_hash: B256,
-    ) -> ContractResult<Option<String>> {
-        let registrant = self.get_proposer_status(pubkey_hash).await?;
-        Ok(registrant.and_then(|r| if r.active { Some(r.operatorRPC) } else { None }))
+    /// Verify the provided operator address is registered in Bolt, returning an error if it
+    /// doesn't
+    pub async fn verify_operator(&self, operator: Address) -> eyre::Result<()> {
+        let returndata = self.0.isOperator(operator).call().await;
+
+        if !returndata.map(|data| data.isOperator)? {
+            bail!("operator not found in Bolt Manager contract");
+        }
+
+        Ok(())
     }
 
-    /// Gets the proposer status for a given pubkeyhash.
-    ///
-    /// Returns Ok(None) if the proposer is not found in the registry.
-    pub async fn get_proposer_status(
+    /// Verify the provided validator public keys are registered in Bolt and are active
+    pub async fn verify_validator_pubkeys(
         &self,
-        pubkey_hash: B256,
-    ) -> ContractResult<Option<ProposerStatus>> {
-        let returndata = self.0.getProposerStatus(pubkey_hash).call().await;
+        keys: &[BlsPublicKey],
+    ) -> eyre::Result<Vec<ProposerStatus>> {
+        let hashes = BoltValidators::pubkey_hashes(keys);
+
+        let returndata = self.0.getProposerStatuses(hashes).call().await;
 
         // TODO: clean this after https://github.com/alloy-rs/alloy/issues/787 is merged
-        let error = match returndata.map(|data| data._0) {
-            Ok(proposer) => return Ok(Some(proposer)),
+        let error = match returndata.map(|data| data.statuses) {
+            Ok(statuses) => {
+                for status in &statuses {
+                    if !status.active {
+                        bail!(
+                            "validator with public key hash {:?} is not active in Bolt",
+                            status.pubkeyHash
+                        );
+                    }
+                }
+
+                return Ok(statuses);
+            }
             Err(error) => match error {
                 ContractError::TransportError(TransportError::ErrorResp(err)) => {
                     let data = err.data.unwrap_or_default();
@@ -58,12 +92,14 @@ impl BoltManager {
 
                     BoltManagerContractErrors::abi_decode(&data, true)?
                 }
-                e => return Err(e),
+                e => return Err(e)?,
             },
         };
 
         if matches!(error, BoltManagerContractErrors::ValidatorDoesNotExist(_)) {
-            Ok(None)
+            // TODO: improve this error message once https://github.com/chainbound/bolt/issues/338
+            // is solved
+            bail!("not all validators are registered in Bolt");
         } else {
             Err(SolError::custom(format!(
                 "unexpected Solidity error selector: {:?}",
@@ -72,12 +108,35 @@ impl BoltManager {
             .into())
         }
     }
+}
 
-    /// Checks if an address is an operator registered in Bolt.
-    pub async fn is_operator(&self, operator: Address) -> ContractResult<bool> {
-        let returndata = self.0.isOperator(operator).call().await;
+/// Utility functions related to the BoltValidators contract
+pub struct BoltValidators;
 
-        returndata.map(|data| data._0)
+impl BoltValidators {
+    /// Hash the public keys of the proposers. This follows the same
+    /// implementation done on-chain in the BoltValidators contract.
+    pub fn pubkey_hashes(keys: &[BlsPublicKey]) -> Vec<B256> {
+        keys.iter().map(Self::pubkey_hash).collect()
+    }
+
+    /// Hash the public key of the proposer. This follows the same
+    /// implementation done on-chain in the BoltValidators contract.
+    pub fn pubkey_hash(key: &BlsPublicKey) -> B256 {
+        let digest = Self::pubkey_hash_digest(key);
+        keccak256(digest)
+    }
+
+    fn pubkey_hash_digest(key: &BlsPublicKey) -> B512 {
+        let mut onchain_pubkey_repr = B512::ZERO;
+
+        // copy the pubkey bytes into the rightmost 48 bytes of the 512-bit buffer.
+        // the result should look like this:
+        //
+        // 0x00000000000000000000000000000000b427fd179b35ef085409e4a98fb3ab84ee29c689df5c64020eab0b20a4f91170f610177db172dc091682df627c9f4021
+        // |<---------- 16 bytes ---------->||<----------------------------------------- 48 bytes ----------------------------------------->|
+        onchain_pubkey_repr[16..].copy_from_slice(key);
+        onchain_pubkey_repr
     }
 }
 
@@ -94,72 +153,11 @@ sol! {
             uint256[] amounts;
         }
 
-        function getProposerStatus(bytes32 pubkeyHash) external view returns (ProposerStatus memory);
+        function getProposerStatuses(bytes32[] calldata pubkeyHashes) public view returns (ProposerStatus[] memory statuses);
 
-        function isOperator( address operator) external view returns (bool);
+        function isOperator(address operator) external view returns (bool isOperator);
 
         error InvalidQuery();
         error ValidatorDoesNotExist();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::str::FromStr;
-
-    use alloy::primitives::U256;
-
-    use super::*;
-
-    #[tokio::test]
-    async fn test_get_operators_helder() -> eyre::Result<()> {
-        let registry = BoltManager::new(
-            Url::parse("http://remotebeast:4485")?,
-            Address::from_str("0xdF11D829eeC4C192774F3Ec171D822f6Cb4C14d9")?,
-        );
-
-        let sample_pubkey = B256::from_str("0xsamplepubkeyhash").expect("invalid pubkey");
-
-        let registrant = registry.get_proposer_status(sample_pubkey).await;
-        assert!(matches!(registrant, Ok(None)));
-
-        let invalid_pubkey = B256::from_str("0xinvalidsamplepubkeyhash").expect("invalid pubkey");
-        let registrant = match registry.get_proposer_status(invalid_pubkey).await {
-            Ok(Some(registrant)) => registrant,
-            e => panic!("unexpected error reading from registry: {:?}", e),
-        };
-
-        let expected = ProposerStatus {
-            pubkeyHash: sample_pubkey,
-            active: true,
-            operator: Address::from_str("0xad3cd1b81c80f4a495d6552ae6423508492a27f8")?,
-            operatorRPC: "http://sampleoperatorrpc:8000".to_string(),
-            collaterals: vec![Address::from_str("0xsamplecollateral1")?],
-            amounts: vec![U256::from(10000000000000000000u128)],
-        };
-
-        assert_eq!(registrant.pubkeyHash, expected.pubkeyHash);
-        assert_eq!(registrant.active, expected.active);
-        assert_eq!(registrant.operator, expected.operator);
-        assert_eq!(registrant.operatorRPC, expected.operatorRPC);
-        assert_eq!(registrant.collaterals, expected.collaterals);
-        assert_eq!(registrant.amounts, expected.amounts);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_check_validator_helder() -> eyre::Result<()> {
-        let registry = BoltManager::new(
-            Url::parse("http://remotebeast:4485")?,
-            Address::from_str("0xdF11D829eeC4C192774F3Ec171D822f6Cb4C14d9")?,
-        );
-
-        let pubkey_hash = B256::from_str("0xsamplepubkeyhash").expect("invalid pubkey");
-        let registrant = registry.get_sidecar_rpc_url_for_validator(pubkey_hash).await?;
-        assert!(registrant.is_some());
-
-        dbg!(&registrant);
-        Ok(())
     }
 }
