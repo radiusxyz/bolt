@@ -152,7 +152,7 @@ forge install
 
 ## Validator Registration
 
-The [`BoltValidators`](../../bolt-contracts/src/contracts/BoltValidators.sol) contract is the only
+The [`BoltValidators`](../../bolt-contracts/src/contracts/BoltValidatorsV1.sol) contract is the only
 point of entry for validators to signal their intent to participate in Bolt
 Protocol and authenticate with their BLS private key.
 
