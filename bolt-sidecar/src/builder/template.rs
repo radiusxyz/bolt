@@ -8,7 +8,7 @@ use ethereum_consensus::{
     crypto::{KzgCommitment, KzgProof},
     deneb::mainnet::{Blob, BlobsBundle},
 };
-use reth_primitives::TransactionSigned;
+use reth_primitives::{TransactionSigned, TxHash};
 use tracing::warn;
 
 use crate::{
@@ -54,6 +54,15 @@ impl BlockTemplate {
             .flat_map(|sc| {
                 sc.message.transactions.iter().map(|c| c.clone().into_inner().into_transaction())
             })
+            .collect()
+    }
+
+    /// Get all the transaction hashes in the signed constraints list.
+    #[inline]
+    pub fn transaction_hashes(&self) -> Vec<TxHash> {
+        self.signed_constraints_list
+            .iter()
+            .flat_map(|sc| sc.message.transactions.iter().map(|c| *c.hash()))
             .collect()
     }
 
