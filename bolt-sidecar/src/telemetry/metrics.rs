@@ -20,6 +20,10 @@ const INCLUSION_COMMITMENTS_ACCEPTED: &str = "bolt_sidecar_inclusion_commitments
 const TRANSACTIONS_PRECONFIRMED: &str = "bolt_sidecar_transactions_preconfirmed";
 /// Counter for the number of validation errors; to spot most the most common ones
 const VALIDATION_ERRORS: &str = "bolt_sidecar_validation_errors";
+/// Counter that tracks the gross tip revenue. Effective tip per gas * gas used.
+/// We call it "gross" because in the case of PBS, it doesn't mean the proposer will
+/// get all of this as revenue.
+const GROSS_TIP_REVENUE: &str = "bolt_sidecar_gross_tip_revenue";
 
 //  Gauges ------------------------------------------------------------------
 /// Gauge for the latest slot number
@@ -44,6 +48,7 @@ impl ApiMetrics {
         describe_counter!(INCLUSION_COMMITMENTS_ACCEPTED, "Inclusion commitments accepted");
         describe_counter!(TRANSACTIONS_PRECONFIRMED, "Transactions preconfirmed");
         describe_counter!(VALIDATION_ERRORS, "Validation errors");
+        describe_counter!(GROSS_TIP_REVENUE, "Gross tip revenue");
 
         // Gauges
         describe_gauge!(LATEST_HEAD, "Latest slot number");
@@ -79,6 +84,19 @@ impl ApiMetrics {
 
     pub fn increment_inclusion_commitments_accepted() {
         counter!(INCLUSION_COMMITMENTS_ACCEPTED).increment(1);
+    }
+
+    pub fn increment_gross_tip_revenue(mut tip: u128) {
+        if tip > u64::MAX as u128 {
+            let mut parts = Vec::new();
+            while tip > u64::MAX as u128 {
+                parts.push(u64::MAX);
+                tip -= u64::MAX as u128;
+            }
+            parts.push(tip as u64)
+        } else {
+            counter!(GROSS_TIP_REVENUE).increment(tip as u64);
+        }
     }
 
     pub fn increment_transactions_preconfirmed(tx_type: TxType) {
