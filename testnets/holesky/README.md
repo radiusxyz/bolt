@@ -2,13 +2,13 @@ This document provides instructions for running the Bolt sidecar on the Holesky 
 
 # Table of Contents
 
-<!-- vim-markdown-toc Marked -->
+<!-- vim-markdown-toc GFM -->
 
 * [Prerequisites](#prerequisites)
 * [Off-Chain Setup](#off-chain-setup)
-  * [Docker Mode (recommended)](#docker-mode-(recommended))
+  * [Docker Mode (recommended)](#docker-mode-recommended)
   * [Commit-Boost Mode](#commit-boost-mode)
-  * [Native Mode (advanced)](#native-mode-(advanced))
+  * [Native Mode (advanced)](#native-mode-advanced)
     * [Building and running the MEV-Boost fork binary](#building-and-running-the-mev-boost-fork-binary)
     * [Building and running the Bolt sidecar binary](#building-and-running-the-bolt-sidecar-binary)
       * [Configuration file](#configuration-file)
@@ -23,7 +23,7 @@ This document provides instructions for running the Bolt sidecar on the Holesky 
 * [Reference](#reference)
   * [Command-line options](#command-line-options)
   * [Delegations and signing options for Native and Docker Compose Mode](#delegations-and-signing-options-for-native-and-docker-compose-mode)
-    * [`bolt` CLI](#`bolt`-cli)
+    * [`bolt` CLI](#bolt-cli)
       * [Installation and usage](#installation-and-usage)
     * [Using a private key directly](#using-a-private-key-directly)
     * [Using a ERC-2335 Keystore](#using-a-erc-2335-keystore)
