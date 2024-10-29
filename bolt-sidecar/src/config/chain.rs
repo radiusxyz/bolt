@@ -36,7 +36,7 @@ pub const DEFAULT_CHAIN_CONFIG: ChainConfig = ChainConfig {
 pub struct ChainConfig {
     /// Chain on which the sidecar is running
     #[clap(long, env = "BOLT_SIDECAR_CHAIN", default_value_t = Chain::Mainnet)]
-    chain: Chain,
+    pub(crate) chain: Chain,
     /// The deadline in the slot at which the sidecar will stop accepting
     /// new commitments for the next block (parsed as milliseconds).
     #[clap(
