@@ -1,12 +1,19 @@
 # Holesky Launch Instructions
-This document provides instructions for running the Bolt sidecar on the Holesky testnet.
 
+This document provides instructions for running the Bolt sidecar on the Holesky testnet.
 
 # Table of Contents
 
 <!-- vim-markdown-toc GFM -->
 
 * [Prerequisites](#prerequisites)
+* [On-Chain Registration](#on-chain-registration)
+  * [Validator Registration](#validator-registration)
+    * [Registration Steps](#registration-steps)
+  * [Bolt Network Entrypoint](#bolt-network-entrypoint)
+  * [Operator Registration](#operator-registration)
+    * [Symbiotic Registration Steps](#symbiotic-registration-steps)
+    * [EigenLayer Registration Steps](#eigenlayer-registration-steps)
 * [Off-Chain Setup](#off-chain-setup)
   * [Docker Mode (recommended)](#docker-mode-recommended)
   * [Commit-Boost Mode](#commit-boost-mode)
@@ -15,13 +22,6 @@ This document provides instructions for running the Bolt sidecar on the Holesky 
     * [Building and running the Bolt sidecar binary](#building-and-running-the-bolt-sidecar-binary)
       * [Configuration file](#configuration-file)
     * [Observability](#observability)
-* [On-Chain Registration](#on-chain-registration)
-  * [Validator Registration](#validator-registration)
-    * [Registration Steps](#registration-steps)
-  * [Bolt Network Entrypoint](#bolt-network-entrypoint)
-  * [Operator Registration](#operator-registration)
-    * [Symbiotic Registration Steps](#symbiotic-registration-steps)
-    * [EigenLayer Registration Steps](#eigenlayer-registration-steps)
 * [Reference](#reference)
   * [Command-line options](#command-line-options)
   * [Delegations and signing options for Native and Docker Compose Mode](#delegations-and-signing-options-for-native-and-docker-compose-mode)
@@ -402,6 +402,7 @@ forge script script/holesky/operators/RegisterEigenLayerOperator.s.sol \
 ```
 
 # Off-Chain Setup
+
 After all of the steps above have been completed, we can proceed with running the off-chain infrastructure.
 
 There are various way to run the Bolt Sidecar depending on your preferences and your preferred signing methods:
