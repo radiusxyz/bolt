@@ -2,6 +2,9 @@ name: Bolt Sidecar CI
 
 on:
   push:
+    branches:
+      - unstable
+      - main
     paths:
       - "bolt-sidecar/**"
   pull_request:
@@ -18,7 +21,7 @@ concurrency:
 jobs:
   cargo-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     env:
       RUST_BACKTRACE: 1
 

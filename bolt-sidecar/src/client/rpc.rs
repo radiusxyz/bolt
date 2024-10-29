@@ -8,12 +8,14 @@ use alloy::{
     primitives::{Address, Bytes, B256, U256, U64},
     rpc::{
         client::{self as alloyClient, ClientBuilder},
-        types::{Block, FeeHistory},
+        types::{Block, FeeHistory, TransactionReceipt},
     },
     transports::{http::Http, TransportErrorKind, TransportResult},
 };
 
+use futures::{stream::FuturesUnordered, StreamExt};
 use reqwest::{Client, Url};
+use reth_primitives::TxHash;
 
 use crate::primitives::AccountState;
 
@@ -115,6 +117,33 @@ impl RpcClient {
     pub async fn send_raw_transaction(&self, raw: Bytes) -> TransportResult<B256> {
         self.0.request("eth_sendRawTransaction", [raw]).await
     }
+
+    /// Get the receipts for a list of transaction hashes.
+    pub async fn get_receipts(
+        &self,
+        hashes: &[TxHash],
+    ) -> TransportResult<Vec<Option<TransactionReceipt>>> {
+        let mut batch = self.0.new_batch();
+
+        let futs = FuturesUnordered::new();
+
+        for hash in hashes {
+            futs.push(
+                batch
+                    .add_call("eth_getTransactionReceipt", &(&[hash]))
+                    .expect("Correct parameters"),
+            );
+        }
+
+        batch.send().await?;
+
+        Ok(futs
+            .collect::<Vec<TransportResult<TransactionReceipt>>>()
+            .await
+            .into_iter()
+            .map(|r| r.ok())
+            .collect())
+    }
 }
 
 impl Deref for RpcClient {
@@ -159,6 +188,33 @@ mod tests {
         assert_eq!(account_state.balance, uint!(10_000U256 * Uint::from(ETH_TO_WEI)));
 
         assert_eq!(account_state.transaction_count, 0);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_get_receipts() {
+        let _ = tracing_subscriber::fmt().try_init();
+        let client = RpcClient::new(Url::from_str("http://localhost:8545").unwrap());
+
+        let _receipts = client
+            .get_receipts(&[
+                TxHash::from_str(
+                    "0x518d9497868b7380ddfa3d245bead7b418248a0776896f6152590da1bf92c3fe",
+                )
+                .unwrap(),
+                TxHash::from_str(
+                    "0x6825cfb19d21cc4e69070f4aa506e3de65e09249d38d79b4112f81688bf43379",
+                )
+                .unwrap(),
+                TxHash::from_str(
+                    "0x5825cfb19d21cc4e69070f4aa506e3de65e09249d38d79b4112f81688bf43379",
+                )
+                .unwrap(),
+            ])
+            .await
+            .unwrap();
+
+        println!("{_receipts:?}");
     }
 
     #[tokio::test]
