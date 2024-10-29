@@ -2,7 +2,6 @@
 pragma solidity 0.8.25;
 
 import {BLS12381} from "../lib/bls/BLS12381.sol";
-import {IBoltValidatorsV1} from "./IBoltValidatorsV1.sol";
 
 interface IBoltMiddlewareV1 {
     error InvalidQuery();

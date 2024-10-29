@@ -18,7 +18,6 @@ import {IVetoSlasher} from "@symbiotic/interfaces/slasher/IVetoSlasher.sol";
 import {IEntity} from "@symbiotic/interfaces/common/IEntity.sol";
 
 import {MapWithTimeData} from "../lib/MapWithTimeData.sol";
-import {IBoltValidatorsV1} from "../interfaces/IBoltValidatorsV1.sol";
 import {IBoltParametersV1} from "../interfaces/IBoltParametersV1.sol";
 import {IBoltMiddlewareV1} from "../interfaces/IBoltMiddlewareV1.sol";
 import {IBoltManagerV1} from "../interfaces/IBoltManagerV1.sol";
