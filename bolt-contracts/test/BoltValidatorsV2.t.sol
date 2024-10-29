@@ -46,8 +46,78 @@ contract BoltValidatorsV2Test is Test {
         validators.initialize(admin, address(parameters));
     }
 
-    function testUnsafeBatchRegistrationV2GasUsage() public {
-        BLS12381.G1Point[] memory pubkeys = _readPubkeysFromFile(615);
+    function testReadRegisteredValidatorsV2() public {
+        BLS12381.G1Point memory pubkey = BLS12381.generatorG1();
+        bytes20 pubkeyHash = validators.hashPubkey(pubkey);
+
+        vm.prank(validator);
+        validators.registerValidatorUnsafe(pubkeyHash, PRECONF_MAX_GAS_LIMIT, operator);
+
+        vm.resumeGasMetering();
+        IBoltValidatorsV2.ValidatorInfo[] memory registered = validators.getAllValidators();
+        vm.pauseGasMetering();
+
+        assertEq(registered.length, 1);
+        assertEq(registered[0].pubkeyHash, pubkeyHash);
+        assertEq(registered[0].maxCommittedGasLimit, PRECONF_MAX_GAS_LIMIT);
+        assertEq(registered[0].authorizedOperator, operator);
+        assertEq(registered[0].controller, validator);
+    }
+
+    function testUpdateMaxGasLimitV2() public {
+        BLS12381.G1Point memory pubkey = BLS12381.generatorG1();
+        bytes20 pubkeyHash = validators.hashPubkey(pubkey);
+
+        vm.prank(validator);
+        validators.registerValidatorUnsafe(pubkeyHash, PRECONF_MAX_GAS_LIMIT, operator);
+
+        uint32 newMaxGasLimit = 10_000_000;
+        vm.resumeGasMetering();
+        vm.prank(validator);
+        validators.updateMaxCommittedGasLimit(pubkeyHash, newMaxGasLimit);
+        vm.pauseGasMetering();
+
+        IBoltValidatorsV2.ValidatorInfo memory updated = validators.getValidatorByPubkeyHash(pubkeyHash);
+        assertEq(updated.maxCommittedGasLimit, newMaxGasLimit);
+    }
+
+    function testUnauthorizedController() public {
+        BLS12381.G1Point memory pubkey = BLS12381.generatorG1();
+        bytes20 pubkeyHash = validators.hashPubkey(pubkey);
+
+        vm.prank(validator);
+        validators.registerValidatorUnsafe(pubkeyHash, PRECONF_MAX_GAS_LIMIT, operator);
+
+        uint32 newMaxGasLimit = 10_000_000;
+        vm.resumeGasMetering();
+        vm.expectRevert(IBoltValidatorsV2.UnauthorizedCaller.selector);
+        validators.updateMaxCommittedGasLimit(pubkeyHash, newMaxGasLimit);
+        vm.pauseGasMetering();
+    }
+
+    function testUnsafeRegistrationV2() public {
+        BLS12381.G1Point memory pubkey = BLS12381.generatorG1();
+        bytes20 pubkeyHash = validators.hashPubkey(pubkey);
+
+        vm.prank(validator);
+        vm.resumeGasMetering();
+        validators.registerValidatorUnsafe(pubkeyHash, PRECONF_MAX_GAS_LIMIT, operator);
+        vm.pauseGasMetering();
+    }
+
+    function testUnsafeRegistrationInvalidOperatorV2() public {
+        BLS12381.G1Point memory pubkey = BLS12381.generatorG1();
+        bytes20 pubkeyHash = validators.hashPubkey(pubkey);
+
+        vm.prank(validator);
+        vm.resumeGasMetering();
+        vm.expectRevert(IBoltValidatorsV2.InvalidAuthorizedOperator.selector);
+        validators.registerValidatorUnsafe(pubkeyHash, PRECONF_MAX_GAS_LIMIT, address(0));
+        vm.pauseGasMetering();
+    }
+
+    function testUnsafeBatchRegistrationV2() public {
+        BLS12381.G1Point[] memory pubkeys = _readPubkeysFromFile(600);
 
         bytes20[] memory pubkeyHashes = new bytes20[](pubkeys.length);
         for (uint256 i = 0; i < pubkeys.length; i++) {
