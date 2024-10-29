@@ -81,7 +81,7 @@ contract RegisterEigenLayerOperator is Script {
         console.log("Operator is registered:", isRegistered);
         require(isRegistered, "Operator is not registered");
 
-        BoltEigenLayerMiddlewareV1 middleware = _readMiddleware();
+        BoltEigenLayerMiddlewareV2 middleware = _readMiddleware();
         (address[] memory tokens, uint256[] memory amounts) = middleware.getOperatorCollaterals(operatorAddress);
 
         for (uint256 i; i < tokens.length; ++i) {
