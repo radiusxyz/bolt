@@ -162,9 +162,9 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         fetcher: C,
     ) -> eyre::Result<Self> {
         // Verify the operator and validator keys with the bolt manager
-        let bolt_manager =
-            BoltManager::from_chain(opts.execution_api_url.clone(), opts.chain.chain);
-        if let Some(bolt_manager) = bolt_manager {
+        if let Some(bolt_manager) =
+            BoltManager::from_chain(opts.execution_api_url.clone(), opts.chain.chain)
+        {
             bolt_manager.verify_operator(commitment_signer.public_key()).await?;
             bolt_manager
                 .verify_validator_pubkeys(&Vec::from_iter(constraint_signer.available_pubkeys()))
