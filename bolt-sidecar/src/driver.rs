@@ -169,10 +169,10 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             opts.constraint_signing.delegations_path.as_ref()
         {
             let delegations = read_signed_delegations_from_file(delegations_file_path)?;
-            let delegatees =
-                delegations.iter().map(|d| d.message.delegatee_pubkey.clone()).collect::<Vec<_>>();
+            let validator_public_keys =
+                delegations.iter().map(|d| d.message.validator_pubkey.clone()).collect::<Vec<_>>();
             constraints_client.add_delegations(delegations);
-            delegatees
+            validator_public_keys
         } else {
             Vec::from_iter(constraint_signer.available_pubkeys())
         };
