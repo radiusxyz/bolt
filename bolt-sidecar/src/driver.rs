@@ -162,20 +162,39 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         commitment_signer: ECDSA,
         fetcher: C,
     ) -> eyre::Result<Self> {
+        let mut constraints_client = ConstraintsClient::new(opts.constraints_api_url.clone());
+
+        // read the delegations from disk if they exist and add them to the constraints client.
+        let validator_public_keys = if let Some(delegations_file_path) =
+            opts.constraint_signing.delegations_path.as_ref()
+        {
+            let delegations = read_signed_delegations_from_file(delegations_file_path)?;
+            let delegatees =
+                delegations.iter().map(|d| d.message.delegatee_pubkey.clone()).collect::<Vec<_>>();
+            constraints_client.add_delegations(delegations);
+            delegatees
+        } else {
+            Vec::from_iter(constraint_signer.available_pubkeys())
+        };
+
         // Verify the operator and validator keys with the bolt manager
         if let Some(bolt_manager) =
             BoltManager::from_chain(opts.execution_api_url.clone(), opts.chain.chain)
         {
             let commitment_signer_pubkey = commitment_signer.public_key();
-            let available_pubkeys = Vec::from_iter(constraint_signer.available_pubkeys());
-            let available_pubkeys_len = available_pubkeys.len();
+            let validator_public_keys_len = validator_public_keys.len();
             bolt_manager
-                .verify_validator_pubkeys(available_pubkeys, commitment_signer_pubkey)
+                .verify_validator_pubkeys(validator_public_keys, commitment_signer_pubkey)
                 .await?;
             info!(
-                available_pubkeys_len,
+                validator_public_keys_len,
                 commitment_signer_pubkey = ?commitment_signer_pubkey,
                 "Validators and operator keys verified with Bolt Manager successfully"
+            );
+        } else {
+            warn!(
+                "No Bolt Manager contract deployed on {} chain, skipping validators and operator public keys verification",
+                opts.chain.name()
             );
         }
 
@@ -215,14 +234,6 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         let api_addr = format!("0.0.0.0:{}", opts.port);
         let (api_events_tx, api_events_rx) = mpsc::channel(1024);
         CommitmentsApiServer::new(api_addr).run(api_events_tx).await;
-
-        let mut constraints_client = ConstraintsClient::new(opts.constraints_api_url.clone());
-
-        // read the delegaitons from disk if they exist and add them to the constraints client
-        if let Some(delegations_file_path) = opts.constraint_signing.delegations_path.as_ref() {
-            let delegations = read_signed_delegations_from_file(delegations_file_path)?;
-            constraints_client.add_delegations(delegations);
-        }
 
         Ok(SidecarDriver {
             head_tracker,
