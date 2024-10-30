@@ -4,7 +4,7 @@ use reth_primitives::keccak256;
 
 /// A 20-byte compressed hash of a BLS public key.
 ///
-/// Reference: https://github.com/chainbound/bolt/blob/lore/feat/holesky-launch/bolt-contracts/script/holesky/validators/registervalidators.s.sol#l65-l69.
+/// Reference: https://github.com/chainbound/bolt/blob/bec46baae6d7c16dddd81e5e72710ca8e3064f82/bolt-contracts/script/holesky/validators/RegisterValidators.s.sol#L65-L69
 pub(crate) type CompressedHash = FixedBytes<20>;
 
 /// Hash the public keys of the proposers. This follows the same
@@ -16,11 +16,11 @@ pub fn pubkey_hashes(keys: &[BlsPublicKey]) -> Vec<CompressedHash> {
 /// Hash the public key of the proposer. This follows the same
 /// implementation done on-chain in the BoltValidators contract.
 ///
-/// Reference: https://github.com/chainbound/bolt/blob/lore/feat/holesky-launch/bolt-contracts/script/holesky/validators/registervalidators.s.sol#l65-l69
+/// Reference: https://github.com/chainbound/bolt/blob/bec46baae6d7c16dddd81e5e72710ca8e3064f82/bolt-contracts/script/holesky/validators/RegisterValidators.s.sol#L65-L69
 pub fn pubkey_hash(key: &BlsPublicKey) -> CompressedHash {
     let digest = pubkey_hash_digest(key);
     let hash = keccak256(digest);
-    FixedBytes::<20>::from_slice(hash.get(0..20).expect("hash is longer than 20 bytes"))
+    CompressedHash::from_slice(hash.get(0..20).expect("hash is longer than 20 bytes"))
 }
 
 fn pubkey_hash_digest(key: &BlsPublicKey) -> B512 {
