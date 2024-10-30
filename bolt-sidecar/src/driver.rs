@@ -168,11 +168,12 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         {
             let commitment_signer_pubkey = commitment_signer.public_key();
             let available_pubkeys = Vec::from_iter(constraint_signer.available_pubkeys());
+            let available_pubkeys_len = available_pubkeys.len();
             bolt_manager
-                .verify_validator_pubkeys(&available_pubkeys, commitment_signer_pubkey)
+                .verify_validator_pubkeys(available_pubkeys, commitment_signer_pubkey)
                 .await?;
             info!(
-                pubkeys_len = available_pubkeys.len(),
+                available_pubkeys_len,
                 commitment_signer_pubkey = ?commitment_signer_pubkey,
                 "Validators and operator keys verified with Bolt Manager successfully"
             );

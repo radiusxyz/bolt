@@ -13,7 +13,9 @@ use eyre::bail;
 use reqwest::{Client, Url};
 use serde::Serialize;
 
-use BoltManagerContract::{BoltManagerContractErrors, BoltManagerContractInstance, ProposerStatus};
+use BoltManagerContract::{
+    BoltManagerContractErrors, BoltManagerContractInstance, ProposerStatus, ValidatorDoesNotExist,
+};
 
 use crate::config::chain::Chain;
 
@@ -47,10 +49,11 @@ impl BoltManager {
     /// NOTE: it also checks the operator associated to the `commitment_signer_pubkey` exists.
     pub async fn verify_validator_pubkeys(
         &self,
-        keys: &[BlsPublicKey],
+        keys: Vec<BlsPublicKey>,
         commitment_signer_pubkey: Address,
     ) -> eyre::Result<Vec<ProposerStatus>> {
-        let hashes = utils::pubkey_hashes(keys);
+        let hashes_with_preimages = utils::pubkey_hashes(keys);
+        let hashes = hashes_with_preimages.keys().cloned().collect::<Vec<_>>();
 
         let returndata = self.0.getProposerStatuses(hashes).call().await;
 
@@ -60,7 +63,8 @@ impl BoltManager {
                 for status in &statuses {
                     if !status.active {
                         bail!(
-                            "validator with public key hash {:?} is not active in Bolt",
+                            "validator with public key {:?} and public key hash {:?} is not active in Bolt",
+                            hashes_with_preimages.get(&status.pubkeyHash),
                             status.pubkeyHash
                         );
                     } else if status.operator != commitment_signer_pubkey {
@@ -87,14 +91,16 @@ impl BoltManager {
         };
 
         match error {
-            BoltManagerContractErrors::ValidatorDoesNotExist(pubkey_hash) => {
-                bail!("validator with public key hash {:?} is not registered in Bolt", pubkey_hash);
+            BoltManagerContractErrors::ValidatorDoesNotExist(ValidatorDoesNotExist {
+                pubkeyHash: pubkey_hash,
+            }) => {
+                bail!("ValidatorDoesNotExist -- validator with public key {:?} and public key hash {:?} is not registered in Bolt", hashes_with_preimages.get(&pubkey_hash), pubkey_hash);
             }
             BoltManagerContractErrors::InvalidQuery(_) => {
-                bail!("invalid zero public key hash");
+                bail!("InvalidQuery -- invalid zero public key hash");
             }
             BoltManagerContractErrors::KeyNotFound(_) => {
-                bail!("operator associated with commitment signer public key {:?} is not registered in Bolt", commitment_signer_pubkey);
+                bail!("KeyNotFound -- operator associated with commitment signer public key {:?} is not registered in Bolt", commitment_signer_pubkey);
             }
         }
     }
@@ -153,7 +159,6 @@ mod tests {
     use super::BoltManager;
 
     #[tokio::test]
-    #[ignore = "requires Chainbound tailnet"]
     async fn test_verify_validator_pubkeys() {
         let url = Url::parse("http://remotebeast:48545").expect("valid url");
         let manager =
@@ -165,14 +170,14 @@ mod tests {
         let keys = vec![BlsPublicKey::try_from([0; 48].as_ref()).expect("valid bls public key")];
         let commitment_signer_pubkey = Address::ZERO;
 
-        let res = manager.verify_validator_pubkeys(&keys, commitment_signer_pubkey).await;
+        let res = manager.verify_validator_pubkeys(keys, commitment_signer_pubkey).await;
         assert!(res.unwrap_err().to_string().contains("ValidatorDoesNotExist"));
 
         let keys = vec![
             BlsPublicKey::try_from(
                 hex!("87cbbfe6f08a0fd424507726cfcf5b9df2b2fd6b78a65a3d7bb6db946dca3102eb8abae32847d5a9a27e414888414c26")
                     .as_ref()).expect("valid bls public key")];
-        let res = manager.verify_validator_pubkeys(&keys, commitment_signer_pubkey).await;
+        let res = manager.verify_validator_pubkeys(keys.clone(), commitment_signer_pubkey).await;
         assert!(
             res.unwrap_err().to_string()
                 == generate_operator_keys_mismatch_error(
@@ -184,7 +189,7 @@ mod tests {
 
         let commitment_signer_pubkey = operator;
         let res = manager
-            .verify_validator_pubkeys(&keys, commitment_signer_pubkey)
+            .verify_validator_pubkeys(keys, commitment_signer_pubkey)
             .await
             .expect("active validator and correct operator");
         assert!(res[0].active);
