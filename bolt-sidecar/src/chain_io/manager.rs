@@ -64,12 +64,11 @@ impl BoltManager {
                             status.pubkeyHash
                         );
                     } else if status.operator != commitment_signer_pubkey {
-                        bail!(
-                            "mismatch between commitment signer public key and authorized operator address for validator with public key hash {:?} in Bolt.\n - commitment signer public key: {:?}\n - authorized operator address: {:?}",
+                        bail!(generate_operator_keys_mismatch_error(
                             status.pubkeyHash,
                             commitment_signer_pubkey,
                             status.operator
-                        );
+                        ));
                     }
                 }
 
@@ -101,13 +100,26 @@ impl BoltManager {
     }
 }
 
+fn generate_operator_keys_mismatch_error(
+    pubkey_hash: CompressedHash,
+    commitment_signer_pubkey: Address,
+    operator: Address,
+) -> String {
+    format!(
+        "mismatch between commitment signer public key and authorized operator address for validator with public key hash {:?} in Bolt.\n - commitment signer public key: {:?}\n - authorized operator address: {:?}",
+        pubkey_hash,
+        commitment_signer_pubkey,
+        operator
+    )
+}
+
 sol! {
     #[allow(missing_docs)]
     #[sol(rpc)]
     interface BoltManagerContract {
         #[derive(Debug, Default, Serialize)]
         struct ProposerStatus {
-            bytes32 pubkeyHash;
+            bytes20 pubkeyHash;
             bool active;
             address operator;
             string operatorRPC;
@@ -115,7 +127,7 @@ sol! {
             uint256[] amounts;
         }
 
-        function getProposerStatuses(bytes32[] calldata pubkeyHashes) public view returns (ProposerStatus[] memory statuses);
+        function getProposerStatuses(bytes20[] calldata pubkeyHashes) public view returns (ProposerStatus[] memory statuses);
 
         function isOperator(address operator) external view returns (bool isOperator);
 
