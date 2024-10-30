@@ -203,8 +203,8 @@ mod tests {
     const KEYSTORES_DEFAULT_PATH_TEST: &str = "test_data/keys";
     const KEYSTORES_SECRETS_DEFAULT_PATH_TEST: &str = "test_data/secrets";
 
-    /// If `path` is `Some`, returns a clone of it. Otherwise, returns the path to the `fallback_relative_path`
-    /// starting from the root of the cargo project.
+    /// If `path` is `Some`, returns a clone of it. Otherwise, returns the path to the
+    /// `fallback_relative_path` starting from the root of the cargo project.
     fn make_path(relative_path: &str) -> PathBuf {
         let project_root = env!("CARGO_MANIFEST_DIR");
         Path::new(project_root).join(relative_path)
@@ -302,7 +302,8 @@ mod tests {
         let keystore_path = PathBuf::from(keystore_path);
 
         for test_keystore_json in tests_keystore_json {
-            // 1. Write the keystore in a `test-voting-keystore.json` file so we test both scrypt and PBDKF2
+            // 1. Write the keystore in a `test-voting-keystore.json` file so we test both scrypt
+            //    and PBDKF2
 
             let mut tmp_keystore_file =
                 File::create(keystore_path.join("test-voting-keystore.json"))
