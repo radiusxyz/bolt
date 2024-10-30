@@ -1,9 +1,11 @@
 use core::fmt;
+use std::str::FromStr;
 use std::{
     fmt::{Display, Formatter},
     time::Duration,
 };
 
+use alloy::primitives::Address;
 use clap::{Args, ValueEnum};
 use ethereum_consensus::deneb::{compute_fork_data_root, Root};
 use serde::Deserialize;
@@ -100,6 +102,17 @@ impl Chain {
             Chain::Holesky => [1, 1, 112, 0],
             Chain::Helder => [16, 0, 0, 0],
             Chain::Kurtosis => [16, 0, 0, 56],
+        }
+    }
+
+    /// Returns the address of the canonical BoltManager contract for a given chain, if present
+    pub fn manager_address(&self) -> Option<Address> {
+        match self {
+            Chain::Holesky => Some(
+                Address::from_str("0x440202829b493F9FF43E730EB5e8379EEa3678CF")
+                    .expect("valid address"),
+            ),
+            _ => None,
         }
     }
 }

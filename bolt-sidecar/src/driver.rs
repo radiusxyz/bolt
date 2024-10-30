@@ -17,6 +17,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     builder::payload_fetcher::LocalPayloadFetcher,
+    chain_io::manager::BoltManager,
     commitments::{
         server::{CommitmentsApiServer, Event as CommitmentEvent},
         spec::Error as CommitmentError,
@@ -30,8 +31,8 @@ use crate::{
     start_builder_proxy_server,
     state::{fetcher::StateFetcher, ConsensusState, ExecutionState, HeadTracker, StateClient},
     telemetry::ApiMetrics,
-    BoltManager, BuilderProxyConfig, CommitBoostSigner, ConstraintsApi, ConstraintsClient,
-    LocalBuilder, Opts, SignerBLS,
+    BuilderProxyConfig, CommitBoostSigner, ConstraintsApi, ConstraintsClient, LocalBuilder, Opts,
+    SignerBLS,
 };
 
 /// The driver for the sidecar, responsible for managing the main event loop.
