@@ -3,13 +3,14 @@ pragma solidity 0.8.25;
 
 import {Test, console} from "forge-std/Test.sol";
 
-import {BoltValidatorsV1} from "../src/contracts/BoltValidatorsV1.sol";
-import {BoltManagerV1} from "../src/contracts/BoltManagerV1.sol";
+import {BoltValidatorsV2} from "../src/contracts/BoltValidatorsV2.sol";
+import {BoltManagerV2} from "../src/contracts/BoltManagerV2.sol";
 import {BoltParametersV1} from "../src/contracts/BoltParametersV1.sol";
 import {BoltEigenLayerMiddlewareV2} from "../src/contracts/BoltEigenLayerMiddlewareV2.sol";
 import {BoltConfig} from "../src/lib/Config.sol";
-import {IBoltValidatorsV1} from "../src/interfaces/IBoltValidatorsV1.sol";
-import {IBoltManagerV1} from "../src/interfaces/IBoltManagerV1.sol";
+import {ValidatorsLib} from "../src/lib/ValidatorsLib.sol";
+import {IBoltValidatorsV2} from "../src/interfaces/IBoltValidatorsV2.sol";
+import {IBoltManagerV2} from "../src/interfaces/IBoltManagerV2.sol";
 import {IBoltMiddlewareV1} from "../src/interfaces/IBoltMiddlewareV1.sol";
 import {Utils} from "./Utils.sol";
 
@@ -28,12 +29,12 @@ contract BoltManagerEigenLayerTest is Test {
 
     uint48 public constant EPOCH_DURATION = 1 days;
 
-    BoltValidatorsV1 public validators;
-    BoltManagerV1 public manager;
+    BoltValidatorsV2 public validators;
+    BoltManagerV2 public manager;
     BoltEigenLayerMiddlewareV2 public middleware;
     EigenLayerDeployer public eigenLayerDeployer;
 
-    uint128 public constant PRECONF_MAX_GAS_LIMIT = 5_000_000;
+    uint32 public constant PRECONF_MAX_GAS_LIMIT = 5_000_000;
 
     address staker = makeAddr("staker");
     address validator = makeAddr("validator");
@@ -70,9 +71,9 @@ contract BoltManagerEigenLayerTest is Test {
         );
 
         // Deploy Bolt contracts
-        validators = new BoltValidatorsV1();
+        validators = new BoltValidatorsV2();
         validators.initialize(admin, address(parameters));
-        manager = new BoltManagerV1();
+        manager = new BoltManagerV2();
         manager.initialize(admin, address(parameters), address(validators));
         middleware = new BoltEigenLayerMiddlewareV2();
 
@@ -186,10 +187,11 @@ contract BoltManagerEigenLayerTest is Test {
 
         // pubkeys aren't checked, any point will be fine
         validatorPubkey = BLS12381.generatorG1();
+        bytes20 pubkey = validators.hashPubkey(validatorPubkey);
 
         vm.prank(validator);
-        validators.registerValidatorUnsafe(validatorPubkey, PRECONF_MAX_GAS_LIMIT, operator);
-        assertEq(validators.getValidatorByPubkey(validatorPubkey).exists, true);
+        validators.registerValidatorUnsafe(pubkey, PRECONF_MAX_GAS_LIMIT, operator);
+        assert(validators.getValidatorByPubkey(validatorPubkey).pubkeyHash != bytes20(0));
         assertEq(validators.getValidatorByPubkey(validatorPubkey).authorizedOperator, operator);
 
         // 2. --- Operator and strategy registration into BoltManager (middleware) ---
@@ -204,7 +206,7 @@ contract BoltManagerEigenLayerTest is Test {
         _eigenLayerOptInRoutine();
         vm.prank(operator);
         middleware.deregisterOperator();
-        vm.expectRevert(IBoltManagerV1.OperatorNotRegistered.selector);
+        vm.expectRevert(IBoltManagerV2.OperatorNotRegistered.selector);
         manager.isOperatorEnabled(operator);
     }
 
@@ -220,9 +222,9 @@ contract BoltManagerEigenLayerTest is Test {
     function testProposerStatus() public {
         _eigenLayerOptInRoutine();
 
-        bytes32 pubkeyHash = _pubkeyHash(validatorPubkey);
+        bytes20 pubkeyHash = validators.hashPubkey(validatorPubkey);
 
-        IBoltValidatorsV1.ProposerStatus memory status = manager.getProposerStatus(pubkeyHash);
+        IBoltManagerV2.ProposerStatus memory status = manager.getProposerStatus(pubkeyHash);
         assertEq(status.pubkeyHash, pubkeyHash);
         assertEq(status.operator, operator);
         assertEq(status.active, true);
@@ -235,7 +237,7 @@ contract BoltManagerEigenLayerTest is Test {
     function testProposersLookaheadStatus() public {
         // This also opts in the operator which is needed
         _eigenLayerOptInRoutine();
-        bytes32[] memory pubkeyHashes = new bytes32[](10);
+        bytes20[] memory pubkeyHashes = new bytes20[](10);
 
         // register 10 proposers with random pubkeys
         for (uint256 i = 0; i < 10; i++) {
@@ -243,28 +245,20 @@ contract BoltManagerEigenLayerTest is Test {
             pubkey.x[0] = pubkey.x[0] + i + 2;
             pubkey.y[0] = pubkey.y[0] + i + 2;
 
-            pubkeyHashes[i] = _pubkeyHash(pubkey);
-            validators.registerValidatorUnsafe(pubkey, PRECONF_MAX_GAS_LIMIT, operator);
+            pubkeyHashes[i] = validators.hashPubkey(pubkey);
+            validators.registerValidatorUnsafe(pubkeyHashes[i], PRECONF_MAX_GAS_LIMIT, operator);
         }
 
-        IBoltValidatorsV1.ProposerStatus[] memory statuses = manager.getProposerStatuses(pubkeyHashes);
+        IBoltManagerV2.ProposerStatus[] memory statuses = manager.getProposerStatuses(pubkeyHashes);
         assertEq(statuses.length, 10);
     }
 
     function testNonExistentProposerStatus() public {
         _eigenLayerOptInRoutine();
 
-        bytes32 pubkeyHash = bytes32(uint256(1));
+        bytes20 pubkeyHash = bytes20("0x1");
 
-        vm.expectRevert(IBoltValidatorsV1.ValidatorDoesNotExist.selector);
+        vm.expectRevert(abi.encodeWithSelector(ValidatorsLib.ValidatorDoesNotExist.selector, pubkeyHash));
         manager.getProposerStatus(pubkeyHash);
-    }
-
-    /// @notice Compute the hash of a BLS public key
-    function _pubkeyHash(
-        BLS12381.G1Point memory _pubkey
-    ) internal pure returns (bytes32) {
-        uint256[2] memory compressedPubKey = _pubkey.compress();
-        return keccak256(abi.encodePacked(compressedPubKey));
     }
 }
