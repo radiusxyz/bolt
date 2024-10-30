@@ -126,7 +126,7 @@ contract UpgradeBolt is Script {
         vm.startBroadcast(admin);
 
         Upgrades.upgradeProxy(deployments.boltValidators, upgradeTo, initBoltValidators, opts);
-        
+
         vm.stopBroadcast();
 
         console.log("BoltValidators proxy upgraded from %s to %s", opts.referenceContract, upgradeTo);
@@ -141,17 +141,15 @@ contract UpgradeBolt is Script {
         opts.unsafeSkipAllChecks = true;
         opts.referenceContract = "BoltManagerV1.sol";
         string memory upgradeTo = "BoltManagerV2.sol";
-        
+
         Deployments memory deployments = _readDeployments();
-        bytes memory initManager = abi.encodeCall(
-            BoltManagerV2.initializeV2, 
-            (admin, deployments.boltParameters, deployments.boltValidators)
-        );
-        
+        bytes memory initManager =
+            abi.encodeCall(BoltManagerV2.initializeV2, (admin, deployments.boltParameters, deployments.boltValidators));
+
         vm.startBroadcast(admin);
 
         Upgrades.upgradeProxy(deployments.boltManager, upgradeTo, initManager, opts);
-        
+
         vm.stopBroadcast();
 
         console.log("BoltManager proxy upgraded from %s to %s", opts.referenceContract, upgradeTo);
