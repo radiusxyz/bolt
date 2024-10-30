@@ -167,7 +167,6 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             BoltManager::from_chain(opts.execution_api_url.clone(), opts.chain.chain)
         {
             let commitment_signer_pubkey = commitment_signer.public_key();
-            bolt_manager.verify_operator(commitment_signer_pubkey).await?;
             bolt_manager
                 .verify_validator_pubkeys(
                     &Vec::from_iter(constraint_signer.available_pubkeys()),

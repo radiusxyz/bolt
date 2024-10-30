@@ -5,7 +5,7 @@ use alloy::{
     primitives::{Address, Bytes},
     providers::{ProviderBuilder, RootProvider},
     sol,
-    sol_types::{Error as SolError, SolInterface},
+    sol_types::SolInterface,
     transports::{http::Http, TransportError},
 };
 use ethereum_consensus::primitives::BlsPublicKey;
@@ -41,20 +41,10 @@ impl BoltManager {
         Self(registry)
     }
 
-    /// Verify the provided operator address is registered in Bolt, returning an error if it
-    /// doesn't
-    pub async fn verify_operator(&self, operator: Address) -> eyre::Result<()> {
-        let returndata = self.0.isOperator(operator).call().await;
-
-        if !returndata.map(|data| data.isOperator)? {
-            bail!("operator not found in Bolt Manager contract");
-        }
-
-        Ok(())
-    }
-
     /// Verify the provided validator public keys are registered in Bolt and are active
-    /// and their authorized operator is the given commitment signer public key
+    /// and their authorized operator is the given commitment signer public key.
+    ///
+    /// NOTE: it also checks the operator associated to the `commitment_signer_pubkey` exists.
     pub async fn verify_validator_pubkeys(
         &self,
         keys: &[BlsPublicKey],
@@ -101,11 +91,12 @@ impl BoltManager {
             BoltManagerContractErrors::ValidatorDoesNotExist(pubkey_hash) => {
                 bail!("validator with public key hash {:?} is not registered in Bolt", pubkey_hash);
             }
-            e => Err(SolError::custom(format!(
-                "unexpected Solidity error selector: {:?}",
-                e.selector()
-            ))
-            .into()),
+            BoltManagerContractErrors::InvalidQuery(_) => {
+                bail!("invalid zero public key hash");
+            }
+            BoltManagerContractErrors::KeyNotFound(_) => {
+                bail!("operator associated with commitment signer public key {:?} is not registered in Bolt", commitment_signer_pubkey);
+            }
         }
     }
 }
@@ -128,6 +119,7 @@ sol! {
 
         function isOperator(address operator) external view returns (bool isOperator);
 
+        error KeyNotFound();
         error InvalidQuery();
         #[derive(Debug)]
         error ValidatorDoesNotExist(bytes20 pubkeyHash);
