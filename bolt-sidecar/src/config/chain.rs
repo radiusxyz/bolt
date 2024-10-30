@@ -1,11 +1,10 @@
 use core::fmt;
-use std::str::FromStr;
 use std::{
     fmt::{Display, Formatter},
     time::Duration,
 };
 
-use alloy::primitives::Address;
+use alloy::primitives::{address, Address};
 use clap::{Args, ValueEnum};
 use ethereum_consensus::deneb::{compute_fork_data_root, Root};
 use serde::Deserialize;
@@ -32,6 +31,11 @@ pub const DEFAULT_CHAIN_CONFIG: ChainConfig = ChainConfig {
     slot_time: DEFAULT_SLOT_TIME_IN_SECONDS,
     enable_unsafe_lookahead: false,
 };
+
+/// The address of the canonical BoltManager contract for the Holesky chain.
+///
+/// https://holesky.etherscan.io/address/0x440202829b493F9FF43E730EB5e8379EEa3678CF
+pub const MANAGER_ADDRESS_HOLESKY: Address = address!("440202829b493F9FF43E730EB5e8379EEa3678CF");
 
 /// Configuration for the chain the sidecar is running on.
 #[derive(Debug, Clone, Copy, Args, Deserialize)]
@@ -106,12 +110,9 @@ impl Chain {
     }
 
     /// Returns the address of the canonical BoltManager contract for a given chain, if present
-    pub fn manager_address(&self) -> Option<Address> {
+    pub const fn manager_address(&self) -> Option<Address> {
         match self {
-            Chain::Holesky => Some(
-                Address::from_str("0x440202829b493F9FF43E730EB5e8379EEa3678CF")
-                    .expect("valid address"),
-            ),
+            Chain::Holesky => Some(MANAGER_ADDRESS_HOLESKY),
             _ => None,
         }
     }
