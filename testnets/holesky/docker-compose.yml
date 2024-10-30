@@ -1,6 +1,6 @@
 services:
   bolt-sidecar-holesky:
-    image: ghcr.io/chainbound/bolt-sidecar:v0.3.0-alpha.rc1
+    image: ghcr.io/chainbound/bolt-sidecar:v0.3.0-alpha.rc2
     container_name: bolt-sidecar-holesky
     restart: unless-stopped
     ports:
