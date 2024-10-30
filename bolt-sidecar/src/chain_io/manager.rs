@@ -26,6 +26,8 @@ pub struct BoltManager(BoltManagerContractInstance<Http<Client>, RootProvider<Ht
 impl BoltManager {
     /// Creates a new BoltRegistry instance. Returns `None` if a canonical BoltManager contract is
     /// not deployed on such chain.
+    ///
+    /// TODO: change after https://github.com/chainbound/bolt/issues/343 is completed
     pub fn from_chain<U: Into<Url>>(execution_client_url: U, chain: Chain) -> Option<Self> {
         let address = chain.manager_address()?;
         Some(Self::from_address(execution_client_url, address))
@@ -52,9 +54,11 @@ impl BoltManager {
     }
 
     /// Verify the provided validator public keys are registered in Bolt and are active
+    /// and their authorized operator is the given commitment signer public key
     pub async fn verify_validator_pubkeys(
         &self,
         keys: &[BlsPublicKey],
+        commitment_signer_pubkey: Address,
     ) -> eyre::Result<Vec<ProposerStatus>> {
         let hashes = utils::pubkey_hashes(keys);
 
@@ -69,6 +73,13 @@ impl BoltManager {
                             "validator with public key hash {:?} is not active in Bolt",
                             status.pubkeyHash
                         );
+                    } else if status.operator != commitment_signer_pubkey {
+                        bail!(
+                            "mismatch between commitment signer public key and authorized operator address for validator with public key hash {:?} in Bolt.\n - commitment signer public key: {:?}\n - authorized operator address: {:?}",
+                            status.pubkeyHash,
+                            commitment_signer_pubkey,
+                            status.operator
+                        );
                     }
                 }
 
@@ -78,7 +89,7 @@ impl BoltManager {
                 ContractError::TransportError(TransportError::ErrorResp(err)) => {
                     let data = err.data.unwrap_or_default();
                     let data = data.get().trim_matches('"');
-                    let data = Bytes::from_str(data).unwrap_or_default();
+                    let data = Bytes::from_str(data)?;
 
                     BoltManagerContractErrors::abi_decode(&data, true)?
                 }
