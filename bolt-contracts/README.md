@@ -57,7 +57,7 @@ The values of these parameters can also be found in [`parameters.json`](./config
 
 ## Validator Registration: `BoltValidators`
 
-The [`BoltValidators`](./src/contracts/BoltValidatorsV1.sol) contract is the only point of entry for
+The [`BoltValidators`](./src/contracts/BoltValidatorsV2.sol) contract is the only point of entry for
 validators to signal their intent to participate in Bolt Protocol and authenticate with their BLS private key.
 
 The registration process includes the following steps:
@@ -76,7 +76,7 @@ will allow us to test the registration flow in a controlled environment.
 
 ## Bolt Network Entrypoint: `BoltManager`
 
-The [`BoltManager`](./src/contracts/BoltManagerV1.sol) contract is a crucial component of Bolt that
+The [`BoltManager`](./src/contracts/BoltManagerV2.sol) contract is a crucial component of Bolt that
 integrates with restaking ecosystems Symbiotic and Eigenlayer. It manages the registration and
 coordination of validators, operators, and vaults within the Bolt network.
 
@@ -156,10 +156,10 @@ request is valid according to Bolt Protocol rules. -->
 | Name                   | Address                | Notes                   |
 | ---------------------- | -------------------- | ----------------------- |
 | [`BoltParametersV1`](./src/contracts/BoltParametersV1.sol) | [0x20d1cf3A5BD5928dB3118b2CfEF54FDF9fda5c12](https://holesky.etherscan.io/address/0x20d1cf3A5BD5928dB3118b2CfEF54FDF9fda5c12) | Proxy: [`ERC1967Proxy@5.0.0`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v5.0/contracts/proxy/ERC1967/ERC1967Proxy.sol) |
-| [`BoltValidatorsV1`](./src/contracts/BoltValidatorsV1.sol) |  [0x47D2DC1DE1eFEFA5e6944402f2eda3981D36a9c8](https://holesky.etherscan.io/address/0x47D2DC1DE1eFEFA5e6944402f2eda3981D36a9c8) | Proxy: [`ERC1967Proxy@5.0.0`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v5.0/contracts/proxy/ERC1967/ERC1967Proxy.sol) |
-| [`BoltManagerV1`](./src/contracts/BoltManagerV1.sol) |  [0x440202829b493F9FF43E730EB5e8379EEa3678CF](https://holesky.etherscan.io/address/0x440202829b493F9FF43E730EB5e8379EEa3678CF) | Proxy: [`ERC1967Proxy@5.0.0`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v5.0/contracts/proxy/ERC1967/ERC1967Proxy.sol) |
-| [`BoltEigenLayerMiddlewareV1`](./src/contracts/BoltEigenLayerMiddlewareV1.sol) |  [0xa632a3e652110Bb2901D5cE390685E6a9838Ca04](https://holesky.etherscan.io/address/0xa632a3e652110Bb2901D5cE390685E6a9838Ca04) | Proxy: [`ERC1967Proxy@5.0.0`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v5.0/contracts/proxy/ERC1967/ERC1967Proxy.sol) |
-| [`BoltSymbioticMiddlewareV1`](./src/contracts/BoltSymbioticMiddlewareV1.sol) |  [0x04f40d9CaE475E5BaA462acE53E5c58A0DD8D8e8](https://holesky.etherscan.io/address/0x04f40d9CaE475E5BaA462acE53E5c58A0DD8D8e8) | Proxy: [`ERC1967Proxy@5.0.0`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v5.0/contracts/proxy/ERC1967/ERC1967Proxy.sol) |
+| [`BoltValidatorsV2`](./src/contracts/BoltValidatorsV2.sol) |  [0x47D2DC1DE1eFEFA5e6944402f2eda3981D36a9c8](https://holesky.etherscan.io/address/0x47D2DC1DE1eFEFA5e6944402f2eda3981D36a9c8) | Proxy: [`ERC1967Proxy@5.0.0`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v5.0/contracts/proxy/ERC1967/ERC1967Proxy.sol) |
+| [`BoltManagerV2`](./src/contracts/BoltManagerV2.sol) |  [0x440202829b493F9FF43E730EB5e8379EEa3678CF](https://holesky.etherscan.io/address/0x440202829b493F9FF43E730EB5e8379EEa3678CF) | Proxy: [`ERC1967Proxy@5.0.0`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v5.0/contracts/proxy/ERC1967/ERC1967Proxy.sol) |
+| [`BoltEigenLayerMiddlewareV2`](./src/contracts/BoltEigenLayerMiddlewareV2.sol) |  [0xa632a3e652110Bb2901D5cE390685E6a9838Ca04](https://holesky.etherscan.io/address/0xa632a3e652110Bb2901D5cE390685E6a9838Ca04) | Proxy: [`ERC1967Proxy@5.0.0`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v5.0/contracts/proxy/ERC1967/ERC1967Proxy.sol) |
+| [`BoltSymbioticMiddlewareV2`](./src/contracts/BoltSymbioticMiddlewareV2.sol) |  [0x04f40d9CaE475E5BaA462acE53E5c58A0DD8D8e8](https://holesky.etherscan.io/address/0x04f40d9CaE475E5BaA462acE53E5c58A0DD8D8e8) | Proxy: [`ERC1967Proxy@5.0.0`](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v5.0/contracts/proxy/ERC1967/ERC1967Proxy.sol) |
 
 ## Testing
 

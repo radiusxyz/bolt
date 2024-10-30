@@ -6,11 +6,11 @@ import {Script, console} from "forge-std/Script.sol";
 import {INetworkRegistry} from "@symbiotic/interfaces/INetworkRegistry.sol";
 import {INetworkMiddlewareService} from "@symbiotic/interfaces/service/INetworkMiddlewareService.sol";
 
-import {BoltSymbioticMiddlewareV1} from "../../../../src/contracts/BoltSymbioticMiddlewareV1.sol";
+import {BoltSymbioticMiddlewareV2} from "../../../../src/contracts/BoltSymbioticMiddlewareV2.sol";
 
 contract UpdateSupportedVaults is Script {
     function run() public {
-        BoltSymbioticMiddlewareV1 middleware = _readSymbioticMiddleware();
+        BoltSymbioticMiddlewareV2 middleware = _readSymbioticMiddleware();
 
         address[] memory whitelisted = middleware.getWhitelistedVaults();
         address[] memory toWhitelist = _readVaultsToWhitelist();
@@ -64,11 +64,11 @@ contract UpdateSupportedVaults is Script {
         return vm.parseJsonAddressArray(json, ".symbiotic.supportedVaults");
     }
 
-    function _readSymbioticMiddleware() public view returns (BoltSymbioticMiddlewareV1) {
+    function _readSymbioticMiddleware() public view returns (BoltSymbioticMiddlewareV2) {
         string memory root = vm.projectRoot();
         string memory path = string.concat(root, "/config/holesky/deployments.json");
         string memory json = vm.readFile(path);
 
-        return BoltSymbioticMiddlewareV1(vm.parseJsonAddress(json, ".symbiotic.middleware"));
+        return BoltSymbioticMiddlewareV2(vm.parseJsonAddress(json, ".symbiotic.middleware"));
     }
 }

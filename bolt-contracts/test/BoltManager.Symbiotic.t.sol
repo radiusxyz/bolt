@@ -20,15 +20,17 @@ import {IDelegatorFactory} from "@symbiotic/interfaces/IDelegatorFactory.sol";
 import {IMigratablesFactory} from "@symbiotic/interfaces/common/IMigratablesFactory.sol";
 import {Subnetwork} from "@symbiotic/contracts/libraries/Subnetwork.sol";
 
-import {IBoltValidatorsV1} from "../src/interfaces/IBoltValidatorsV1.sol";
+import {IBoltValidatorsV2} from "../src/interfaces/IBoltValidatorsV2.sol";
 import {IBoltMiddlewareV1} from "../src/interfaces/IBoltMiddlewareV1.sol";
+import {IBoltManagerV2} from "../src/interfaces/IBoltManagerV2.sol";
 
 import {BoltParametersV1} from "../src/contracts/BoltParametersV1.sol";
-import {BoltValidatorsV1} from "../src/contracts/BoltValidatorsV1.sol";
-import {BoltManagerV1} from "../src/contracts/BoltManagerV1.sol";
+import {BoltValidatorsV2} from "../src/contracts/BoltValidatorsV2.sol";
+import {BoltManagerV2} from "../src/contracts/BoltManagerV2.sol";
 import {BoltSymbioticMiddlewareV1} from "../src/contracts/BoltSymbioticMiddlewareV1.sol";
 import {BLS12381} from "../src/lib/bls/BLS12381.sol";
 import {BoltConfig} from "../src/lib/Config.sol";
+import {ValidatorsLib} from "../src/lib/ValidatorsLib.sol";
 import {Utils} from "./Utils.sol";
 
 import {SymbioticSetupFixture} from "./fixtures/SymbioticSetup.f.sol";
@@ -41,10 +43,10 @@ contract BoltManagerSymbioticTest is Test {
     uint48 public constant EPOCH_DURATION = 1 days;
     uint48 public constant SLASHING_WINDOW = 7 days;
 
-    uint128 public constant PRECONF_MAX_GAS_LIMIT = 5_000_000;
+    uint32 public constant PRECONF_MAX_GAS_LIMIT = 5_000_000;
 
-    BoltValidatorsV1 public validators;
-    BoltManagerV1 public manager;
+    BoltValidatorsV2 public validators;
+    BoltManagerV2 public manager;
     BoltSymbioticMiddlewareV1 public middleware;
 
     IVaultFactory public vaultFactory;
@@ -174,9 +176,9 @@ contract BoltManagerSymbioticTest is Test {
             config.minimumOperatorStake
         );
 
-        validators = new BoltValidatorsV1();
+        validators = new BoltValidatorsV2();
         validators.initialize(admin, address(parameters));
-        manager = new BoltManagerV1();
+        manager = new BoltManagerV2();
         manager.initialize(admin, address(parameters), address(validators));
 
         middleware = new BoltSymbioticMiddlewareV1();
@@ -213,10 +215,11 @@ contract BoltManagerSymbioticTest is Test {
 
         // pubkeys aren't checked, any point will be fine
         BLS12381.G1Point memory pubkey = BLS12381.generatorG1();
+        bytes20 pubkeyHash = validators.hashPubkey(pubkey);
 
         vm.prank(validator);
-        validators.registerValidatorUnsafe(pubkey, PRECONF_MAX_GAS_LIMIT, operator);
-        assertEq(validators.getValidatorByPubkey(pubkey).exists, true);
+        validators.registerValidatorUnsafe(pubkeyHash, PRECONF_MAX_GAS_LIMIT, operator);
+        assert(validators.getValidatorByPubkey(pubkey).pubkeyHash != bytes20(0));
         assertEq(validators.getValidatorByPubkey(pubkey).authorizedOperator, operator);
 
         // --- Register Operator in Symbiotic, opt-in network and vault ---
@@ -327,12 +330,12 @@ contract BoltManagerSymbioticTest is Test {
         assertEq(networkRestakeDelegator.operatorNetworkShares(subnetwork, operator), 100);
 
         BLS12381.G1Point memory pubkey = BLS12381.generatorG1();
-        bytes32 pubkeyHash = _pubkeyHash(pubkey);
+        bytes20 pubkeyHash = validators.hashPubkey(pubkey);
 
         vm.warp(block.timestamp + EPOCH_DURATION * 2 + 1);
         assertEq(vault.currentEpoch(), 2);
 
-        IBoltValidatorsV1.ProposerStatus memory status = manager.getProposerStatus(pubkeyHash);
+        IBoltManagerV2.ProposerStatus memory status = manager.getProposerStatus(pubkeyHash);
         assertEq(status.pubkeyHash, pubkeyHash);
         assertEq(status.operator, operator);
         assertEq(status.active, true);
@@ -345,7 +348,7 @@ contract BoltManagerSymbioticTest is Test {
     function testProposersLookaheadStatus() public {
         _symbioticOptInRoutine();
 
-        bytes32[] memory pubkeyHashes = new bytes32[](10);
+        bytes20[] memory pubkeyHashes = new bytes20[](10);
 
         // register 10 proposers with random pubkeys
         for (uint256 i = 0; i < 10; i++) {
@@ -353,23 +356,23 @@ contract BoltManagerSymbioticTest is Test {
             pubkey.x[0] = pubkey.x[0] + i + 2;
             pubkey.y[0] = pubkey.y[0] + i + 2;
 
-            pubkeyHashes[i] = _pubkeyHash(pubkey);
-            validators.registerValidatorUnsafe(pubkey, PRECONF_MAX_GAS_LIMIT, operator);
+            pubkeyHashes[i] = validators.hashPubkey(pubkey);
+            validators.registerValidatorUnsafe(pubkeyHashes[i], PRECONF_MAX_GAS_LIMIT, operator);
         }
 
         vm.warp(block.timestamp + EPOCH_DURATION * 2 + 1);
         assertEq(vault.currentEpoch(), 2);
 
-        IBoltValidatorsV1.ProposerStatus[] memory statuses = manager.getProposerStatuses(pubkeyHashes);
+        IBoltManagerV2.ProposerStatus[] memory statuses = manager.getProposerStatuses(pubkeyHashes);
         assertEq(statuses.length, 10);
     }
 
     function testGetNonExistentProposerStatus() public {
         _symbioticOptInRoutine();
 
-        bytes32 pubkeyHash = bytes32(uint256(1));
+        bytes20 pubkeyHash = bytes20("0x1");
 
-        vm.expectRevert(IBoltValidatorsV1.ValidatorDoesNotExist.selector);
+        vm.expectRevert(abi.encodeWithSelector(ValidatorsLib.ValidatorDoesNotExist.selector, pubkeyHash));
         manager.getProposerStatus(pubkeyHash);
     }
 }

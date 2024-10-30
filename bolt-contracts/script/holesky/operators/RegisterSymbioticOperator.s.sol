@@ -3,15 +3,15 @@ pragma solidity 0.8.25;
 
 import {Script, console} from "forge-std/Script.sol";
 
-import {BoltSymbioticMiddlewareV1} from "../../../src/contracts/BoltSymbioticMiddlewareV1.sol";
-import {IBoltManagerV1} from "../../../src/interfaces/IBoltManagerV1.sol";
+import {BoltSymbioticMiddlewareV2} from "../../../src/contracts/BoltSymbioticMiddlewareV2.sol";
+import {IBoltManagerV2} from "../../../src/interfaces/IBoltManagerV2.sol";
 
 import {IOptInService} from "@symbiotic/interfaces/service/IOptInService.sol";
 import {IVault} from "@symbiotic/interfaces/vault/IVault.sol";
 
 contract RegisterSymbioticOperator is Script {
     struct Config {
-        BoltSymbioticMiddlewareV1 symbioticMiddleware;
+        BoltSymbioticMiddlewareV2 symbioticMiddleware;
         IOptInService symbioticNetworkOptInService;
         address symbioticNetwork;
     }
@@ -54,7 +54,7 @@ contract RegisterSymbioticOperator is Script {
         address operatorAddress = vm.envAddress("OPERATOR_ADDRESS");
         console.log("Checking operator registration for address", operatorAddress);
 
-        IBoltManagerV1 boltManager = _readBoltManager();
+        IBoltManagerV2 boltManager = _readBoltManager();
         bool isRegistered = boltManager.isOperator(operatorAddress);
 
         console.log("Operator is registered:", isRegistered);
@@ -68,15 +68,15 @@ contract RegisterSymbioticOperator is Script {
 
         return Config({
             symbioticNetwork: vm.parseJsonAddress(json, ".symbiotic.network"),
-            symbioticMiddleware: BoltSymbioticMiddlewareV1(vm.parseJsonAddress(json, ".symbiotic.middleware")),
+            symbioticMiddleware: BoltSymbioticMiddlewareV2(vm.parseJsonAddress(json, ".symbiotic.middleware")),
             symbioticNetworkOptInService: IOptInService(vm.parseJsonAddress(json, ".symbiotic.networkOptInService"))
         });
     }
 
-    function _readBoltManager() public view returns (IBoltManagerV1) {
+    function _readBoltManager() public view returns (IBoltManagerV2) {
         string memory root = vm.projectRoot();
         string memory path = string.concat(root, "/config/holesky/deployments.json");
         string memory json = vm.readFile(path);
-        return IBoltManagerV1(vm.parseJsonAddress(json, ".bolt.manager"));
+        return IBoltManagerV2(vm.parseJsonAddress(json, ".bolt.manager"));
     }
 }
