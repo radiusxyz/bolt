@@ -15,6 +15,7 @@ use crate::{
     common::{calculate_max_basefee, max_transaction_cost, validate_transaction},
     config::limits::LimitsOpts,
     primitives::{AccountState, CommitmentRequest, SignedConstraints, Slot},
+    telemetry::ApiMetrics,
 };
 
 use super::fetcher::StateFetcher;
@@ -460,7 +461,21 @@ impl<C: StateFetcher> ExecutionState<C> {
         self.apply_state_update(update);
 
         // Remove any block templates that are no longer valid
-        self.remove_block_template(slot);
+        if let Some(template) = self.remove_block_template(slot) {
+            debug!(%slot, "Removed block template for slot");
+            let hashes = template.transaction_hashes();
+            let receipts = self.client.get_receipts(&hashes).await?;
+
+            for receipt in receipts.into_iter().flatten() {
+                // Calculate the total tip revenue for this transaction: (effective_gas_price - basefee) * gas_used
+                let tip_per_gas = receipt.effective_gas_price - self.basefee;
+                let total_tip = tip_per_gas * receipt.gas_used;
+
+                trace!(hash = %receipt.transaction_hash, total_tip, "Receipt found");
+
+                ApiMetrics::increment_gross_tip_revenue(total_tip);
+            }
+        }
 
         Ok(())
     }

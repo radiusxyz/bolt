@@ -7,10 +7,12 @@ use std::{collections::HashMap, time::Duration};
 use alloy::{
     eips::BlockNumberOrTag,
     primitives::{Address, Bytes, U256, U64},
+    rpc::types::TransactionReceipt,
     transports::TransportError,
 };
 use futures::{stream::FuturesOrdered, StreamExt};
 use reqwest::Url;
+use reth_primitives::TxHash;
 use tracing::error;
 
 use crate::{client::rpc::RpcClient, primitives::AccountState};
@@ -45,6 +47,12 @@ pub trait StateFetcher {
     ) -> Result<AccountState, TransportError>;
 
     async fn get_chain_id(&self) -> Result<u64, TransportError>;
+
+    /// Gets the receipts for the said list of transaction hashes. IMPORTANT: order is not maintained!
+    async fn get_receipts(
+        &self,
+        hashes: &[TxHash],
+    ) -> Result<Vec<Option<TransactionReceipt>>, TransportError>;
 }
 
 /// A basic state fetcher that uses an RPC client to fetch state updates.
@@ -207,6 +215,13 @@ impl StateFetcher for StateClient {
 
     async fn get_chain_id(&self) -> Result<u64, TransportError> {
         self.client.get_chain_id().await
+    }
+
+    async fn get_receipts(
+        &self,
+        hashes: &[TxHash],
+    ) -> Result<Vec<Option<TransactionReceipt>>, TransportError> {
+        self.client.get_receipts(hashes).await
     }
 }
 
