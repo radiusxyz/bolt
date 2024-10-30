@@ -6,3 +6,7 @@ excludedDirs:
   - testnets/helder
 
 useGitIgnore: true
+
+ignorePatterns:
+  - pattern: "^https://.*etherscan.io/.*$"
+

@@ -117,8 +117,8 @@ impl ConsensusState {
         }
 
         // If the request is for the next slot, check if it's within the commitment deadline
-        if req.slot == self.latest_slot + 1
-            && self.latest_slot_timestamp + self.commitment_deadline_duration < Instant::now()
+        if req.slot == self.latest_slot + 1 &&
+            self.latest_slot_timestamp + self.commitment_deadline_duration < Instant::now()
         {
             return Err(ConsensusError::DeadlineExceeded);
         }
@@ -161,7 +161,8 @@ impl ConsensusState {
         Ok(())
     }
 
-    /// Fetch proposer duties for the given epoch and the next one if the unsafe lookahead flag is set
+    /// Fetch proposer duties for the given epoch and the next one if the unsafe lookahead flag is
+    /// set
     async fn fetch_proposer_duties(&mut self, epoch: u64) -> Result<(), ConsensusError> {
         let duties = if self.unsafe_lookahead_enabled {
             let two_epoch_duties = join!(
@@ -200,9 +201,9 @@ impl ConsensusState {
     /// Returns the furthest slot for which a commitment request is considered valid, whether in
     /// the current epoch or next epoch (if unsafe lookahead is enabled)
     fn furthest_slot(&self) -> u64 {
-        self.epoch.start_slot
-            + SLOTS_PER_EPOCH
-            + if self.unsafe_lookahead_enabled { SLOTS_PER_EPOCH } else { 0 }
+        self.epoch.start_slot +
+            SLOTS_PER_EPOCH +
+            if self.unsafe_lookahead_enabled { SLOTS_PER_EPOCH } else { 0 }
     }
 }
 
@@ -324,8 +325,8 @@ mod tests {
         };
 
         let epoch =
-            state.beacon_api_client.get_beacon_header(BlockId::Head).await?.header.message.slot
-                / SLOTS_PER_EPOCH;
+            state.beacon_api_client.get_beacon_header(BlockId::Head).await?.header.message.slot /
+                SLOTS_PER_EPOCH;
 
         state.fetch_proposer_duties(epoch).await?;
         assert_eq!(state.epoch.proposer_duties.len(), SLOTS_PER_EPOCH as usize * 2);

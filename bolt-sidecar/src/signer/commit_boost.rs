@@ -1,6 +1,6 @@
 use std::{str::FromStr, sync::Arc};
 
-use alloy::{rpc::types::beacon::BlsSignature, signers::Signature};
+use alloy::{primitives::Address, rpc::types::beacon::BlsSignature, signers::Signature};
 use cb_common::{
     commit::{client::SignerClient, error::SignerClientError, request::SignConsensusRequest},
     signer::EcdsaPublicKey,
@@ -142,6 +142,10 @@ impl CommitBoostSigner {
 
 #[async_trait::async_trait]
 impl SignerECDSA for CommitBoostSigner {
+    fn public_key(&self) -> Address {
+        Address::try_from(self.get_proxy_ecdsa_pubkey().as_ref()).expect("valid address")
+    }
+
     async fn sign_hash(&self, hash: &[u8; 32]) -> eyre::Result<Signature> {
         let request = SignProxyRequest::builder(
             *self.proxy_ecdsa.read().first().expect("proxy ecdsa key loaded"),

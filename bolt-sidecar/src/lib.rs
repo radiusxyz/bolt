@@ -48,6 +48,9 @@ pub mod state;
 mod signer;
 pub use signer::{commit_boost::CommitBoostSigner, SignerBLS};
 
+/// Utilities and contracts wrappers for interacting with the Bolt registry
+pub mod chain_io;
+
 /// Utilities for testing
 #[cfg(test)]
 mod test_util;

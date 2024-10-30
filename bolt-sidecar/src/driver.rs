@@ -17,6 +17,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     builder::payload_fetcher::LocalPayloadFetcher,
+    chain_io::manager::BoltManager,
     commitments::{
         server::{CommitmentsApiServer, Event as CommitmentEvent},
         spec::Error as CommitmentError,
@@ -161,6 +162,19 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         commitment_signer: ECDSA,
         fetcher: C,
     ) -> eyre::Result<Self> {
+        // Verify the operator and validator keys with the bolt manager
+        if let Some(bolt_manager) =
+            BoltManager::from_chain(opts.execution_api_url.clone(), opts.chain.chain)
+        {
+            let commitment_signer_pubkey = commitment_signer.public_key();
+            bolt_manager
+                .verify_validator_pubkeys(
+                    &Vec::from_iter(constraint_signer.available_pubkeys()),
+                    commitment_signer_pubkey,
+                )
+                .await?;
+        }
+
         let beacon_client = BeaconClient::new(opts.beacon_api_url.clone());
         let execution = ExecutionState::new(fetcher, opts.limits).await?;
 
