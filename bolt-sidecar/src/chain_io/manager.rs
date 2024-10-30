@@ -17,7 +17,7 @@ use BoltManagerContract::{BoltManagerContractErrors, BoltManagerContractInstance
 
 use crate::config::chain::Chain;
 
-use super::utils;
+use super::utils::{self, CompressedHash};
 
 /// A wrapper over a BoltManagerContract that exposes various utility methods.
 #[derive(Debug, Clone)]
@@ -135,5 +135,58 @@ sol! {
         error InvalidQuery();
         #[derive(Debug)]
         error ValidatorDoesNotExist(bytes20 pubkeyHash);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ::hex::FromHex;
+    use alloy::{hex, primitives::Address};
+    use ethereum_consensus::primitives::BlsPublicKey;
+    use reqwest::Url;
+
+    use crate::{
+        chain_io::{manager::generate_operator_keys_mismatch_error, utils::pubkey_hash},
+        config::chain::Chain,
+    };
+
+    use super::BoltManager;
+
+    #[tokio::test]
+    #[ignore = "requires Chainbound tailnet"]
+    async fn test_verify_validator_pubkeys() {
+        let url = Url::parse("http://remotebeast:48545").expect("valid url");
+        let manager =
+            BoltManager::from_chain(url, Chain::Holesky).expect("manager deployed on Holesky");
+
+        let operator =
+            Address::from_hex("725028b0b7c3db8b8242d35cd3a5779838b217b1").expect("valid address");
+
+        let keys = vec![BlsPublicKey::try_from([0; 48].as_ref()).expect("valid bls public key")];
+        let commitment_signer_pubkey = Address::ZERO;
+
+        let res = manager.verify_validator_pubkeys(&keys, commitment_signer_pubkey).await;
+        assert!(res.unwrap_err().to_string().contains("ValidatorDoesNotExist"));
+
+        let keys = vec![
+            BlsPublicKey::try_from(
+                hex!("87cbbfe6f08a0fd424507726cfcf5b9df2b2fd6b78a65a3d7bb6db946dca3102eb8abae32847d5a9a27e414888414c26")
+                    .as_ref()).expect("valid bls public key")];
+        let res = manager.verify_validator_pubkeys(&keys, commitment_signer_pubkey).await;
+        assert!(
+            res.unwrap_err().to_string()
+                == generate_operator_keys_mismatch_error(
+                    pubkey_hash(&keys[0]),
+                    commitment_signer_pubkey,
+                    operator
+                )
+        );
+
+        let commitment_signer_pubkey = operator;
+        let res = manager
+            .verify_validator_pubkeys(&keys, commitment_signer_pubkey)
+            .await
+            .expect("active validator and correct operator");
+        assert!(res[0].active);
     }
 }

@@ -5,7 +5,7 @@ use reth_primitives::keccak256;
 /// A 20-byte compressed hash of a BLS public key.
 ///
 /// Reference: https://github.com/chainbound/bolt/blob/lore/feat/holesky-launch/bolt-contracts/script/holesky/validators/registervalidators.s.sol#l65-l69.
-type CompressedHash = FixedBytes<20>;
+pub(crate) type CompressedHash = FixedBytes<20>;
 
 /// Hash the public keys of the proposers. This follows the same
 /// implementation done on-chain in the BoltValidators contract.
