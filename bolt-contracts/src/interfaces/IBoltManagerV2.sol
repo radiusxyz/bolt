@@ -6,6 +6,7 @@ interface IBoltManagerV2 {
     error OperatorAlreadyRegistered();
     error OperatorNotRegistered();
     error UnauthorizedMiddleware();
+    // TODO: remove in future upgrade (unused)
     error InactiveOperator();
 
     /// @notice Proposer status info.
