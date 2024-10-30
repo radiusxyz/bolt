@@ -97,16 +97,15 @@ impl BoltManager {
             },
         };
 
-        if matches!(error, BoltManagerContractErrors::ValidatorDoesNotExist(_)) {
-            // TODO: improve this error message once https://github.com/chainbound/bolt/issues/338
-            // is solved
-            bail!("not all validators are registered in Bolt");
-        } else {
-            Err(SolError::custom(format!(
+        match error {
+            BoltManagerContractErrors::ValidatorDoesNotExist(pubkey_hash) => {
+                bail!("validator with public key hash {:?} is not registered in Bolt", pubkey_hash);
+            }
+            e => Err(SolError::custom(format!(
                 "unexpected Solidity error selector: {:?}",
-                error.selector()
+                e.selector()
             ))
-            .into())
+            .into()),
         }
     }
 }
@@ -130,6 +129,7 @@ sol! {
         function isOperator(address operator) external view returns (bool isOperator);
 
         error InvalidQuery();
-        error ValidatorDoesNotExist();
+        #[derive(Debug)]
+        error ValidatorDoesNotExist(bytes20 pubkeyHash);
     }
 }
