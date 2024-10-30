@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use alloy::primitives::{FixedBytes, B512};
 use ethereum_consensus::primitives::BlsPublicKey;
 use reth_primitives::keccak256;
@@ -7,10 +9,12 @@ use reth_primitives::keccak256;
 /// Reference: https://github.com/chainbound/bolt/blob/bec46baae6d7c16dddd81e5e72710ca8e3064f82/bolt-contracts/script/holesky/validators/RegisterValidators.s.sol#L65-L69
 pub(crate) type CompressedHash = FixedBytes<20>;
 
-/// Hash the public keys of the proposers. This follows the same
-/// implementation done on-chain in the BoltValidators contract.
-pub fn pubkey_hashes(keys: &[BlsPublicKey]) -> Vec<CompressedHash> {
-    keys.iter().map(pubkey_hash).collect()
+/// Hash the public keys of the proposers and return a mapping with the results and their
+/// pre-images.
+///
+/// This follows the same implementation done on-chain in the BoltValidators contract.
+pub fn pubkey_hashes(keys: Vec<BlsPublicKey>) -> HashMap<CompressedHash, BlsPublicKey> {
+    HashMap::from_iter(keys.into_iter().map(|key| (pubkey_hash(&key), key)))
 }
 
 /// Hash the public key of the proposer. This follows the same
