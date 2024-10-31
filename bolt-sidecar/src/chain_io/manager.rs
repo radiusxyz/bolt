@@ -13,6 +13,7 @@ use eyre::bail;
 use reqwest::{Client, Url};
 use serde::Serialize;
 
+use tracing::debug;
 use BoltManagerContract::{
     BoltManagerContractErrors, BoltManagerContractInstance, ProposerStatus, ValidatorDoesNotExist,
 };
@@ -20,6 +21,8 @@ use BoltManagerContract::{
 use crate::config::chain::Chain;
 
 use super::utils::{self, CompressedHash};
+
+const CHUNK_SIZE: usize = 1_000;
 
 /// A wrapper over a BoltManagerContract that exposes various utility methods.
 #[derive(Debug, Clone)]
@@ -57,12 +60,21 @@ impl BoltManager {
 
         let mut proposers_statuses = Vec::with_capacity(hashes.len());
 
+        let mut i = 0;
         while !hashes.is_empty() {
-            // No more than 1_000 at a time to avoid EL config limits
+            i += 1;
+
+            // No more than CHUNK_SIZE at a time to avoid EL config limits
             //
             // TODO: write an unsafe function that splits a vec into owned chunks without
             // allocating
-            let hashes_chunk = hashes.drain(..1_000.min(hashes.len())).collect::<Vec<_>>();
+            let hashes_chunk = hashes.drain(..CHUNK_SIZE.min(hashes.len())).collect::<Vec<_>>();
+
+            debug!(
+                "fetching proposer statuses for chunk {} of {}",
+                i,
+                hashes.len().div_ceil(CHUNK_SIZE)
+            );
 
             let returndata = self.0.getProposerStatuses(hashes_chunk).call().await;
 
