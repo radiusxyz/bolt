@@ -173,6 +173,7 @@ mod tests {
     use super::BoltManager;
 
     #[tokio::test]
+    #[ignore = "requires Chainbound tailnet"]
     async fn test_verify_validator_pubkeys() {
         let url = Url::parse("http://remotebeast:48545").expect("valid url");
         let manager =
