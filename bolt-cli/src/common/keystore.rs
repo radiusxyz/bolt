@@ -51,7 +51,7 @@ impl KeystoreSecret {
     /// Load the keystore passwords from a directory containing individual password files.
     pub fn from_directory(root_dir: &str) -> Result<Self> {
         let mut secrets = HashMap::new();
-        for entry in fs::read_dir(&root_dir)
+        for entry in fs::read_dir(root_dir)
             .wrap_err(format!("failed to read secrets directory. path: {}", &root_dir))?
         {
             let entry = entry.wrap_err("Failed to read secrets directory entry")?;

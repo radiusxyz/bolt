@@ -101,6 +101,14 @@ pub struct SendCommand {
     #[clap(long, env = "BLOB", default_value = "false")]
     pub blob: bool,
 
+    /// The max fee per gas in gwei.
+    #[clap(long, env = "MAX_FEE")]
+    pub max_fee: Option<String>,
+
+    /// The max priority fee per gas in gwei.
+    #[clap(long, env = "PRIORITY_FEE", default_value = "2")]
+    pub priority_fee: String,
+
     /// If set, the transaction will target the devnet environment.
     /// This is only used in Kurtosis for internal testing purposes
     #[clap(long, hide = true, env = "DEVNET", default_value = "false")]
