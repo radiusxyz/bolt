@@ -23,7 +23,7 @@ use crate::config::chain::Chain;
 
 use super::utils::{self, CompressedHash};
 
-const CHUNK_SIZE: usize = 1_000;
+const CHUNK_SIZE: usize = 100;
 
 /// A wrapper over a BoltManagerContract that exposes various utility methods.
 #[derive(Debug, Clone)]
@@ -72,7 +72,8 @@ impl BoltManager {
             let hashes_chunk = hashes.drain(..CHUNK_SIZE.min(hashes.len())).collect::<Vec<_>>();
 
             debug!(
-                "fetching proposer statuses for chunk {} of {}",
+                "fetching {} proposer statuses for chunk {} of {}",
+                hashes_chunk.len(),
                 i,
                 hashes.len().div_ceil(CHUNK_SIZE)
             );
