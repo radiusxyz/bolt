@@ -58,6 +58,7 @@ impl BoltManager {
     ) -> eyre::Result<Vec<ProposerStatus>> {
         let hashes_with_preimages = utils::pubkey_hashes(keys);
         let mut hashes = hashes_with_preimages.keys().cloned().collect::<Vec<_>>();
+        let total_keys = hashes.len();
 
         let mut proposers_statuses = Vec::with_capacity(hashes.len());
 
@@ -75,7 +76,7 @@ impl BoltManager {
                 "fetching {} proposer statuses for chunk {} of {}",
                 hashes_chunk.len(),
                 i,
-                hashes.len().div_ceil(CHUNK_SIZE)
+                total_keys.div_ceil(CHUNK_SIZE)
             );
 
             let returndata = self.0.getProposerStatuses(hashes_chunk).call().await;
