@@ -16,7 +16,6 @@ use ethereum_consensus::{
     Fork,
 };
 use parking_lot::Mutex;
-use reqwest::Url;
 use serde::Deserialize;
 use thiserror::Error;
 use tokio::net::TcpListener;
@@ -219,8 +218,8 @@ where
 /// Configuration for the builder proxy.
 #[derive(Debug, Clone)]
 pub struct BuilderProxyConfig {
-    /// The URL of the target constraints client server.
-    pub constraints_url: Url,
+    /// The target constraints client server.
+    pub constraints_client: ConstraintsClient,
     /// The port on which the builder proxy should listen.
     pub server_port: u16,
 }
@@ -235,12 +234,11 @@ where
 {
     info!(
         port = config.server_port,
-        target = config.constraints_url.to_string(),
+        target = config.constraints_client.url.to_string(),
         "Starting builder proxy..."
     );
 
-    let mev_boost = ConstraintsClient::new(config.constraints_url);
-    let server = Arc::new(BuilderProxyServer::new(mev_boost, payload_fetcher));
+    let server = Arc::new(BuilderProxyServer::new(config.constraints_client, payload_fetcher));
 
     let router = Router::new()
         .route("/", get(index))
