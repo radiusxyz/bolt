@@ -223,7 +223,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
 
         let (payload_requests_tx, payload_requests_rx) = mpsc::channel(16);
         let builder_proxy_cfg = BuilderProxyConfig {
-            constraints_url: opts.constraints_api_url.clone(),
+            constraints_client: constraints_client.clone(),
             server_port: opts.constraints_proxy_port,
         };
 
