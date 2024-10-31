@@ -328,10 +328,6 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         let delegatees = self.constraints_client.find_delegatees(&validator_pubkey);
         let available_pubkeys = self.constraint_signer.available_pubkeys();
 
-        debug!(?delegatees);
-        debug!(?available_pubkeys);
-        debug!(?validator_pubkey);
-
         let Some(pubkey) = pick_public_key(validator_pubkey, available_pubkeys, delegatees) else {
             error!(%target_slot, "No available public key to sign constraints with");
             let _ = response.send(Err(CommitmentError::Internal));
