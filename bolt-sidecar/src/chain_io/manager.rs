@@ -14,6 +14,7 @@ use eyre::bail;
 use reqwest::{Client, Url};
 use serde::Serialize;
 
+use tracing::debug;
 use BoltManagerContract::{
     BoltManagerContractErrors, BoltManagerContractInstance, ProposerStatus, ValidatorDoesNotExist,
 };
@@ -21,6 +22,8 @@ use BoltManagerContract::{
 use crate::config::chain::Chain;
 
 use super::utils::{self, CompressedHash};
+
+const CHUNK_SIZE: usize = 100;
 
 /// A wrapper over a BoltManagerContract that exposes various utility methods.
 #[derive(Debug, Clone)]
@@ -54,57 +57,82 @@ impl BoltManager {
         commitment_signer_pubkey: Address,
     ) -> eyre::Result<Vec<ProposerStatus>> {
         let hashes_with_preimages = utils::pubkey_hashes(keys);
-        let hashes = hashes_with_preimages.keys().cloned().collect::<Vec<_>>();
+        let mut hashes = hashes_with_preimages.keys().cloned().collect::<Vec<_>>();
+        let total_keys = hashes.len();
 
-        let returndata = self.0.getProposerStatuses(hashes).call().await;
+        let mut proposers_statuses = Vec::with_capacity(hashes.len());
 
-        // TODO: clean this after https://github.com/alloy-rs/alloy/issues/787 is merged
-        let error = match returndata.map(|data| data.statuses) {
-            Ok(statuses) => {
-                for status in &statuses {
-                    if !status.active {
-                        bail!(
+        let mut i = 0;
+        while !hashes.is_empty() {
+            i += 1;
+
+            // No more than CHUNK_SIZE at a time to avoid EL config limits
+            //
+            // TODO: write an unsafe function that splits a vec into owned chunks without
+            // allocating
+            let hashes_chunk = hashes.drain(..CHUNK_SIZE.min(hashes.len())).collect::<Vec<_>>();
+
+            debug!(
+                "fetching {} proposer statuses for chunk {} of {}",
+                hashes_chunk.len(),
+                i,
+                total_keys.div_ceil(CHUNK_SIZE)
+            );
+
+            let returndata = self.0.getProposerStatuses(hashes_chunk).call().await;
+
+            // TODO: clean this after https://github.com/alloy-rs/alloy/issues/787 is merged
+            let error = match returndata.map(|data| data.statuses) {
+                Ok(statuses) => {
+                    for status in &statuses {
+                        if !status.active {
+                            bail!(
                             "validator with public key {:?} and public key hash {:?} is not active in Bolt",
                             hashes_with_preimages.get(&status.pubkeyHash),
                             status.pubkeyHash
                         );
-                    } else if status.operator != commitment_signer_pubkey {
-                        bail!(generate_operator_keys_mismatch_error(
-                            status.pubkeyHash,
-                            commitment_signer_pubkey,
-                            status.operator
-                        ));
+                        } else if status.operator != commitment_signer_pubkey {
+                            bail!(generate_operator_keys_mismatch_error(
+                                status.pubkeyHash,
+                                commitment_signer_pubkey,
+                                status.operator
+                            ));
+                        }
                     }
+
+                    proposers_statuses.extend(statuses);
+
+                    continue;
                 }
+                Err(error) => match error {
+                    ContractError::TransportError(TransportError::ErrorResp(err)) => {
+                        error!("error response from contract: {:?}", err);
+                        let data = err.data.unwrap_or_default();
+                        let data = data.get().trim_matches('"');
+                        let data = Bytes::from_str(data)?;
 
-                return Ok(statuses);
-            }
-            Err(error) => match error {
-                ContractError::TransportError(TransportError::ErrorResp(err)) => {
-                    error!("Error response from BoltManager contract: {:?}", err);
-                    let data = err.data.unwrap_or_default();
-                    let data = data.get().trim_matches('"');
-                    let data = Bytes::from_str(data)?;
+                        BoltManagerContractErrors::abi_decode(&data, true)?
+                    }
+                    e => return Err(e)?,
+                },
+            };
 
-                    BoltManagerContractErrors::abi_decode(&data, true)?
+            match error {
+                BoltManagerContractErrors::ValidatorDoesNotExist(ValidatorDoesNotExist {
+                    pubkeyHash: pubkey_hash,
+                }) => {
+                    bail!("ValidatorDoesNotExist -- validator with public key {:?} and public key hash {:?} is not registered in Bolt", hashes_with_preimages.get(&pubkey_hash), pubkey_hash);
                 }
-                e => return Err(e)?,
-            },
-        };
-
-        match error {
-            BoltManagerContractErrors::ValidatorDoesNotExist(ValidatorDoesNotExist {
-                pubkeyHash: pubkey_hash,
-            }) => {
-                bail!("ValidatorDoesNotExist -- validator with public key {:?} and public key hash {:?} is not registered in Bolt", hashes_with_preimages.get(&pubkey_hash), pubkey_hash);
-            }
-            BoltManagerContractErrors::InvalidQuery(_) => {
-                bail!("InvalidQuery -- invalid zero public key hash");
-            }
-            BoltManagerContractErrors::KeyNotFound(_) => {
-                bail!("KeyNotFound -- operator associated with commitment signer public key {:?} is not registered in Bolt", commitment_signer_pubkey);
+                BoltManagerContractErrors::InvalidQuery(_) => {
+                    bail!("InvalidQuery -- invalid zero public key hash");
+                }
+                BoltManagerContractErrors::KeyNotFound(_) => {
+                    bail!("KeyNotFound -- operator associated with commitment signer public key {:?} is not registered in Bolt", commitment_signer_pubkey);
+                }
             }
         }
+
+        Ok(proposers_statuses)
     }
 }
 
@@ -161,6 +189,7 @@ mod tests {
     use super::BoltManager;
 
     #[tokio::test]
+    #[ignore = "requires Chainbound tailnet"]
     async fn test_verify_validator_pubkeys() {
         let url = Url::parse("http://remotebeast:48545").expect("valid url");
         let manager =
