@@ -100,11 +100,22 @@ impl BuilderApi for ConstraintsClient {
             return Err(BuilderApiError::FailedRegisteringValidators(error));
         }
 
-        // If there are any delegations, propagate them to the relay
+        // If there are any delegations, propagate the one associated to the incoming registrations to the relay
         if self.delegations.is_empty() {
             return Ok(());
-        } else if let Err(err) = self.delegate(&self.delegations).await {
-            error!(?err, "Failed to propagate delegations during validator registration");
+        } else {
+            let validator_pubkeys =
+                registrations.iter().map(|r| r.message.public_key.clone()).collect::<HashSet<_>>();
+            let filtered_delegations = self
+                .delegations
+                .iter()
+                .filter(|d| validator_pubkeys.contains(&d.message.validator_pubkey))
+                .cloned()
+                .collect::<Vec<_>>();
+
+            if let Err(err) = self.delegate(&filtered_delegations).await {
+                error!(?err, "Failed to propagate delegations during validator registration");
+            }
         }
 
         Ok(())
