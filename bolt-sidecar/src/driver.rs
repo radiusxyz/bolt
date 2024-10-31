@@ -183,13 +183,18 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         {
             let commitment_signer_pubkey = commitment_signer.public_key();
             let validator_public_keys_len = validator_public_keys.len();
+            info!(
+                validator_public_keys_len,
+                commitment_signer_pubkey = ?commitment_signer_pubkey,
+                "Verifying validators and operator keys with Bolt Manager, this may take a while..."
+            );
             bolt_manager
                 .verify_validator_pubkeys(validator_public_keys, commitment_signer_pubkey)
                 .await?;
             info!(
                 validator_public_keys_len,
                 commitment_signer_pubkey = ?commitment_signer_pubkey,
-                "Validators and operator keys verified with Bolt Manager successfully"
+                "Verified validators and operator keys verified with Bolt Manager successfully"
             );
         } else {
             warn!(
