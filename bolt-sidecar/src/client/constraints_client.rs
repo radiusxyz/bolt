@@ -51,11 +51,11 @@ impl ConstraintsClient {
         self.delegations.extend(delegations);
     }
 
-    /// Finds all delegations for the given public key.
-    pub fn find_delegatees(&self, pubkey: &BlsPublicKey) -> HashSet<BlsPublicKey> {
+    /// Finds all delegations for the given validator public key.
+    pub fn find_delegatees(&self, validator_pubkey: &BlsPublicKey) -> HashSet<BlsPublicKey> {
         self.delegations
             .iter()
-            .filter(|d| d.message.delegatee_pubkey == *pubkey)
+            .filter(|d| d.message.validator_pubkey == *validator_pubkey)
             .map(|d| d.message.delegatee_pubkey.clone())
             .collect::<HashSet<_>>()
     }
