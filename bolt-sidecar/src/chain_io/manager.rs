@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use tracing::error;
 
 use alloy::{
     contract::Error as ContractError,
@@ -103,6 +104,7 @@ impl BoltManager {
                 }
                 Err(error) => match error {
                     ContractError::TransportError(TransportError::ErrorResp(err)) => {
+                        error!("error response from contract: {:?}", err);
                         let data = err.data.unwrap_or_default();
                         let data = data.get().trim_matches('"');
                         let data = Bytes::from_str(data)?;
