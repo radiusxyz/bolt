@@ -1,10 +1,12 @@
 use std::time::Duration;
 
 use alloy::{
-    consensus::{BlobTransactionSidecar, SidecarBuilder, SimpleCoder, Transaction},
+    consensus::{
+        constants::GWEI_TO_WEI, BlobTransactionSidecar, SidecarBuilder, SimpleCoder, Transaction,
+    },
     eips::eip2718::Encodable2718,
     network::{EthereumWallet, TransactionBuilder, TransactionBuilder4844},
-    primitives::{keccak256, utils::parse_units, Address, B256, U256},
+    primitives::{keccak256, Address, B256, U256},
     providers::{ProviderBuilder, SendableTx},
     rpc::types::TransactionRequest,
     signers::{local::PrivateKeySigner, Signer},
@@ -25,29 +27,16 @@ impl SendCommand {
     /// Run the `send` command.
     pub async fn run(self) -> Result<()> {
         let wallet: PrivateKeySigner = self.private_key.parse().wrap_err("invalid private key")?;
-        let max_fee = self.max_fee.as_ref().map(|fee| {
-            parse_units(fee, "gwei").expect("Correct unit").try_into().expect("Correct unit")
-        });
-
-        let priority_fee = parse_units(&self.priority_fee, "gwei")
-            .expect("Correct unit")
-            .try_into()
-            .expect("Correct unit");
 
         if self.devnet {
             self.send_devnet_transaction(&wallet).await
         } else {
-            self.send_transaction(&wallet, max_fee, priority_fee).await
+            self.send_transaction(&wallet).await
         }
     }
 
     /// Send a transaction.
-    async fn send_transaction(
-        self,
-        wallet: &PrivateKeySigner,
-        max_fee: Option<u128>,
-        priority_fee: u128,
-    ) -> Result<()> {
+    async fn send_transaction(self, wallet: &PrivateKeySigner) -> Result<()> {
         let transaction_signer = EthereumWallet::from(wallet.clone());
         let provider = ProviderBuilder::new()
             .with_recommended_fillers()
@@ -86,11 +75,11 @@ impl SendCommand {
         for _ in 0..self.count {
             // generate a simple self-transfer of ETH
             let mut req = create_tx_request(wallet.address(), self.blob);
-            if let Some(max_fee) = max_fee {
-                req.set_max_fee_per_gas(max_fee);
+            if let Some(max_fee) = self.max_fee {
+                req.set_max_fee_per_gas(max_fee * GWEI_TO_WEI as u128);
             }
 
-            req.set_max_priority_fee_per_gas(priority_fee);
+            req.set_max_priority_fee_per_gas(self.priority_fee * GWEI_TO_WEI as u128);
 
             if let Some(next_nonce) = next_nonce {
                 req.set_nonce(next_nonce);
