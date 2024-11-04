@@ -1,11 +1,7 @@
-// ======================================================
-// Code below is copied from:
-// https://github.com/NethermindEth/Taiko-Preconf-AVS/blob/caf9fbbde0dd84947af5a7b26610ffd38525d932/SmartContracts/src/libraries/BLS12381.sol
-//
-// If/when a license will be added to the original code, it will be added here as well.
-// ======================================================
-
 // SPDX-License-Identifier: UNLICENSED
+// 
+// This library was copied from: https://github.com/NethermindEth/Taiko-Preconf-AVS/blob/caf9fbbde0dd84947af5a7b26610ffd38525d932/SmartContracts/src/avs/utils/BLSSignatureChecker.sol
+// (If/when a license will be added to the original library, it will be added here as well)
 pragma solidity 0.8.25;
 
 import {BLS12381} from "./BLS12381.sol";

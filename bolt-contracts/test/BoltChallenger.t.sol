@@ -8,7 +8,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import {BoltParametersV1} from "../src/contracts/BoltParametersV1.sol";
 import {BoltChallengerV1} from "../src/contracts/BoltChallengerV1.sol";
-import {BoltConfig} from "../src/lib/Config.sol";
+import {BoltConfig} from "../src/lib/BoltConfig.sol";
 import {IBoltChallengerV1} from "../src/interfaces/IBoltChallengerV1.sol";
 import {RLPReader} from "../src/lib/rlp/RLPReader.sol";
 import {RLPWriter} from "../src/lib/rlp/RLPWriter.sol";

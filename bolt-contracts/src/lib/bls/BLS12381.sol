@@ -1,13 +1,7 @@
-// ======================================================
-// Code below is copied from:
-// https://github.com/NethermindEth/Taiko-Preconf-AVS/blob/caf9fbbde0dd84947af5a7b26610ffd38525d932/SmartContracts/src/libraries/BLS12381.sol
-//
-// If/when a license will be added to the original code, it will be added here as well.
-// ======================================================
-
-// SPDX-License-Identifier: UNLICENSED
-// Functions in this library have been adapted from:
-// https://github.com/ethyla/bls12-381-hash-to-curve/blob/main/src/HashToCurve.sol
+// SPDX-License-Identifier: MIT
+// 
+// This library was copied from: https://github.com/NethermindEth/Taiko-Preconf-AVS/blob/b3d7243fc948205e0783e7720cfcc38bf70496e1/SmartContracts/src/libraries/BLS12381.sol
+// which was adapted from: https://github.com/ethyla/bls12-381-hash-to-curve/blob/main/src/HashToCurve.sol
 pragma solidity 0.8.25;
 
 library BLS12381 {
