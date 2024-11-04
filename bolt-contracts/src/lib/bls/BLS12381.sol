@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// 
+//
 // This library was copied from: https://github.com/NethermindEth/Taiko-Preconf-AVS/blob/b3d7243fc948205e0783e7720cfcc38bf70496e1/SmartContracts/src/libraries/BLS12381.sol
 // which was adapted from: https://github.com/ethyla/bls12-381-hash-to-curve/blob/main/src/HashToCurve.sol
 pragma solidity 0.8.25;
