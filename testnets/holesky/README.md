@@ -456,10 +456,6 @@ containing the necessary environment variables:
    Signing](#delegations-and-signing-options-for-native-and-docker-compose-mode)
    section of this guide.
 
-   If you've generated a `delegation.json` file using the Bolt CLI please
-   place it in the `testnets/holesky` directory by replacing the existing empty
-   one.
-
 2. **MEV-Boost Configuration:**
 
    Change directory to the `testnets/holesky` folder if you haven't already and
@@ -937,11 +933,6 @@ where:
 You can also find more information about the available key source
 options by running `bolt delegate <KEY_SOURCE> --help`.
 
-> [!TIP]
-> If you're using the Docker Compose Mode please don't set the `--out` flag and
-> provide `delegations_path = /etc/delegations.json` in the `bolt-sidecar.toml`
-> file.
-
 Here you can see usage examples for each key source:
 
 <details>
@@ -1061,10 +1052,9 @@ themselves don't need a particular file extension.
 ---
 
 Now that you have generated the delegation messages you can provide them to the
-sidecar using the `--delegations-path` flag (see the
-[options](#command-line-options) section). When doing so the sidecar will check if
-they're indeed valid messages and will keep in memory the association between
-the delegator and the delegatee.
+sidecar using the `--delegations-path` flag (or `BOLT_SIDECAR_DELEGATIONS_PATH`
+env). When doing so the sidecar will check if they're indeed valid messages and
+will keep in memory the association between the delegator and the delegatee.
 
 However in order to sign the commitments you still need to provide the signing
 key of the delegatee. There are two ways to do so, as explored in the sections
@@ -1074,8 +1064,8 @@ below.
 
 As you can see in the [command line options](#command-line-options) section you
 can pass directly the private key as a hex-encoded string to the Bolt sidecar
-using the `--constraint-private-key` flag (or `constraint_private_key` in the
-TOML file).
+using the `--constraint-private-key` flag (or
+`BOLT_SIDECAR_CONSTRAINT_PRIVATE_KEY` env).
 
 This is the simplest setup and can be used in case if all the delegations messages
 point to the same delegatee or if you're running the sidecar with a single active
@@ -1085,10 +1075,11 @@ validator.
 
 The Bolt sidecar supports [ERC-2335](https://eips.ethereum.org/EIPS/eip-2335)
 keystores for loading signing keypairs. In order to use them you need to provide
-the `--keystore-path` pointing to the folder containing the keystore files and
-the `--keystore-password` or `keystore-secrets-path` flag pointing to the folder
-containing the password file (in the TOML configuration file these are the
-`keystore_path`, `keystore_password` and `keystore_secrets_path` respectively).
+the `--keystore-path` (`BOLT_SIDECAR_KEYSTORE_PATH` env) pointing to the folder
+containing the keystore files and the `--keystore-password` or
+`keystore-secrets-path` flag (`BOLT_SIDECAR_KEYSTORE_PASSWORD` or
+`BOLT_SIDECAR_SECRETS_PATH` env respectively) pointing to the folder containing
+the password file.
 
 Both the `keys` and `passwords` folders must adhere to the structure outlined
 in the [Installation and Usage](#installation-and-usage) section.
@@ -1104,9 +1095,10 @@ However if you're already running a PBS sidecar like
 [MEV-Boost](https://boost.flashbots.net/) on the same machine then you can avoid
 the restart by following this steps when starting the Bolt sidecar:
 
-1. Set the `--constraints-proxy-port` flag (the `constraints_proxy_port` option
-   in the TOML file) to the port previously occupied by MEV-Boost.
+1. Set the `--constraints-proxy-port` flag (or
+   `BOLT_SIDECAR_CONSTRAINTS_PROXY_PORT` env) to the port previously occupied by
+   MEV-Boost.
 2. Build the Bolt MEV-Boost fork binary or pull the Docker image and start it
    using another port
-3. Set the `--constraints-api-url` flag (or the `constraints_api_url` in the
-   TOML file) to point to the Bolt MEV-Boost instance.
+3. Set the `--constraints-api-url` flag (or `BOLT_SIDECAR_CONSTRAINTS_API_URL`
+   env) to point to the Bolt MEV-Boost instance.
