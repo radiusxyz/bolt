@@ -27,14 +27,14 @@ impl SendCommand {
         let wallet: PrivateKeySigner = self.private_key.parse().wrap_err("invalid private key")?;
 
         if self.devnet {
-            self.send_devnet_transaction(&wallet).await
+            self.send_devnet_transaction(wallet).await
         } else {
-            self.send_transaction(&wallet).await
+            self.send_transaction(wallet).await
         }
     }
 
     /// Send a transaction.
-    async fn send_transaction(self, wallet: &PrivateKeySigner) -> Result<()> {
+    async fn send_transaction(self, wallet: PrivateKeySigner) -> Result<()> {
         let transaction_signer = EthereumWallet::from(wallet.clone());
         let provider = ProviderBuilder::new()
             .with_recommended_fillers()
@@ -90,7 +90,7 @@ impl SendCommand {
                 vec![tx_hash],
                 target_slot,
                 target_url.clone(),
-                wallet,
+                &wallet,
             )
             .await?;
 
@@ -102,7 +102,7 @@ impl SendCommand {
     }
 
     /// Send a transaction on the Kurtosis devnet.
-    async fn send_devnet_transaction(self, wallet: &PrivateKeySigner) -> Result<()> {
+    async fn send_devnet_transaction(self, wallet: PrivateKeySigner) -> Result<()> {
         let transaction_signer = EthereumWallet::from(wallet.clone());
         let el_url = self.devnet_execution_url.clone().wrap_err("missing devnet execution URL")?;
         let cl_url = self.devnet_beacon_url.clone().wrap_err("missing devnet beacon URL")?;
@@ -137,7 +137,7 @@ impl SendCommand {
                 vec![tx_hash],
                 slot + 2,
                 sidecar_url.clone(),
-                wallet,
+                &wallet,
             )
             .await?;
 
