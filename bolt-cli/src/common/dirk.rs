@@ -152,27 +152,42 @@ fn compose_credentials(creds: TlsCredentials) -> Result<ClientTlsConfig> {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::{process::Command, time::Duration};
+pub mod test_util {
+    use eyre::{bail, Context};
+    use rustls::crypto::CryptoProvider;
+    use std::{
+        fs,
+        process::{Child, Command},
+        time::Duration,
+    };
 
-    use super::*;
+    use super::Dirk;
+    use crate::cli::TlsCredentials;
 
-    /// Test connecting to a DIRK server and listing available accounts.
-    ///
-    /// ```shell
-    /// cargo test --package bolt -- utils::dirk::tests::test_dirk_connection_e2e
-    /// --exact --show-output --ignored
-    /// ```
-    #[tokio::test]
-    #[ignore]
-    async fn test_dirk_connection_e2e() -> eyre::Result<()> {
+    /// Initialize the default TLS provider for the tests if not already set.
+    pub fn try_init_tls_provider() {
         // Init the default rustls provider
-        let _ = rustls::crypto::ring::default_provider().install_default();
+        if CryptoProvider::get_default().is_none() {
+            let _ = rustls::crypto::ring::default_provider().install_default();
+        }
+    }
+
+    /// Start a DIRK test server for testing (run on localhost:9091).
+    ///
+    /// Returns the DIRK client and the corresponding server process handle.
+    pub async fn start_dirk_test_server() -> eyre::Result<(Dirk, Child)> {
+        try_init_tls_provider();
 
         let test_data_dir = env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/dirk";
 
-        // Init the DIRK config file
-        init_dirk_config(test_data_dir.clone())?;
+        // read the template json file from test_data
+        let template_path = test_data_dir.clone() + "/dirk.template.json";
+        let template = fs::read_to_string(template_path).wrap_err("Failed to read template")?;
+
+        // change the occurrence of $PWD to the current working directory in the template
+        let new_file = test_data_dir.clone() + "/dirk.json";
+        let new_content = template.replace("$PWD", &test_data_dir);
+        fs::write(new_file, new_content).wrap_err("Failed to write dirk config file")?;
 
         // Check if dirk is installed (in $PATH)
         if Command::new("dirk")
@@ -182,12 +197,11 @@ mod tests {
             .status()
             .is_err()
         {
-            eprintln!("DIRK is not installed in $PATH");
-            return Ok(());
+            bail!("DIRK is not installed in $PATH");
         }
 
         // Start the DIRK server in the background
-        let mut dirk_proc = Command::new("dirk").arg("--base-dir").arg(&test_data_dir).spawn()?;
+        let dirk_proc = Command::new("dirk").arg("--base-dir").arg(&test_data_dir).spawn()?;
 
         // Wait for some time for the server to start up
         tokio::time::sleep(Duration::from_secs(3)).await;
@@ -200,26 +214,32 @@ mod tests {
             ca_cert_path: Some(test_data_dir.clone() + "/security/ca.crt"),
         };
 
-        let mut dirk = Dirk::connect(url, cred).await?;
+        let dirk = Dirk::connect(url, cred).await?;
+
+        Ok((dirk, dirk_proc))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Test connecting to a DIRK server and listing available accounts.
+    ///
+    /// ```shell
+    /// cargo test --package bolt --bin bolt -- common::dirk::tests::test_dirk_connection_e2e
+    /// --exact --show-output --ignored
+    /// ```
+    #[tokio::test]
+    #[ignore]
+    async fn test_dirk_connection_e2e() -> eyre::Result<()> {
+        let (mut dirk, mut dirk_proc) = test_util::start_dirk_test_server().await?;
 
         let accounts = dirk.list_accounts("wallet1".to_string()).await?;
         println!("Dirk Accounts: {:?}", accounts);
 
         // make sure to stop the dirk server
         dirk_proc.kill()?;
-
-        Ok(())
-    }
-
-    fn init_dirk_config(test_data_dir: String) -> eyre::Result<()> {
-        // read the template json file from test_data
-        let template_path = test_data_dir.clone() + "/dirk.template.json";
-        let template = fs::read_to_string(template_path).wrap_err("Failed to read template")?;
-
-        // change the occurrence of $PWD to the current working directory in the template
-        let new_file = test_data_dir.clone() + "/dirk.json";
-        let new_content = template.replace("$PWD", &test_data_dir);
-        fs::write(new_file, new_content).wrap_err("Failed to write dirk config file")?;
 
         Ok(())
     }
