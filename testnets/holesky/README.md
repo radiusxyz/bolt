@@ -104,7 +104,7 @@ requests. What follows is a quick overview of the required steps.
 First you'll need to deposit some collateral in the form of whitelisted ETH derivative tokens that need to
 be restaked in either the Symbiotic or EigenLayer restaking protocols. Bolt is compatible with the following ETH derivative tokens on Holesky:
 
-- [Symbiotic Vaults](https://docs.symbiotic.fi/deployments#vaults)
+- [Symbiotic Vaults](https://docs.symbiotic.fi/deployments/current#vaults)
   - [`wstETH`](https://holesky.etherscan.io/address/0xc79c533a77691641d52ebD5e87E51dCbCaeb0D78)
   - [`rETH`](https://holesky.etherscan.io/address/0xe5708788c90e971f73D928b7c5A8FD09137010e0)
   - [`stETH`](https://holesky.etherscan.io/address/0x11c5b9A9cd8269580aDDbeE38857eE451c1CFacd)
