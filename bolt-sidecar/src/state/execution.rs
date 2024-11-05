@@ -467,10 +467,10 @@ impl<C: StateFetcher> ExecutionState<C> {
         if let Some(template) = self.remove_block_template(slot) {
             debug!(%slot, "Removed block template for slot");
             let hashes = template.transaction_hashes();
-            let receipts =
-                self.client.get_receipts(&hashes).await?.into_iter().flatten().collect::<Vec<_>>();
+            let receipts = self.client.get_receipts(&hashes).await?;
 
-            for receipt in receipts.iter() {
+            let mut receipts_len = 0;
+            for receipt in receipts.iter().flatten() {
                 // Calculate the total tip revenue for this transaction: (effective_gas_price - basefee) * gas_used
                 let tip_per_gas = receipt.effective_gas_price - self.basefee;
                 let total_tip = tip_per_gas * receipt.gas_used;
@@ -478,18 +478,19 @@ impl<C: StateFetcher> ExecutionState<C> {
                 trace!(hash = %receipt.transaction_hash, total_tip, "Receipt found");
 
                 ApiMetrics::increment_gross_tip_revenue(total_tip);
+                receipts_len += 1;
             }
 
             // Sanity check with additional logs if there are any discrepancies
-            if hashes.len() != receipts.len() {
+            if hashes.len() != receipts_len {
                 warn!(
                     %slot,
                     template_hashes = hashes.len(),
-                    receipts_found = receipts.len(),
+                    receipts_found = receipts_len,
                     "mismatch between template transaction hashes and receipts found from client"
                 );
                 hashes.iter().for_each(|hash| {
-                    if !receipts.iter().any(|receipt| receipt.transaction_hash == *hash) {
+                    if !receipts.iter().flatten().any(|receipt| receipt.transaction_hash == *hash) {
                         warn!(%hash, "missing receipt for transaction");
                     }
                 });
