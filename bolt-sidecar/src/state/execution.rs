@@ -1,14 +1,17 @@
 use alloy::{
     eips::eip4844::MAX_BLOBS_PER_BLOCK,
-    primitives::{Address, U256},
+    primitives::{Address, B256, U256},
     transports::TransportError,
 };
 use reth_primitives::{
     revm_primitives::EnvKzgSettings, BlobTransactionValidationError, PooledTransactionsElement,
 };
-use std::{collections::HashMap, ops::Deref};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Deref,
+};
 use thiserror::Error;
-use tracing::{debug, trace};
+use tracing::{debug, trace, warn};
 
 use crate::{
     builder::BlockTemplate,
@@ -464,9 +467,10 @@ impl<C: StateFetcher> ExecutionState<C> {
         if let Some(template) = self.remove_block_template(slot) {
             debug!(%slot, "Removed block template for slot");
             let hashes = template.transaction_hashes();
-            let receipts = self.client.get_receipts(&hashes).await?;
+            let receipts =
+                self.client.get_receipts(&hashes).await?.into_iter().flatten().collect::<Vec<_>>();
 
-            for receipt in receipts.into_iter().flatten() {
+            for receipt in receipts.iter() {
                 // Calculate the total tip revenue for this transaction: (effective_gas_price - basefee) * gas_used
                 let tip_per_gas = receipt.effective_gas_price - self.basefee;
                 let total_tip = tip_per_gas * receipt.gas_used;
@@ -474,6 +478,21 @@ impl<C: StateFetcher> ExecutionState<C> {
                 trace!(hash = %receipt.transaction_hash, total_tip, "Receipt found");
 
                 ApiMetrics::increment_gross_tip_revenue(total_tip);
+            }
+
+            // Sanity check with additional logs if there are any discrepancies
+            if hashes.len() != receipts.len() {
+                warn!(
+                    %slot,
+                    template_hashes = hashes.len(),
+                    receipts_found = receipts.len(),
+                    "mismatch between template transaction hashes and receipts found from client"
+                );
+                hashes.iter().for_each(|hash| {
+                    if !receipts.iter().any(|receipt| receipt.transaction_hash == *hash) {
+                        warn!(%hash, "missing receipt for transaction");
+                    }
+                });
             }
         }
 

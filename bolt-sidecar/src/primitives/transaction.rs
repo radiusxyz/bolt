@@ -1,4 +1,5 @@
-use std::borrow::Cow;
+use std::fmt::Debug;
+use std::{borrow::Cow, fmt};
 
 use alloy::primitives::{Address, U256};
 use reth_primitives::{BlobTransactionSidecar, Bytes, PooledTransactionsElement, TxKind, TxType};
@@ -111,7 +112,7 @@ pub const fn tx_type_str(tx_type: TxType) -> &'static str {
 }
 
 /// A wrapper type for a full, complete transaction (i.e. with blob sidecars attached).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct FullTransaction {
     pub tx: PooledTransactionsElement,
     pub sender: Option<Address>,
@@ -120,6 +121,35 @@ pub struct FullTransaction {
 impl From<PooledTransactionsElement> for FullTransaction {
     fn from(tx: PooledTransactionsElement) -> Self {
         Self { tx, sender: None }
+    }
+}
+
+impl fmt::Debug for FullTransaction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut debug_struct = f.debug_struct("FullTransaction");
+
+        match &self.tx {
+            PooledTransactionsElement::BlobTransaction(blob_tx) => {
+                let shortened_blobs: Vec<String> =
+                    // Use alternative `Display` to print trimmed blob
+                    blob_tx.sidecar.blobs.iter().map(|blob| format!("{blob:#}")).collect();
+
+                debug_struct.field("tx", &"BlobTransaction");
+                debug_struct.field("hash", &blob_tx.hash);
+                debug_struct.field("transaction", &blob_tx.transaction);
+                debug_struct.field("signature", &blob_tx.signature);
+
+                debug_struct.field("sidecar_blobs", &shortened_blobs);
+                debug_struct.field("sidecar_commitments", &blob_tx.sidecar.commitments);
+                debug_struct.field("sidecar_proofs", &blob_tx.sidecar.proofs);
+            }
+            other => {
+                debug_struct.field("tx", other);
+            }
+        }
+
+        debug_struct.field("sender", &self.sender);
+        debug_struct.finish()
     }
 }
 
