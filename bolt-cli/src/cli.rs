@@ -4,7 +4,7 @@ use clap::{
 };
 use reqwest::Url;
 
-use crate::common::keystore::DEFAULT_KEYSTORE_PASSWORD;
+use crate::common::signing::keystore::DEFAULT_KEYSTORE_PASSWORD;
 
 /// `bolt` is a CLI tool to interact with Bolt Protocol ✨
 #[derive(Parser, Debug, Clone)]

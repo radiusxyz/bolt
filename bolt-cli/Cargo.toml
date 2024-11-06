@@ -25,6 +25,9 @@ ethereum-consensus = { git = "https://github.com/ralexstokes/ethereum-consensus"
 lighthouse_eth2_keystore = { package = "eth2_keystore", git = "https://github.com/sigp/lighthouse", rev = "a87f19d" }
 alloy = { version = "0.5.2", features = ["full"] }
 
+# commit-boost
+cb-common = { git = "https://github.com/Commit-Boost/commit-boost-client", rev = "62d6428" }
+
 # utils
 dotenvy = "0.15.7"
 eyre = "0.6.12"

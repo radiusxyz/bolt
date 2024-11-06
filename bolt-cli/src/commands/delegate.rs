@@ -13,11 +13,12 @@ use tracing::{debug, warn};
 use crate::{
     cli::{Action, Chain, DelegateCommand, KeySource},
     common::{
-        dirk::Dirk,
-        keystore::{keystore_paths, KeystoreError, KeystoreSecret},
-        parse_bls_public_key,
         signing::{
-            compute_commit_boost_signing_root, compute_domain_from_mask, verify_commit_boost_root,
+            commit_boost::CommitBoost,
+            compute_commit_boost_signing_root, compute_domain_from_mask,
+            dirk::Dirk,
+            keystore::{keystore_paths, KeystoreError, KeystoreSecret},
+            parse_bls_public_key, verify_commit_boost_root,
         },
         write_to_file,
     },
@@ -239,6 +240,19 @@ pub async fn generate_from_dirk(
     Ok(signed_messages)
 }
 
+/// Generate signed delegations/revocations using a remote CommitBoost signer
+pub async fn generate_from_commit_boost(
+    cb: CommitBoost,
+    delegatee_pubkey: BlsPublicKey,
+    chain: Chain,
+    action: Action,
+) -> Result<Vec<SignedMessage>> {
+    // first read all the pubkeys from the remote keystore
+    let pubkeys = cb.get_pubkeys().await?;
+
+    Ok(vec![])
+}
+
 /// Event types that can be emitted by the validator pubkey to
 /// signal some action on the Bolt protocol.
 #[derive(Debug, Clone, Copy)]
@@ -363,7 +377,7 @@ pub fn verify_message_signature(message: &SignedMessage, chain: Chain) -> Result
 mod tests {
     use crate::{
         cli::{Action, Chain},
-        common::{dirk, keystore, parse_bls_public_key},
+        common::signing::{dirk, keystore, parse_bls_public_key},
     };
 
     use super::{generate_from_dirk, generate_from_keystore, verify_message_signature};

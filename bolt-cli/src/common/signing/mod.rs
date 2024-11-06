@@ -4,15 +4,33 @@ use ethereum_consensus::{
     crypto::PublicKey as BlsPublicKey,
     deneb::{compute_fork_data_root, compute_signing_root, Root},
 };
-use eyre::{eyre, Result};
+use eyre::{eyre, Context, Result};
 
 use crate::cli::Chain;
+
+/// Utilities for working with local EIP-2335 keystores.
+pub mod keystore;
+
+/// Utilities for working with the `dirk` remote BLS signer.
+pub mod dirk;
+
+/// Utilities for working with the `commit-boost` remote BLS signer.
+pub mod commit_boost;
 
 /// The domain mask for the Commit Boost domain.
 pub const COMMIT_BOOST_DOMAIN_MASK: [u8; 4] = [109, 109, 111, 67];
 
 /// The BLS Domain Separator used in Ethereum 2.0.
 pub const BLS_DST_PREFIX: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
+
+/// Parse a BLS public key from a hex-string
+pub fn parse_bls_public_key(pubkey: &str) -> Result<BlsPublicKey> {
+    let hex_pk = pubkey.strip_prefix("0x").unwrap_or(pubkey);
+    BlsPublicKey::try_from(
+        hex::decode(hex_pk).wrap_err("Failed to hex-decode delegatee pubkey")?.as_slice(),
+    )
+    .map_err(|e| eyre::eyre!("Failed to parse delegatee public key '{}': {}", hex_pk, e))
+}
 
 /// Helper function to compute the signing root for a message
 pub fn compute_commit_boost_signing_root(message: [u8; 32], chain: &Chain) -> Result<B256> {

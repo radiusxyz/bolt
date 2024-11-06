@@ -5,8 +5,10 @@ use lighthouse_eth2_keystore::Keystore;
 use crate::{
     cli::{KeySource, PubkeysCommand},
     common::{
-        dirk::Dirk,
-        keystore::{keystore_paths, KeystoreError, KeystoreSecret},
+        signing::{
+            dirk::Dirk,
+            keystore::{keystore_paths, KeystoreError, KeystoreSecret},
+        },
         write_to_file,
     },
     pb::eth2_signer_api::Account,
