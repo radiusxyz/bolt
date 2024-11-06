@@ -1,5 +1,3 @@
-//! An ERC-2335 keystore signer.
-
 use std::{
     collections::HashSet,
     ffi::OsString,
@@ -22,7 +20,9 @@ use crate::{
 
 use super::SignerResult;
 
+/// Error in the keystore signer.
 #[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
 pub enum KeystoreError {
     #[error("failed to read keystore directory: {0}")]
     ReadFromDirectory(#[from] std::io::Error),
@@ -38,6 +38,8 @@ pub enum KeystoreError {
     SignatureLength(String, String),
 }
 
+/// A signer that can sign messages with multiple keypairs loaded from
+/// ERC-2335 keystores files.
 #[derive(Clone)]
 pub struct KeystoreSigner {
     keypairs: Vec<Keypair>,
@@ -46,6 +48,7 @@ pub struct KeystoreSigner {
 
 impl KeystoreSigner {
     /// Creates a new `KeystoreSigner` from the keystore files in the `keys_path` directory.
+    /// The secret is expected to be the same password for all the keystore files.
     pub fn from_password(
         keys_path: &PathBuf,
         password: &[u8],
@@ -67,6 +70,8 @@ impl KeystoreSigner {
         Ok(Self { keypairs, chain })
     }
 
+    /// Creates a new `KeystoreSigner` from the keystore files in the `keys_path` directory.
+    /// The secret files are expected to be in the `secrets_path` directory.
     pub fn from_secrets_directory(
         keys_path: &PathBuf,
         secrets_path: &Path,

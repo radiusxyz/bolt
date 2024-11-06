@@ -16,6 +16,7 @@ pub use local::LocalSigner;
 
 /// Error in the signer.
 #[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
 pub enum SignerError {
     #[error("local signer error: {0}")]
     LocalSigner(#[from] local::LocalSignerError),
@@ -25,6 +26,7 @@ pub enum SignerError {
     Keystore(#[from] keystore::KeystoreError),
 }
 
+/// Result type for the signer.
 pub type SignerResult<T> = std::result::Result<T, SignerError>;
 
 /// Signer for BLS signatures.

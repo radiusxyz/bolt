@@ -12,7 +12,7 @@ use serde_json::Value;
 use tracing::{debug, error, info, instrument};
 
 use crate::{
-    commitments::headers::auth_from_headers,
+    api::commitments::headers::auth_from_headers,
     common::CARGO_PKG_VERSION,
     primitives::{commitment::SignatureError, InclusionRequest},
 };

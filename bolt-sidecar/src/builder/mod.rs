@@ -16,6 +16,9 @@ use crate::{
 
 /// Basic block template handler that can keep track of
 /// the local commitments according to protocol validity rules.
+///
+/// The built template can be used as a fallback block in case of no valid
+/// response from all relays.
 pub mod template;
 pub use template::BlockTemplate;
 

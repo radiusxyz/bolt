@@ -11,13 +11,17 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use crate::{
+    api::{
+        builder::{start_builder_proxy_server, BuilderProxyConfig},
+        commitments::{
+            server::{CommitmentEvent, CommitmentsApiServer},
+            spec::CommitmentError,
+        },
+        spec::ConstraintsApi,
+    },
     builder::payload_fetcher::LocalPayloadFetcher,
     chain_io::BoltManager,
     client::ConstraintsClient,
-    commitments::{
-        server::{CommitmentEvent, CommitmentsApiServer},
-        spec::CommitmentError,
-    },
     common::retry_with_backoff,
     config::Opts,
     crypto::{SignableBLS, SignerECDSA},
@@ -25,11 +29,10 @@ use crate::{
         read_signed_delegations_from_file, CommitmentRequest, ConstraintsMessage,
         FetchPayloadRequest, SignedConstraints, TransactionExt,
     },
-    signer::{keystore::KeystoreSigner, local::LocalSigner},
-    start_builder_proxy_server,
+    signer::{keystore::KeystoreSigner, local::LocalSigner, CommitBoostSigner, SignerBLS},
     state::{fetcher::StateFetcher, ConsensusState, ExecutionState, HeadTracker, StateClient},
     telemetry::ApiMetrics,
-    BuilderProxyConfig, CommitBoostSigner, ConstraintsApi, LocalBuilder, SignerBLS,
+    LocalBuilder,
 };
 
 /// The driver for the sidecar, responsible for managing the main event loop.

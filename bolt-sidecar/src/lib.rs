@@ -4,12 +4,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 /// All APIs in use by the sidecar.
-mod api;
-pub use api::{
-    builder::{start_builder_proxy_server, BuilderProxyConfig},
-    commitments,
-    spec::{BuilderApi, ConstraintsApi},
-};
+pub mod api;
 
 /// Different client types for interacting with APIs
 mod client;
@@ -45,8 +40,7 @@ pub mod primitives;
 pub mod state;
 
 /// The signers available to the sidecar
-mod signer;
-pub use signer::{CommitBoostSigner, SignerBLS};
+pub mod signer;
 
 /// Utilities and contracts wrappers for interacting with the Bolt registry
 pub mod chain_io;
