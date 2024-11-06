@@ -1,8 +1,4 @@
-use std::{
-    collections::HashSet,
-    fmt,
-    time::{Duration, Instant},
-};
+use std::{collections::HashSet, fmt, sync::Arc, time::Instant};
 
 use alloy::{rpc::types::beacon::events::HeadEvent, signers::local::PrivateKeySigner};
 use beacon_api_client::mainnet::Client as BeaconClient;
@@ -19,9 +15,10 @@ use crate::{
     builder::payload_fetcher::LocalPayloadFetcher,
     chain_io::manager::BoltManager,
     commitments::{
-        server::{CommitmentsApiServer, Event as CommitmentEvent},
-        spec::Error as CommitmentError,
+        server::{CommitmentEvent, CommitmentsApiServer},
+        spec::CommitmentError,
     },
+    common::retry_with_backoff,
     crypto::{SignableBLS, SignerECDSA},
     primitives::{
         read_signed_delegations_from_file, CommitmentRequest, ConstraintsMessage,
@@ -306,7 +303,8 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             return;
         }
 
-        // TODO: match when we have more request types
+        // When we'll add more commitment types, we'll need to match on the request type here.
+        // For now, we only support inclusion requests so the flow is straightforward.
         let CommitmentRequest::Inclusion(inclusion_request) = request.clone();
         let target_slot = inclusion_request.slot;
 
@@ -397,22 +395,23 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             error!(err = ?e, "Error while building local payload at deadline for slot {slot}");
         };
 
-        // TODO: fix retry logic, and move this to separate task in the constraints client itself
-        let constraints = template.signed_constraints_list.clone();
+        let constraints = Arc::new(template.signed_constraints_list.clone());
         let constraints_client = self.constraints_client.clone();
-        tokio::spawn(async move {
-            let max_retries = 5;
-            let mut i = 0;
-            while let Err(e) = constraints_client.submit_constraints(&constraints).await {
-                error!(err = ?e, "Error submitting constraints to constraints client, retrying...");
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                i += 1;
-                if i >= max_retries {
-                    error!("Max retries reached while submitting to Constraints client");
-                    break;
+
+        // Submit constraints to the constraints service with an exponential retry mechanism.
+        tokio::spawn(retry_with_backoff(10, move || {
+            let constraints_client = constraints_client.clone();
+            let constraints = Arc::clone(&constraints);
+            async move {
+                match constraints_client.submit_constraints(constraints.as_ref()).await {
+                    Ok(_) => Ok(()),
+                    Err(e) => {
+                        error!(err = ?e, "Failed to submit constraints, retrying...");
+                        Err(e)
+                    }
                 }
             }
-        });
+        }));
     }
 
     /// Handle a fetch payload request, responding with the local payload if available.

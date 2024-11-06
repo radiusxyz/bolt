@@ -20,7 +20,7 @@ use crate::{
 use super::{
     jsonrpc::{JsonPayload, JsonResponse},
     server::CommitmentsApiInner,
-    spec::{CommitmentsApi, Error, RejectionError, GET_VERSION_METHOD, REQUEST_INCLUSION_METHOD},
+    spec::{CommitmentsApi, CommitmentError, RejectionError, GET_VERSION_METHOD, REQUEST_INCLUSION_METHOD},
 };
 
 /// Handler function for the root JSON-RPC path.
@@ -28,8 +28,8 @@ use super::{
 pub async fn rpc_entrypoint(
     headers: HeaderMap,
     State(api): State<Arc<CommitmentsApiInner>>,
-    WithRejection(Json(payload), _): WithRejection<Json<JsonPayload>, Error>,
-) -> Result<Json<JsonResponse>, Error> {
+    WithRejection(Json(payload), _): WithRejection<Json<JsonPayload>, CommitmentError>,
+) -> Result<Json<JsonResponse>, CommitmentError> {
     debug!("Received new request");
 
     let (signer, signature) = auth_from_headers(&headers).inspect_err(|e| {
@@ -71,7 +71,7 @@ pub async fn rpc_entrypoint(
                     "Recovered signer does not match the provided signer"
                 );
 
-                return Err(Error::InvalidSignature(SignatureError));
+                return Err(CommitmentError::InvalidSignature(SignatureError));
             }
 
             // Set the request signer
@@ -91,7 +91,7 @@ pub async fn rpc_entrypoint(
         }
         other => {
             error!("Unknown method: {}", other);
-            Err(Error::UnknownMethod)
+            Err(CommitmentError::UnknownMethod)
         }
     }
 }

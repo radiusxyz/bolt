@@ -134,21 +134,27 @@ impl IntoResponse for BuilderApiError {
     }
 }
 
+/// Implements the builder API as defined in <https://ethereum.github.io/builder-specs>.
+///
+/// The Builder API represents the specification for allowing proposers to request
+/// headers and payloads that have been built externally via PBS.
 #[async_trait::async_trait]
-/// Implements the builder API as defines in <https://ethereum.github.io/builder-specs>
 pub trait BuilderApi {
     /// Implements: <https://ethereum.github.io/builder-specs/#/Builder/status>
     async fn status(&self) -> Result<StatusCode, BuilderApiError>;
+
     /// Implements: <https://ethereum.github.io/builder-specs/#/Builder/registerValidator>
     async fn register_validators(
         &self,
         registrations: Vec<SignedValidatorRegistration>,
     ) -> Result<(), BuilderApiError>;
+
     /// Implements: <https://ethereum.github.io/builder-specs/#/Builder/getHeader>
     async fn get_header(
         &self,
         params: GetHeaderParams,
     ) -> Result<SignedBuilderBid, BuilderApiError>;
+
     /// Implements: <https://ethereum.github.io/builder-specs/#/Builder/submitBlindedBlock>
     async fn get_payload(
         &self,
@@ -156,24 +162,27 @@ pub trait BuilderApi {
     ) -> Result<GetPayloadResponse, BuilderApiError>;
 }
 
+/// Implements the constraints API as defined in <https://docs.boltprotocol.xyz/technical-docs/api/builder>.
+///
+/// The constraints API is an extension of the Builder API that adds a way for proposers to
+/// communicate with builders in the PBS pipeline.
 #[async_trait::async_trait]
-/// Implements the constraints API as defines in <https://chainbound.github.io/bolt-docs/api/builder-api>
 pub trait ConstraintsApi: BuilderApi {
-    /// Implements: <https://chainbound.github.io/bolt-docs/api/builder#constraints>
+    /// Implements: <https://docs.boltprotocol.xyz/technical-docs/api/builder#constraints>
     async fn submit_constraints(
         &self,
         constraints: &BatchedSignedConstraints,
     ) -> Result<(), BuilderApiError>;
 
-    /// Implements: <https://chainbound.github.io/bolt-docs/api/builder#get_header_with_proofs>
+    /// Implements: <https://docs.boltprotocol.xyz/technical-docs/api/builder#get_header_with_proofs>
     async fn get_header_with_proofs(
         &self,
         params: GetHeaderParams,
     ) -> Result<VersionedValue<SignedBuilderBid>, BuilderApiError>;
 
-    /// Implements: <https://chainbound.github.io/bolt-docs/api/builder#delegate>
+    /// Implements: <https://docs.boltprotocol.xyz/technical-docs/api/builder#delegate>
     async fn delegate(&self, signed_data: &[SignedDelegation]) -> Result<(), BuilderApiError>;
 
-    /// Implements: <https://chainbound.github.io/bolt-docs/api/builder#revoke>
+    /// Implements: <https://docs.boltprotocol.xyz/technical-docs/api/builder#revoke>
     async fn revoke(&self, signed_data: &[SignedRevocation]) -> Result<(), BuilderApiError>;
 }

@@ -1,8 +1,6 @@
 // TODO: add docs
 #![allow(missing_docs)]
 
-use std::sync::{atomic::AtomicU64, Arc};
-
 use alloy::primitives::U256;
 use ethereum_consensus::{
     crypto::KzgCommitment,
@@ -172,31 +170,5 @@ impl From<PayloadAndBlobs> for GetPayloadResponse {
             Fork::Deneb => GetPayloadResponse::Deneb(payload_and_blobs),
             Fork::Electra => GetPayloadResponse::Electra(payload_and_blobs),
         }
-    }
-}
-
-/// A struct representing the current chain head.
-#[derive(Debug, Clone)]
-pub struct ChainHead {
-    /// The current slot number.
-    pub slot: Arc<AtomicU64>,
-    /// The current block number.
-    pub block: Arc<AtomicU64>,
-}
-
-impl ChainHead {
-    /// Create a new ChainHead instance.
-    pub fn new(slot: u64, block: u64) -> Self {
-        Self { slot: Arc::new(AtomicU64::new(slot)), block: Arc::new(AtomicU64::new(block)) }
-    }
-
-    /// Get the slot number (consensus layer).
-    pub fn slot(&self) -> u64 {
-        self.slot.load(std::sync::atomic::Ordering::SeqCst)
-    }
-
-    /// Get the block number (execution layer).
-    pub fn block(&self) -> u64 {
-        self.block.load(std::sync::atomic::Ordering::SeqCst)
     }
 }

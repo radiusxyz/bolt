@@ -31,16 +31,16 @@ use crate::{
 use super::{
     middleware::track_server_metrics,
     spec,
-    spec::{CommitmentsApi, Error},
+    spec::{CommitmentsApi, CommitmentError},
 };
 
 /// Event type emitted by the commitments API.
 #[derive(Debug)]
-pub struct Event {
+pub struct CommitmentEvent {
     /// The request to process.
     pub request: CommitmentRequest,
     /// The response channel.
-    pub response: oneshot::Sender<Result<SignedCommitment, Error>>,
+    pub response: oneshot::Sender<Result<SignedCommitment, CommitmentError>>,
 }
 
 /// The inner commitments-API handler that implements the [CommitmentsApi] spec.
@@ -48,7 +48,7 @@ pub struct Event {
 #[derive(Debug)]
 pub struct CommitmentsApiInner {
     /// Event notification channel
-    events: mpsc::Sender<Event>,
+    events: mpsc::Sender<CommitmentEvent>,
     /// Optional whitelist of ECDSA public keys
     #[allow(unused)]
     whitelist: Option<HashSet<Address>>,
@@ -56,7 +56,7 @@ pub struct CommitmentsApiInner {
 
 impl CommitmentsApiInner {
     /// Create a new API server with an optional whitelist of ECDSA public keys.
-    pub fn new(events: mpsc::Sender<Event>) -> Self {
+    pub fn new(events: mpsc::Sender<CommitmentEvent>) -> Self {
         Self { events, whitelist: None }
     }
 }
@@ -66,17 +66,17 @@ impl CommitmentsApi for CommitmentsApiInner {
     async fn request_inclusion(
         &self,
         inclusion_request: InclusionRequest,
-    ) -> Result<InclusionCommitment, Error> {
+    ) -> Result<InclusionCommitment, CommitmentError> {
         let (response_tx, response_rx) = oneshot::channel();
 
-        let event = Event {
+        let event = CommitmentEvent {
             request: CommitmentRequest::Inclusion(inclusion_request),
             response: response_tx,
         };
 
         self.events.send(event).await.unwrap();
 
-        response_rx.await.map_err(|_| Error::Internal)?.map(|c| c.into())
+        response_rx.await.map_err(|_| CommitmentError::Internal)?.map(|c| c.into())
     }
 }
 
@@ -119,7 +119,7 @@ impl CommitmentsApiServer {
     }
 
     /// Runs the JSON-RPC server, sending events to the provided channel.
-    pub async fn run(&mut self, events_tx: mpsc::Sender<Event>) {
+    pub async fn run(&mut self, events_tx: mpsc::Sender<CommitmentEvent>) {
         let api = Arc::new(CommitmentsApiInner::new(events_tx));
 
         let router = make_router(api);
@@ -271,7 +271,7 @@ mod test {
             let _ = tx.send(());
         });
 
-        let Event { request, response } = events.recv().await.unwrap();
+        let CommitmentEvent { request, response } = events.recv().await.unwrap();
 
         let commitment_signer = PrivateKeySigner::random();
 
