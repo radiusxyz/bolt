@@ -22,7 +22,7 @@ use crate::{
         server::{CommitmentsApiServer, Event as CommitmentEvent},
         spec::Error as CommitmentError,
     },
-    crypto::{bls::cl_public_key_to_arr, SignableBLS, SignerECDSA},
+    crypto::{SignableBLS, SignerECDSA},
     primitives::{
         read_signed_delegations_from_file, CommitmentRequest, ConstraintsMessage,
         FetchPayloadRequest, SignedConstraints, TransactionExt,
@@ -326,23 +326,25 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         };
 
         // NOTE: we iterate over the transactions in the request and generate a signed constraint
-        // for each one. This is because the transactions in the commitment request are not
-        // supposed to be treated as a relative-ordering bundle, but a batch
-        // with no ordering guarantees.
+        // for each one. This is because the transactions in the commitment request are not supposed
+        // to be treated as a relative-ordering bundle, but a batch with no ordering guarantees.
+        //
+        // For more information, check out the constraints API docs:
+        // https://docs.boltprotocol.xyz/technical-docs/api/builder#constraints
         for tx in inclusion_request.txs {
             let tx_type = tx.tx_type();
             let message = ConstraintsMessage::from_transaction(pubkey.clone(), target_slot, tx);
             let digest = message.digest();
 
-            let signature = match self.constraint_signer {
-                SignerBLS::Local(ref signer) => signer.sign_commit_boost_root(digest),
-                SignerBLS::CommitBoost(ref signer) => signer.sign_commit_boost_root(digest).await,
-                SignerBLS::Keystore(ref signer) => {
-                    signer.sign_commit_boost_root(digest, cl_public_key_to_arr(pubkey.clone()))
+            let signature_result = match &self.constraint_signer {
+                SignerBLS::Local(signer) => signer.sign_commit_boost_root(digest),
+                SignerBLS::CommitBoost(signer) => signer.sign_commit_boost_root(digest).await,
+                SignerBLS::Keystore(signer) => {
+                    signer.sign_commit_boost_root(digest, pubkey.clone())
                 }
             };
 
-            let signed_constraints = match signature {
+            let signed_constraints = match signature_result {
                 Ok(signature) => SignedConstraints { message, signature },
                 Err(e) => {
                     error!(?e, "Failed to sign constraints");
