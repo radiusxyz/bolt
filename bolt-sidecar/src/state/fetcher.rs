@@ -48,7 +48,8 @@ pub trait StateFetcher {
 
     async fn get_chain_id(&self) -> Result<u64, TransportError>;
 
-    /// Gets the receipts for the said list of transaction hashes. IMPORTANT: order is not maintained!
+    /// Gets the receipts for the said list of transaction hashes. IMPORTANT: order is not
+    /// maintained!
     async fn get_receipts(
         &self,
         hashes: &[TxHash],
@@ -77,11 +78,9 @@ impl StateFetcher for StateClient {
         addresses: Vec<&Address>,
         block_number: Option<u64>,
     ) -> Result<StateUpdate, TransportError> {
-        // Create a new batch
         let mut batch = self.client.new_batch();
 
         let tag = block_number.map_or(BlockNumberOrTag::Latest, BlockNumberOrTag::Number);
-
         let mut account_states = HashMap::with_capacity(addresses.len());
 
         let mut nonce_futs = FuturesOrdered::new();
@@ -94,7 +93,6 @@ impl StateFetcher for StateClient {
             self.client.get_head().await?
         };
 
-        // TODO: add block number in params
         for addr in &addresses {
             // We can use expect here since the only error is related to invalid parameters
             let nonce = batch
@@ -109,8 +107,6 @@ impl StateFetcher for StateClient {
             balance_futs.push_back(balance);
             code_futs.push_back(code);
         }
-
-        // Make sure to send the batch!
 
         // After the batch is complete, we can get the results.
         // Note that requests may error separately!
