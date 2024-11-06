@@ -100,7 +100,8 @@ impl BuilderApi for ConstraintsClient {
             return Err(BuilderApiError::FailedRegisteringValidators(error));
         }
 
-        // If there are any delegations, propagate the one associated to the incoming registrations to the relay
+        // If there are any delegations, propagate the one associated to the incoming
+        // registrations to the relay
         if self.delegations.is_empty() {
             return Ok(());
         } else {
@@ -222,8 +223,6 @@ impl ConstraintsApi for ConstraintsClient {
         if !matches!(header.version, Fork::Deneb) {
             return Err(BuilderApiError::InvalidFork(header.version.to_string()));
         };
-
-        // TODO: verify proofs here?
 
         Ok(header)
     }

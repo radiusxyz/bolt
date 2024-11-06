@@ -4,6 +4,14 @@ use tracing::info;
 
 use bolt_sidecar::{telemetry::init_telemetry_stack, Opts, SidecarDriver};
 
+const BOLT: &str = r#"
+██████╗  ██████╗ ██╗  ████████╗
+██╔══██╗██╔═══██╗██║  ╚══██╔══╝
+██████╔╝██║   ██║██║     ██║
+██╔══██╗██║   ██║██║     ██║
+██████╔╝╚██████╔╝███████╗██║
+╚═════╝  ╚═════╝ ╚══════╝╚═╝   "#;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let opts = Opts::parse();
@@ -11,6 +19,8 @@ async fn main() -> Result<()> {
     if let Err(err) = init_telemetry_stack(opts.telemetry.metrics_port()) {
         bail!("Failed to initialize telemetry stack: {:?}", err)
     }
+
+    println!("{BOLT}");
 
     info!(chain = opts.chain.name(), "Starting Bolt sidecar");
 

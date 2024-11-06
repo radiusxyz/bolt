@@ -1,4 +1,3 @@
-use std::fmt::Debug;
 use std::{borrow::Cow, fmt};
 
 use alloy::primitives::{Address, U256};
