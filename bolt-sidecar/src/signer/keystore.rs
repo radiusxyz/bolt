@@ -16,8 +16,8 @@ use ssz::Encode;
 
 use crate::{
     builder::signature::compute_signing_root,
+    config::ChainConfig,
     crypto::bls::{cl_public_key_to_arr, BLSSig},
-    ChainConfig,
 };
 
 use super::SignerResult;
@@ -199,7 +199,7 @@ mod tests {
     use blst::min_pk::SecretKey;
     use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
 
-    use crate::{signer::local::LocalSigner, ChainConfig};
+    use crate::{config::ChainConfig, signer::local::LocalSigner};
 
     use super::KeystoreSigner;
     /// The str path of the root of the project

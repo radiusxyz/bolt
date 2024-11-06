@@ -10,9 +10,9 @@ use tracing::debug;
 
 use super::CommitmentDeadline;
 use crate::{
+    client::BeaconClient,
     primitives::{CommitmentRequest, Slot},
     telemetry::ApiMetrics,
-    BeaconClient,
 };
 
 /// Consensus-related errors

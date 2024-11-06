@@ -26,8 +26,8 @@ use super::spec::{
     STATUS_PATH,
 };
 use crate::{
-    builder::payload_fetcher::PayloadFetcher,
-    client::constraints_client::ConstraintsClient,
+    builder::PayloadFetcher,
+    client::ConstraintsClient,
     primitives::{GetPayloadResponse, SignedBuilderBid},
     telemetry::ApiMetrics,
 };

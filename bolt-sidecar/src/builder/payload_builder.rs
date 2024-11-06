@@ -21,7 +21,11 @@ use super::{
     compat::{to_alloy_execution_payload, to_reth_withdrawal},
     BuilderError,
 };
-use crate::{BeaconClient, Opts, RpcClient};
+
+use crate::{
+    client::{BeaconClient, RpcClient},
+    config::Opts,
+};
 
 /// Extra-data payload field used for locally built blocks, decoded in UTF-8.
 ///

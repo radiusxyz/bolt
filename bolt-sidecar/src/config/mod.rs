@@ -3,15 +3,19 @@ use clap::Parser;
 use reqwest::Url;
 use serde::Deserialize;
 
+/// Chain configuration options.
 pub mod chain;
 pub use chain::ChainConfig;
 
+/// Commitment and constraint signing related options.
 pub mod constraint_signing;
 pub use constraint_signing::ConstraintSigningOpts;
 
+/// Telemetry and metrics related options.
 pub mod telemetry;
 use telemetry::TelemetryOpts;
 
+/// Operating limits for commitments and constraints.
 pub mod limits;
 use limits::LimitsOpts;
 

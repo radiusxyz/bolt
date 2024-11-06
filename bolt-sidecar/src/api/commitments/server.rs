@@ -31,7 +31,7 @@ use crate::{
 use super::{
     middleware::track_server_metrics,
     spec,
-    spec::{CommitmentsApi, CommitmentError},
+    spec::{CommitmentError, CommitmentsApi},
 };
 
 /// Event type emitted by the commitments API.

@@ -1,7 +1,3 @@
-//! Module for interacting with the Constraints client API via its Builder API interface.
-//! The Bolt sidecar's main purpose is to sit between the beacon node and Constraints client,
-//! so most requests are simply proxied to its API.
-
 use std::collections::HashSet;
 
 use axum::http::StatusCode;

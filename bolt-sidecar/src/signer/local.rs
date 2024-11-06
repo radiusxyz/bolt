@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use blst::{min_pk::Signature, BLST_ERROR};
 use ethereum_consensus::{crypto::PublicKey as ClPublicKey, deneb::compute_signing_root};
 
-use crate::{crypto::bls::BLSSig, ChainConfig};
+use crate::{config::ChainConfig, crypto::bls::BLSSig};
 pub use blst::min_pk::SecretKey;
 
 use super::SignerResult;

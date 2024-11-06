@@ -20,7 +20,10 @@ use crate::{
 use super::{
     jsonrpc::{JsonPayload, JsonResponse},
     server::CommitmentsApiInner,
-    spec::{CommitmentsApi, CommitmentError, RejectionError, GET_VERSION_METHOD, REQUEST_INCLUSION_METHOD},
+    spec::{
+        CommitmentError, CommitmentsApi, RejectionError, GET_VERSION_METHOD,
+        REQUEST_INCLUSION_METHOD,
+    },
 };
 
 /// Handler function for the root JSON-RPC path.
@@ -31,10 +34,6 @@ pub async fn rpc_entrypoint(
     WithRejection(Json(payload), _): WithRejection<Json<JsonPayload>, CommitmentError>,
 ) -> Result<Json<JsonResponse>, CommitmentError> {
     debug!("Received new request");
-
-    let (signer, signature) = auth_from_headers(&headers).inspect_err(|e| {
-        error!("Failed to extract signature from headers: {:?}", e);
-    })?;
 
     match payload.method.as_str() {
         GET_VERSION_METHOD => {
@@ -47,6 +46,11 @@ pub async fn rpc_entrypoint(
         }
 
         REQUEST_INCLUSION_METHOD => {
+            // Validate the authentication header and extract the signer and signature
+            let (signer, signature) = auth_from_headers(&headers).inspect_err(|e| {
+                error!("Failed to extract signature from headers: {:?}", e);
+            })?;
+
             let Some(request_json) = payload.params.first().cloned() else {
                 return Err(RejectionError::ValidationFailed("Bad params".to_string()).into());
             };
@@ -66,8 +70,8 @@ pub async fn rpc_entrypoint(
 
             if recovered_signer != signer {
                 error!(
-                    ?recovered_signer,
-                    ?signer,
+                    %recovered_signer,
+                    %signer,
                     "Recovered signer does not match the provided signer"
                 );
 
@@ -83,7 +87,7 @@ pub async fn rpc_entrypoint(
             // Create the JSON-RPC response
             let response = JsonResponse {
                 id: payload.id,
-                result: serde_json::to_value(inclusion_commitment).unwrap(),
+                result: serde_json::to_value(inclusion_commitment).expect("infallible"),
                 ..Default::default()
             };
 

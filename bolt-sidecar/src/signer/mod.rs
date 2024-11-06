@@ -2,14 +2,17 @@ use std::collections::HashSet;
 
 use ethereum_consensus::crypto::bls::PublicKey as BlsPublicKey;
 
+/// Commit-Boost remote signer client wrapper.
 pub mod commit_boost;
-use commit_boost::CommitBoostSigner;
+pub use commit_boost::CommitBoostSigner;
 
+/// EIP-2335 keystore signer implementation.
 pub mod keystore;
-use keystore::KeystoreSigner;
+pub use keystore::KeystoreSigner;
 
+/// Local signer implementation.
 pub mod local;
-use local::LocalSigner;
+pub use local::LocalSigner;
 
 /// Error in the signer.
 #[derive(Debug, thiserror::Error)]

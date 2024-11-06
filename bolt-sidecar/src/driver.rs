@@ -12,12 +12,14 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     builder::payload_fetcher::LocalPayloadFetcher,
-    chain_io::manager::BoltManager,
+    chain_io::BoltManager,
+    client::ConstraintsClient,
     commitments::{
         server::{CommitmentEvent, CommitmentsApiServer},
         spec::CommitmentError,
     },
     common::retry_with_backoff,
+    config::Opts,
     crypto::{SignableBLS, SignerECDSA},
     primitives::{
         read_signed_delegations_from_file, CommitmentRequest, ConstraintsMessage,
@@ -27,8 +29,7 @@ use crate::{
     start_builder_proxy_server,
     state::{fetcher::StateFetcher, ConsensusState, ExecutionState, HeadTracker, StateClient},
     telemetry::ApiMetrics,
-    BuilderProxyConfig, CommitBoostSigner, ConstraintsApi, ConstraintsClient, LocalBuilder, Opts,
-    SignerBLS,
+    BuilderProxyConfig, CommitBoostSigner, ConstraintsApi, LocalBuilder, SignerBLS,
 };
 
 /// The driver for the sidecar, responsible for managing the main event loop.

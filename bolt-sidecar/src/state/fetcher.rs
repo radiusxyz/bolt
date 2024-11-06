@@ -1,7 +1,3 @@
-#![allow(missing_docs)]
-#![allow(unused_variables)]
-#![allow(missing_debug_implementations)]
-
 use std::{collections::HashMap, time::Duration};
 
 use alloy::{
@@ -15,7 +11,7 @@ use reqwest::Url;
 use reth_primitives::TxHash;
 use tracing::error;
 
-use crate::{client::rpc::RpcClient, primitives::AccountState};
+use crate::{client::RpcClient, primitives::AccountState};
 
 use super::execution::StateUpdate;
 
@@ -28,29 +24,35 @@ const RETRY_BACKOFF_MS: u64 = 200;
 /// A trait for fetching state updates.
 #[async_trait::async_trait]
 pub trait StateFetcher {
+    /// Get the state updates for the specified addresses, at the specified block number.
     async fn get_state_update(
         &self,
         addresses: Vec<&Address>,
         head: Option<u64>,
     ) -> Result<StateUpdate, TransportError>;
 
+    /// Get the head of the chain.
     async fn get_head(&self) -> Result<u64, TransportError>;
 
+    /// Get the basefee of the latest block or the block at the specified number.
     async fn get_basefee(&self, block_number: Option<u64>) -> Result<u128, TransportError>;
 
+    /// Get the blob basefee of the latest block or the block at the specified number.
     async fn get_blob_basefee(&self, block_number: Option<u64>) -> Result<u128, TransportError>;
 
+    /// Get the account state for the specified address at the specified block number.
     async fn get_account_state(
         &self,
         address: &Address,
         block_number: Option<u64>,
     ) -> Result<AccountState, TransportError>;
 
+    /// Get the chain ID.
     async fn get_chain_id(&self) -> Result<u64, TransportError>;
 
-    /// Gets the receipts for the said list of transaction hashes. IMPORTANT: order is not
-    /// maintained!
-    async fn get_receipts(
+    /// Get the receipts for the said list of transaction hashes.
+    /// IMPORTANT: order is not maintained in the result.
+    async fn get_receipts_unordered(
         &self,
         hashes: &[TxHash],
     ) -> Result<Vec<Option<TransactionReceipt>>, TransportError>;
@@ -213,7 +215,7 @@ impl StateFetcher for StateClient {
         self.client.get_chain_id().await
     }
 
-    async fn get_receipts(
+    async fn get_receipts_unordered(
         &self,
         hashes: &[TxHash],
     ) -> Result<Vec<Option<TransactionReceipt>>, TransportError> {

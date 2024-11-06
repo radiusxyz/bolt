@@ -8,10 +8,10 @@ use ethereum_consensus::{
 
 use crate::{
     common::BlsSecretKeyWrapper,
+    config::{ChainConfig, Opts},
     primitives::{
         BuilderBid, GetPayloadResponse, PayloadAndBid, PayloadAndBlobs, SignedBuilderBid,
     },
-    ChainConfig, Opts,
 };
 
 /// Basic block template handler that can keep track of
@@ -30,6 +30,7 @@ use payload_builder::FallbackPayloadBuilder;
 
 /// Interface for fetching payloads from the beacon node.
 pub mod payload_fetcher;
+pub use payload_fetcher::{LocalPayloadFetcher, PayloadFetcher};
 
 /// Compatibility types and utilities between Alloy, Reth,
 /// Ethereum-consensus and other crates.

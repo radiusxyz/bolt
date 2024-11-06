@@ -11,14 +11,13 @@ pub use api::{
     spec::{BuilderApi, ConstraintsApi},
 };
 
+/// Different client types for interacting with APIs
 mod client;
-pub use client::{constraints_client::ConstraintsClient, rpc::RpcClient, BeaconClient};
 
 /// Telemetry and metrics utilities
 pub mod telemetry;
 
 /// Common types and compatibility utilities
-/// (To be refactored)
 mod common;
 
 /// Driver for the sidecar, which manages the main event loop
@@ -32,8 +31,7 @@ pub mod builder;
 pub use builder::LocalBuilder;
 
 /// Configuration and command-line argument parsing
-mod config;
-pub use config::{ChainConfig, Opts};
+pub mod config;
 
 /// Crypto utilities, including BLS and ECDSA
 pub mod crypto;
@@ -41,12 +39,14 @@ pub mod crypto;
 /// Primitive types and utilities
 pub mod primitives;
 
-/// State management and fetching for EVM simulation
+///The `state` module is responsible for keeping a local copy of relevant state that is needed
+/// to simulate commitments against. It is updated on every block.
+/// It consists of both execution and consensus states.
 pub mod state;
 
 /// The signers available to the sidecar
 mod signer;
-pub use signer::{commit_boost::CommitBoostSigner, SignerBLS};
+pub use signer::{CommitBoostSigner, SignerBLS};
 
 /// Utilities and contracts wrappers for interacting with the Bolt registry
 pub mod chain_io;
