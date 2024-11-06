@@ -210,8 +210,8 @@ mod tests {
                     .as_ref()).expect("valid bls public key")];
         let res = manager.verify_validator_pubkeys(keys.clone(), commitment_signer_pubkey).await;
         assert!(
-            res.unwrap_err().to_string()
-                == generate_operator_keys_mismatch_error(
+            res.unwrap_err().to_string() ==
+                generate_operator_keys_mismatch_error(
                     pubkey_hash(&keys[0]),
                     commitment_signer_pubkey,
                     operator

@@ -90,7 +90,6 @@ pub(crate) async fn get_test_config() -> Option<Opts> {
         "BOLT_SIDECAR_COMMITMENT_PRIVATE_KEY",
         EcdsaSecretKeyWrapper::random().to_string(),
     );
-    env::set_var("BOLT_SIDECAR_VALIDATOR_INDEXES", "0..64");
 
     let _ = dotenvy::dotenv();
 

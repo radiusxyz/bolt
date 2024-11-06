@@ -10,7 +10,6 @@ use tracing::debug;
 
 use super::CommitmentDeadline;
 use crate::{
-    config::ValidatorIndexes,
     primitives::{CommitmentRequest, Slot},
     telemetry::ApiMetrics,
     BeaconClient,
@@ -38,19 +37,22 @@ struct Epoch {
     pub value: u64,
     /// The start slot of the epoch
     pub start_slot: Slot,
-    /// The proposer duties of the epoch.
+    /// The proposer duties of the current epoch.
     ///
-    /// NOTE: if the unsafe lookhead flag is enabled, then this field represents the proposer
-    /// duties also for the next epoch.
+    /// NOTE: if the `unsafe_lookhead` flag is enabled, then this field also contains
+    /// the next epoch's proposer duties.
     pub proposer_duties: Vec<ProposerDuty>,
 }
 
 /// Represents the consensus state container for the sidecar.
-#[allow(missing_debug_implementations)]
+///
+/// This struct is responsible for managing the state of the beacon chain and the proposer duties,
+/// including validating commitment requests and updating the state based on the latest slot.
 pub struct ConsensusState {
+    /// The beacon API client to fetch data from the beacon chain.
     beacon_api_client: Client,
+    /// The current epoch and associated proposer duties.
     epoch: Epoch,
-    validator_indexes: ValidatorIndexes,
     // Timestamp of when the latest slot was received
     latest_slot_timestamp: Instant,
     // The latest slot received
@@ -61,11 +63,15 @@ pub struct ConsensusState {
     /// This is used to prevent the sidecar from accepting commitments
     /// which won't have time to be included by the PBS pipeline.
     // commitment_deadline: u64,
-    pub commitment_deadline: CommitmentDeadline,
+    commitment_deadline: CommitmentDeadline,
     /// The duration of the commitment deadline.
     commitment_deadline_duration: Duration,
     /// If commitment requests should be validated also against the unsafe lookahead
-    pub unsafe_lookahead_enabled: bool,
+    /// (i.e. the next epoch's proposer duties).
+    ///
+    /// It is considered unsafe because it is possible for the next epoch's duties to
+    /// change if there are beacon chain deposits or withdrawals in the current epoch.
+    unsafe_lookahead_enabled: bool,
 }
 
 impl fmt::Debug for ConsensusState {
@@ -75,6 +81,8 @@ impl fmt::Debug for ConsensusState {
             .field("latest_slot", &self.latest_slot)
             .field("latest_slot_timestamp", &self.latest_slot_timestamp)
             .field("commitment_deadline", &self.commitment_deadline)
+            .field("commitment_deadline_duration", &self.commitment_deadline_duration)
+            .field("unsafe_lookahead_enabled", &self.unsafe_lookahead_enabled)
             .finish()
     }
 }
@@ -83,13 +91,11 @@ impl ConsensusState {
     /// Create a new `ConsensusState` with the given configuration.
     pub fn new(
         beacon_api_client: BeaconClient,
-        validator_indexes: ValidatorIndexes,
         commitment_deadline_duration: Duration,
         unsafe_lookahead_enabled: bool,
     ) -> Self {
         ConsensusState {
             beacon_api_client,
-            validator_indexes,
             epoch: Epoch::default(),
             latest_slot: Default::default(),
             latest_slot_timestamp: Instant::now(),
@@ -99,12 +105,13 @@ impl ConsensusState {
         }
     }
 
-    /// This function validates the state of the chain against a block. It checks 2 things:
-    /// 1. The target slot is one of our proposer slots. (TODO)
+    /// Validate an incoming commitment request against beacon chain data.
+    /// The request is valid if:
+    ///
+    /// 1. The target slot is scheduled to be proposed by one of our validators.
     /// 2. The request hasn't passed the slot deadline.
     ///
-    /// If the request is valid, it returns the validator public key for the slot.
-    /// TODO: Integrate with the registry to check if we are registered.
+    /// If the request is valid, return the validator public key for the target slot.
     pub fn validate_request(
         &self,
         request: &CommitmentRequest,
@@ -123,10 +130,13 @@ impl ConsensusState {
             return Err(ConsensusError::DeadlineExceeded);
         }
 
-        // Find the validator index for the given slot
-        let validator_pubkey = self.find_validator_pubkey_for_slot(req.slot)?;
+        // Find the validator pubkey for the given slot from the proposer duties
+        self.find_validator_pubkey_for_slot(req.slot)
+    }
 
-        Ok(validator_pubkey)
+    /// Wait for the commitment deadline to expire.
+    pub async fn wait_commitment_deadline(&mut self) -> Option<u64> {
+        self.commitment_deadline.wait().await
     }
 
     /// Update the latest head and fetch the relevant data from the beacon chain.
@@ -191,9 +201,7 @@ impl ConsensusState {
         self.epoch
             .proposer_duties
             .iter()
-            .find(|&duty| {
-                duty.slot == slot && self.validator_indexes.contains(duty.validator_index as u64)
-            })
+            .find(|&duty| duty.slot == slot)
             .map(|duty| duty.public_key.clone())
             .ok_or(ConsensusError::ValidatorNotFound)
     }
@@ -209,7 +217,7 @@ impl ConsensusState {
 
 #[cfg(test)]
 mod tests {
-    use beacon_api_client::{BlockId, ProposerDuty};
+    use beacon_api_client::BlockId;
     use reqwest::Url;
     use tracing::warn;
 
@@ -217,46 +225,10 @@ mod tests {
     use crate::test_util::try_get_beacon_api_url;
 
     #[tokio::test]
-    async fn test_find_validator_index_for_slot() {
-        // Sample proposer duties
-        let proposer_duties = vec![
-            ProposerDuty { public_key: Default::default(), slot: 1, validator_index: 100 },
-            ProposerDuty { public_key: Default::default(), slot: 2, validator_index: 101 },
-            ProposerDuty { public_key: Default::default(), slot: 3, validator_index: 102 },
-        ];
-
-        // Validator indexes that we are interested in
-        let validator_indexes = ValidatorIndexes::from(vec![100, 102]);
-
-        // Create a ConsensusState with the sample proposer duties and validator indexes
-        let state = ConsensusState {
-            beacon_api_client: Client::new(Url::parse("http://localhost").unwrap()),
-            epoch: Epoch { value: 0, start_slot: 0, proposer_duties },
-            latest_slot_timestamp: Instant::now(),
-            commitment_deadline: CommitmentDeadline::new(0, Duration::from_secs(1)),
-            validator_indexes,
-            commitment_deadline_duration: Duration::from_secs(1),
-            latest_slot: 0,
-            unsafe_lookahead_enabled: false,
-        };
-
-        // Test finding a valid slot
-        assert_eq!(state.find_validator_pubkey_for_slot(1).unwrap(), Default::default());
-        assert_eq!(state.find_validator_pubkey_for_slot(3).unwrap(), Default::default());
-
-        // Test finding an invalid slot (not in proposer duties)
-        assert!(matches!(
-            state.find_validator_pubkey_for_slot(4),
-            Err(ConsensusError::ValidatorNotFound)
-        ));
-    }
-
-    #[tokio::test]
     async fn test_update_slot() -> eyre::Result<()> {
         let _ = tracing_subscriber::fmt::try_init();
 
         let commitment_deadline_duration = Duration::from_secs(1);
-        let validator_indexes = ValidatorIndexes::from(vec![100, 101, 102]);
 
         let Some(url) = try_get_beacon_api_url().await else {
             warn!("skipping test: beacon API URL is not reachable");
@@ -271,7 +243,6 @@ mod tests {
             epoch: Epoch::default(),
             latest_slot: Default::default(),
             latest_slot_timestamp: Instant::now(),
-            validator_indexes,
             commitment_deadline: CommitmentDeadline::new(0, commitment_deadline_duration),
             commitment_deadline_duration,
             unsafe_lookahead_enabled: false,
@@ -317,7 +288,6 @@ mod tests {
             epoch: Epoch::default(),
             latest_slot: Default::default(),
             latest_slot_timestamp: Instant::now(),
-            validator_indexes: Default::default(),
             commitment_deadline: CommitmentDeadline::new(0, commitment_deadline_duration),
             commitment_deadline_duration,
             // We test for both epochs

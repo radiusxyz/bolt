@@ -516,8 +516,6 @@ BOLT_SIDECAR_ENGINE_API = ""                             # The execution layer e
 BOLT_SIDECAR_JWT_HEX = ""                                # The engine JWT used to authenticate with the engine API
 BOLT_SIDECAR_BUILDER_PROXY_PORT = "18551"                # The port on which the sidecar builder-API will listen on. This is what your beacon node should connect to.
 BOLT_SIDECAR_FEE_RECIPIENT = ""                          # The fee recipient
-BOLT_SIDECAR_VALIDATOR_INDEXES = ""                      # The active validator indexes (can be defined as a comma-separated list, or a range)
-                                                         # e.g. "0,1,2,3,4" or "0..4", or a combination of both
 ```
 
 To initialize commit-boost, run the following command:
@@ -704,7 +702,7 @@ with the `--help` flag:
 
 Command-line options for the Bolt sidecar
 
-Usage: bolt-sidecar [OPTIONS] --validator-indexes <VALIDATOR_INDEXES> --engine-jwt-hex <ENGINE_JWT_HEX> --fee-recipient <FEE_RECIPIENT> --builder-private-key <BUILDER_PRIVATE_KEY> --commitment-private-key <COMMITMENT_PRIVATE_KEY> <--constraint-private-key <CONSTRAINT_PRIVATE_KEY>|--commit-boost-signer-url <COMMIT_BOOST_SIGNER_URL>|--keystore-password <KEYSTORE_PASSWORD>|--keystore-secrets-path <KEYSTORE_SECRETS_PATH>>
+Usage: bolt-sidecar [OPTIONS] --engine-jwt-hex <ENGINE_JWT_HEX> --fee-recipient <FEE_RECIPIENT> --builder-private-key <BUILDER_PRIVATE_KEY> --commitment-private-key <COMMITMENT_PRIVATE_KEY> <--constraint-private-key <CONSTRAINT_PRIVATE_KEY>|--commit-boost-signer-url <COMMIT_BOOST_SIGNER_URL>|--keystore-password <KEYSTORE_PASSWORD>|--keystore-secrets-path <KEYSTORE_SECRETS_PATH>>
 
 Options:
       --port <PORT>
@@ -742,15 +740,6 @@ Options:
 
           [env: BOLT_SIDECAR_CONSTRAINTS_PROXY_PORT=]
           [default: 18550]
-
-      --validator-indexes <VALIDATOR_INDEXES>
-          Validator indexes of connected validators that the sidecar should accept commitments on behalf of.
-          Accepted values:
-              - a comma-separated list of indexes (e.g. "1,2,3,4")
-              - a contiguous range of indexes (e.g. "1..4")
-              - a mix of the above (e.g. "1,2..4,6..8")
-
-          [env: BOLT_SIDECAR_VALIDATOR_INDEXES=]
 
       --engine-jwt-hex <ENGINE_JWT_HEX>
           The JWT secret token to authenticate calls to the engine API.

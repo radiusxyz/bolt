@@ -1,6 +1,7 @@
 use core::fmt;
 use std::{
     fmt::{Display, Formatter},
+    ops::Deref,
     time::Duration,
 };
 
@@ -72,6 +73,14 @@ pub struct ChainConfig {
 impl Default for ChainConfig {
     fn default() -> Self {
         DEFAULT_CHAIN_CONFIG
+    }
+}
+
+impl Deref for ChainConfig {
+    type Target = Chain;
+
+    fn deref(&self) -> &Self::Target {
+        &self.chain
     }
 }
 

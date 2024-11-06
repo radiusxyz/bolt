@@ -60,7 +60,7 @@ impl Future for CommitmentDeadline {
             return Poll::Ready(None);
         };
 
-        match sleep.as_mut().poll(cx) {
+        match sleep.poll_unpin(cx) {
             Poll::Ready(_) => Poll::Ready(Some(self.slot)),
             Poll::Pending => Poll::Pending,
         }

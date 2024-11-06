@@ -83,16 +83,6 @@ Options:
           [env: BOLT_SIDECAR_CONSTRAINTS_PROXY_PORT=]
           [default: 18551]
 
-      --validator-indexes <VALIDATOR_INDEXES>
-          Validator indexes of connected validators that the sidecar should accept commitments on behalf of.
-          Accepted values:
-            - a comma-separated list of indexes (e.g. "1,2,3,4")
-            - a contiguous range of indexes (e.g. "1..4")
-            - a mix of the above (e.g. "1,2..4,6..8")
-
-          [env: BOLT_SIDECAR_VALIDATOR_INDEXES=]
-          [default: ]
-
       --jwt-hex <JWT_HEX>
           The JWT secret token to authenticate calls to the engine API.
 
