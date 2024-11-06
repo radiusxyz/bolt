@@ -50,9 +50,6 @@ impl CommitmentRequest {
     pub fn as_inclusion_request(&self) -> Option<&InclusionRequest> {
         match self {
             CommitmentRequest::Inclusion(req) => Some(req),
-            // TODO: remove this when we have more request types
-            #[allow(unreachable_patterns)]
-            _ => None,
         }
     }
 
