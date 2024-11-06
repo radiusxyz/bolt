@@ -1,6 +1,3 @@
-// TODO: add docs
-#![allow(missing_docs)]
-
 use alloy::primitives::U256;
 use ethereum_consensus::{
     crypto::KzgCommitment,
@@ -15,7 +12,6 @@ use ethereum_consensus::{
     types::mainnet::ExecutionPayload,
     Fork,
 };
-
 use tokio::sync::oneshot;
 
 pub use ethereum_consensus::crypto::{PublicKey as BlsPublicKey, Signature as BlsSignature};
@@ -54,7 +50,9 @@ pub struct AccountState {
     pub has_code: bool,
 }
 
+/// Builder bid, object that is signed by the proposer
 #[derive(Debug, Default, Clone, SimpleSerialize, serde::Serialize, serde::Deserialize)]
+#[allow(missing_docs)]
 pub struct BuilderBid {
     pub header: ExecutionPayloadHeader,
     pub blob_kzg_commitments: List<KzgCommitment, MAX_BLOB_COMMITMENTS_PER_BLOCK>,
@@ -64,19 +62,25 @@ pub struct BuilderBid {
     pub public_key: BlsPublicKey,
 }
 
+/// Signed builder bid with the proposer signature
 #[derive(Debug, Default, Clone, SimpleSerialize, serde::Serialize, serde::Deserialize)]
+#[allow(missing_docs)]
 pub struct SignedBuilderBid {
     pub message: BuilderBid,
     pub signature: BlsSignature,
 }
 
+/// Signed builder bid with the proposer signature and Bolt inclusion proofs
 #[derive(Debug, Default, Clone, SimpleSerialize, serde::Serialize, serde::Deserialize)]
+#[allow(missing_docs)]
 pub struct SignedBuilderBidWithProofs {
     pub bid: SignedBuilderBid,
     pub proofs: List<ConstraintProof, 300>,
 }
 
+/// A proof that a transaction is included in a block
 #[derive(Debug, Default, Clone, SimpleSerialize, serde::Serialize, serde::Deserialize)]
+#[allow(missing_docs)]
 pub struct ConstraintProof {
     #[serde(rename = "txHash")]
     tx_hash: Hash32,
@@ -84,35 +88,43 @@ pub struct ConstraintProof {
     merkle_proof: MerkleProof,
 }
 
+/// A merkle proof that a transaction is included in a block.
 #[derive(Debug, Default, Clone, SimpleSerialize, serde::Serialize, serde::Deserialize)]
 pub struct MerkleProof {
+    /// Index of the transaction in the block
     index: u64,
-    // TODO: for now, max 1000
+    /// List of hashes that are part of the merkle proof
     hashes: List<Hash32, 1000>,
 }
 
+/// Merkle multi-proof that a set of transactions are included in a block
 #[derive(Debug, Default, Clone, SimpleSerialize, serde::Serialize, serde::Deserialize)]
 pub struct MerkleMultiProof {
-    // We use List here for SSZ, TODO: choose max
     transaction_hashes: List<Hash32, 300>,
     generalized_indexes: List<u64, 300>,
     merkle_hashes: List<Hash32, 1000>,
 }
 
+/// Request to fetch a payload for a given slot
 #[derive(Debug)]
 pub struct FetchPayloadRequest {
+    /// Slot number for the payload to fetch
     pub slot: u64,
+    /// Channel to send the response to
     pub response_tx: oneshot::Sender<Option<PayloadAndBid>>,
 }
 
+/// Response to a fetch payload request
 #[derive(Debug)]
+#[allow(missing_docs)]
 pub struct PayloadAndBid {
     pub bid: SignedBuilderBid,
     pub payload: GetPayloadResponse,
 }
 
-/// TODO: implement SSZ
+/// GetPayload response content, with blobs bundle included.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[allow(missing_docs)]
 pub struct PayloadAndBlobs {
     pub execution_payload: ExecutionPayload,
     pub blobs_bundle: BlobsBundle,
@@ -127,8 +139,10 @@ impl Default for PayloadAndBlobs {
     }
 }
 
+/// Response to a get payload request
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "version", content = "data")]
+#[allow(missing_docs)]
 pub enum GetPayloadResponse {
     #[serde(rename = "bellatrix")]
     Bellatrix(ExecutionPayload),
@@ -141,6 +155,7 @@ pub enum GetPayloadResponse {
 }
 
 impl GetPayloadResponse {
+    /// Returns the block hash of the payload
     pub fn block_hash(&self) -> &Hash32 {
         match self {
             GetPayloadResponse::Capella(payload) => payload.block_hash(),
@@ -150,6 +165,7 @@ impl GetPayloadResponse {
         }
     }
 
+    /// Returns the execution payload
     pub fn execution_payload(&self) -> &ExecutionPayload {
         match self {
             GetPayloadResponse::Capella(payload) => payload,

@@ -7,6 +7,7 @@ use crate::crypto::SignerECDSA;
 
 use super::{deserialize_txs, serialize_txs, FullTransaction, TransactionExt};
 
+/// Error type for signature errors.
 #[derive(Debug, thiserror::Error)]
 #[error("Invalid signature")]
 pub struct SignatureError;
@@ -23,6 +24,7 @@ pub enum CommitmentRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum SignedCommitment {
+    /// A signed inclusion commitment.
     Inclusion(InclusionCommitment),
 }
 
@@ -89,6 +91,7 @@ pub struct InclusionRequest {
     /// this specific commitment to be included at the given slot.
     #[serde(skip)]
     pub signature: Option<Signature>,
+    /// The signer of the request (if recovered).
     #[serde(skip)]
     pub signer: Option<Address>,
 }
@@ -186,6 +189,7 @@ impl InclusionRequest {
         self.signer = Some(signer);
     }
 
+    /// Recovers the signer of all transactions in the request.
     pub fn recover_signers(&mut self) -> Result<(), SignatureError> {
         for tx in &mut self.txs {
             let signer = tx.recover_signer().ok_or(SignatureError)?;
@@ -237,9 +241,11 @@ impl From<InclusionRequest> for CommitmentRequest {
     }
 }
 
+/// Extension trait for ECDSA signatures.
 pub trait ECDSASignatureExt {
     /// Returns the ECDSA signature as bytes with the correct parity bit.
     fn as_bytes_with_parity(&self) -> [u8; 65];
+
     /// Rethrns the ECDSA signature as a 0x-prefixed hex string with the correct parity bit.
     fn to_hex(&self) -> String;
 }
