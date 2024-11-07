@@ -8,8 +8,19 @@ services:
       - "${BOLT_SIDECAR_CONSTRAINTS_PROXY_PORT:-18550}:${BOLT_SIDECAR_CONSTRAINTS_PROXY_PORT:-18550}"
     entrypoint: /bin/sh -c /usr/local/bin/bolt-sidecar
     env_file: ./bolt-sidecar.env
+    environment:
+      # The "+" syntax replaces the environment variable with the alternate valuee only if set
+      # Reference: https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/#interpolation-syntax
+      #
+      # NOTE: These enviroment variables take precedence over the ones provided via `env_file`.
+      # Reference: https://docs.docker.com/compose/how-tos/environment-variables/envvars-precedence/
+      BOLT_SIDECAR_DELEGATIONS_PATH: "${BOLT_SIDECAR_DELEGATIONS_PATH+/etc/delegations.json}"
+      BOLT_SIDECAR_KEYSTORE_PATH: "${BOLT_SIDECAR_KEYSTORE_PATH+/etc/keystore}"
+      BOLT_SIDECAR_KEYSTORE_SECRETS_PATH: "${BOLT_SIDECAR_KEYSTORE_SECRETS_PATH+/etc/secrets}"
     volumes:
-      - "./delegations.json:${BOLT_SIDECAR_DELEGATIONS_PATH:-/etc/delegations.json}"
+      - ${BOLT_SIDECAR_DELEGATIONS_PATH:-/dev/null:/etc/delegations.json}
+      - ${BOLT_SIDECAR_KEYSTORE_PATH:-/dev/null:/etc/keystores}
+      - ${BOLT_SIDECAR_KEYSTORE_SECRETS_PATH:-/dev/null:/etc/secrets}
     networks:
       - bolt-default
 
