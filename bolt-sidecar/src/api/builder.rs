@@ -26,8 +26,8 @@ use super::spec::{
     STATUS_PATH,
 };
 use crate::{
-    builder::payload_fetcher::PayloadFetcher,
-    client::constraints_client::ConstraintsClient,
+    builder::PayloadFetcher,
+    client::ConstraintsClient,
     primitives::{GetPayloadResponse, SignedBuilderBid},
     telemetry::ApiMetrics,
 };
@@ -39,6 +39,7 @@ const GET_HEADER_WITH_PROOFS_TIMEOUT: Duration = Duration::from_millis(500);
 
 /// A proxy server for the builder API.
 /// Forwards all requests to the target after interception.
+#[derive(Debug)]
 pub struct BuilderProxyServer<T, P> {
     proxy_target: T,
     /// INVARIANT: This will be `Some` IFF we have signed a local header for the latest slot.
@@ -47,7 +48,9 @@ pub struct BuilderProxyServer<T, P> {
     payload_fetcher: P,
 }
 
+/// Parameters for the get_header request.
 #[derive(Debug, Deserialize)]
+#[allow(missing_docs)]
 pub struct GetHeaderParams {
     pub slot: u64,
     pub parent_hash: Hash32,
@@ -60,6 +63,7 @@ where
     T: ConstraintsApi,
     P: PayloadFetcher + Send + Sync,
 {
+    /// Create a new builder proxy server.
     pub fn new(proxy_target: T, payload_fetcher: P) -> Self {
         Self { proxy_target, local_payload: Mutex::new(None), payload_fetcher }
     }
@@ -164,6 +168,8 @@ where
         Ok(Json(versioned_bid))
     }
 
+    /// Gets the payload. If we have a locally built payload, we return it.
+    /// Otherwise, we forward the request to the constraints client.
     pub async fn get_payload(
         State(server): State<Arc<BuilderProxyServer<T, P>>>,
         req: Request<Body>,
@@ -259,7 +265,9 @@ async fn index() -> Html<&'static str> {
     Html("Hello")
 }
 
+/// Errors that can occur when checking the integrity of a locally built payload.
 #[derive(Error, Debug, Clone)]
+#[allow(missing_docs)]
 pub enum LocalPayloadIntegrityError {
     #[error(
         "Locally built payload does not match signed header. 

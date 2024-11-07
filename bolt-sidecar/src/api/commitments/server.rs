@@ -21,7 +21,7 @@ use tower_http::timeout::TimeoutLayer;
 use tracing::{error, info};
 
 use crate::{
-    commitments::handlers,
+    api::commitments::handlers,
     primitives::{
         commitment::{InclusionCommitment, SignedCommitment},
         CommitmentRequest, InclusionRequest,
@@ -31,7 +31,7 @@ use crate::{
 use super::{
     middleware::track_server_metrics,
     spec,
-    spec::{CommitmentsApi, CommitmentError},
+    spec::{CommitmentError, CommitmentsApi},
 };
 
 /// Event type emitted by the commitments API.
@@ -169,7 +169,7 @@ fn make_router(state: Arc<CommitmentsApiInner>) -> Router {
 
 #[cfg(test)]
 mod test {
-    use crate::commitments::{jsonrpc::JsonResponse, spec::SIGNATURE_HEADER};
+    use crate::api::commitments::{jsonrpc::JsonResponse, spec::SIGNATURE_HEADER};
     use alloy::signers::{k256::SecretKey, local::PrivateKeySigner};
     use serde_json::json;
 

@@ -1,7 +1,7 @@
-use serde::{de, Deserialize, Deserializer, Serialize};
 use std::str::FromStr;
 
 use alloy::primitives::{keccak256, Address, Signature, B256};
+use serde::{de, Deserialize, Deserializer, Serialize};
 
 use crate::crypto::SignerECDSA;
 

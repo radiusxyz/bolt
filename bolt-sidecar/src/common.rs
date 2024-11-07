@@ -326,7 +326,6 @@ mod tests {
         let counter = Arc::new(Mutex::new(Counter::new(3))); // Fail 3 times, succeed on 4th
 
         let result = retry_with_backoff(5, || async {
-            println!("attempt");
             let counter = Arc::clone(&counter);
             let mut counter = counter.lock().await;
             counter.retryable_fn().await

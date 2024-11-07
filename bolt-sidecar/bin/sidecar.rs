@@ -2,7 +2,7 @@ use clap::Parser;
 use eyre::{bail, Result};
 use tracing::info;
 
-use bolt_sidecar::{telemetry::init_telemetry_stack, Opts, SidecarDriver};
+use bolt_sidecar::{config::Opts, telemetry::init_telemetry_stack, SidecarDriver};
 
 const BOLT: &str = r#"
 ██████╗  ██████╗ ██╗  ████████╗

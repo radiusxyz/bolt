@@ -1,17 +1,21 @@
 use std::fmt::Debug;
 
-use blst::{min_pk::Signature, BLST_ERROR};
+use blst::{
+    min_pk::{SecretKey, Signature},
+    BLST_ERROR,
+};
 use ethereum_consensus::{crypto::PublicKey as ClPublicKey, deneb::compute_signing_root};
 
-use crate::{crypto::bls::BLSSig, ChainConfig};
-pub use blst::min_pk::SecretKey;
+use crate::{config::ChainConfig, crypto::bls::BLSSig};
 
 use super::SignerResult;
 
 /// The BLS Domain Separator used in Ethereum 2.0.
 pub const BLS_DST_PREFIX: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 
+/// Error in the local signer.
 #[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
 pub enum LocalSignerError {
     #[error("failed to compute signing root: {0}")]
     SigningRootComputation(#[from] ethereum_consensus::error::Error),

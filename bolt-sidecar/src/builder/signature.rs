@@ -11,7 +11,7 @@ use ethereum_consensus::{
 use tree_hash::TreeHash;
 use tree_hash_derive::TreeHash;
 
-use crate::ChainConfig;
+use crate::config::ChainConfig;
 
 /// Sign a SSZ object with a BLS secret key, using the Application Builder domain
 /// for signing arbitrary builder-api messages in the out-of-protocol specifications.
@@ -116,7 +116,7 @@ pub fn compute_builder_domain(
 
 #[cfg(test)]
 mod tests {
-    use crate::{builder::signature::compute_builder_domain, ChainConfig};
+    use crate::{builder::signature::compute_builder_domain, config::ChainConfig};
 
     #[test]
     fn test_compute_builder_domain() {
