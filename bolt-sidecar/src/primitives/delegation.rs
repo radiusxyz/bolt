@@ -1,7 +1,8 @@
-use std::{fs, path::PathBuf};
+use std::{fs, ops::Deref, path::PathBuf};
 
 use alloy::signers::k256::sha2::{Digest, Sha256};
 use ethereum_consensus::crypto::{PublicKey as BlsPublicKey, Signature as BlsSignature};
+use eyre::{bail, Result};
 
 use crate::crypto::SignableBLS;
 
@@ -26,6 +27,14 @@ pub struct SignedDelegation {
     pub message: DelegationMessage,
     /// The signature of the delegation message.
     pub signature: BlsSignature,
+}
+
+impl Deref for SignedDelegation {
+    type Target = DelegationMessage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.message
+    }
 }
 
 /// A delegation message.
@@ -57,15 +66,13 @@ impl SignableBLS for DelegationMessage {
 }
 
 /// read the delegations from disk if they exist and add them to the constraints client
-pub fn read_signed_delegations_from_file(
-    file_path: &PathBuf,
-) -> eyre::Result<Vec<SignedDelegation>> {
+pub fn read_signed_delegations_from_file(file_path: &PathBuf) -> Result<Vec<SignedDelegation>> {
     match fs::read_to_string(file_path) {
         Ok(contents) => match serde_json::from_str::<Vec<SignedDelegation>>(&contents) {
             Ok(delegations) => Ok(delegations),
-            Err(err) => Err(eyre::eyre!("Failed to parse signed delegations from disk: {:?}", err)),
+            Err(err) => bail!("Failed to parse signed delegations from disk: {:?}", err),
         },
-        Err(err) => Err(eyre::eyre!("Failed to read signed delegations from disk: {:?}", err)),
+        Err(err) => bail!("Failed to read signed delegations from disk: {:?}", err),
     }
 }
 
@@ -79,6 +86,14 @@ pub struct SignedRevocation {
     pub message: RevocationMessage,
     /// The signature of the revocation message.
     pub signature: BlsSignature,
+}
+
+impl Deref for SignedRevocation {
+    type Target = RevocationMessage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.message
+    }
 }
 
 /// A revocation message.

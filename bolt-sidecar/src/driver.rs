@@ -6,6 +6,7 @@ use ethereum_consensus::{
     clock::{self, SlotStream, SystemTimeProvider},
     phase0::mainnet::SLOTS_PER_EPOCH,
 };
+use eyre::Context;
 use futures::StreamExt;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
@@ -67,22 +68,6 @@ pub struct SidecarDriver<C, ECDSA> {
     slot_stream: SlotStream<SystemTimeProvider>,
 }
 
-impl fmt::Debug for SidecarDriver<StateClient, PrivateKeySigner> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SidecarDriver")
-            .field("head_tracker", &self.head_tracker)
-            .field("execution", &self.execution)
-            .field("consensus", &self.consensus)
-            .field("constraint_signer", &self.constraint_signer)
-            .field("commitment_signer", &self.commitment_signer)
-            .field("local_builder", &self.local_builder)
-            .field("constraints_client", &self.constraints_client)
-            .field("api_events_rx", &self.api_events_rx)
-            .field("payload_requests_rx", &self.payload_requests_rx)
-            .finish()
-    }
-}
-
 impl SidecarDriver<StateClient, PrivateKeySigner> {
     /// Create a new sidecar driver with the given [Opts] and private key signer.
     pub async fn with_local_signer(opts: &Opts) -> eyre::Result<Self> {
@@ -103,7 +88,9 @@ impl SidecarDriver<StateClient, PrivateKeySigner> {
         let commitment_key = opts.commitment_private_key.0.clone();
         let commitment_signer = PrivateKeySigner::from_signing_key(commitment_key);
 
-        Self::from_components(opts, constraint_signer, commitment_signer, state_client).await
+        Self::from_components(opts, constraint_signer, commitment_signer, state_client)
+            .await
+            .wrap_err("Failed to initialize sidecar with local signer")
     }
 }
 
@@ -133,7 +120,9 @@ impl SidecarDriver<StateClient, PrivateKeySigner> {
         let commitment_key = opts.commitment_private_key.0.clone();
         let commitment_signer = PrivateKeySigner::from_signing_key(commitment_key);
 
-        Self::from_components(opts, keystore_signer, commitment_signer, state_client).await
+        Self::from_components(opts, keystore_signer, commitment_signer, state_client)
+            .await
+            .wrap_err("Failed to initialize sidecar with keystore signer")
     }
 }
 
@@ -150,7 +139,9 @@ impl SidecarDriver<StateClient, CommitBoostSigner> {
 
         let cb_bls_signer = SignerBLS::CommitBoost(commit_boost_signer.clone());
 
-        Self::from_components(opts, cb_bls_signer, commit_boost_signer, state_client).await
+        Self::from_components(opts, cb_bls_signer, commit_boost_signer, state_client)
+            .await
+            .wrap_err("Failed to initialize sidecar with commit-boost signer")
     }
 }
 
@@ -165,15 +156,15 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         let mut constraints_client = ConstraintsClient::new(opts.constraints_api_url.clone());
 
         // read the delegations from disk if they exist and add them to the constraints client.
-        let validator_pubkeys = if let Some(delegations_file_path) =
-            opts.constraint_signing.delegations_path.as_ref()
+        let validator_pubkeys = if let Some(delegations_path) =
+            &opts.constraint_signing.delegations_path
         {
-            let delegations = read_signed_delegations_from_file(delegations_file_path)?;
-            let validator_public_keys =
-                delegations.iter().map(|d| d.message.validator_pubkey.clone()).collect::<Vec<_>>();
+            let delegations = read_signed_delegations_from_file(delegations_path)?;
+            let keys = delegations.iter().map(|d| d.validator_pubkey.clone()).collect::<Vec<_>>();
             constraints_client.add_delegations(delegations);
-            validator_public_keys
+            keys
         } else {
+            // If no delegations are provided, we just use the public keys from the signer.
             Vec::from_iter(constraint_signer.available_pubkeys())
         };
 
@@ -182,17 +173,17 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         {
             let commitment_signer_pubkey = commitment_signer.public_key();
             info!(
-                validator_public_keys_len = %validator_pubkeys.len(),
-                commitment_signer_pubkey = ?commitment_signer_pubkey,
+                validator_pubkeys = %validator_pubkeys.len(),
+                commitment_signer = ?commitment_signer_pubkey,
                 "Verifying validators and operator keys with Bolt Manager, this may take a while..."
             );
 
             manager.verify_validator_pubkeys(validator_pubkeys, commitment_signer_pubkey).await?;
 
-            info!("Successfully verified validators and operator keys with Bolt Manager!");
+            info!("Successfully verified validators and operator keys with Bolt Manager.");
         } else {
             warn!(
-                "No Bolt Manager contract deployed on {}, skipping validators and operator public keys verification",
+                "Bolt Manager is not deployed on {}, skipping validators and operator public keys verification",
                 opts.chain.name()
             );
         }
@@ -426,5 +417,21 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         if let Err(e) = request.response_tx.send(Some(payload_and_bid)) {
             error!(err = ?e, "Failed to send payload and bid in response channel");
         }
+    }
+}
+
+impl fmt::Debug for SidecarDriver<StateClient, PrivateKeySigner> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SidecarDriver")
+            .field("head_tracker", &self.head_tracker)
+            .field("execution", &self.execution)
+            .field("consensus", &self.consensus)
+            .field("constraint_signer", &self.constraint_signer)
+            .field("commitment_signer", &self.commitment_signer)
+            .field("local_builder", &self.local_builder)
+            .field("constraints_client", &self.constraints_client)
+            .field("api_events_rx", &self.api_events_rx)
+            .field("payload_requests_rx", &self.payload_requests_rx)
+            .finish()
     }
 }

@@ -1,6 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
-use alloy::primitives::{FixedBytes, B512};
+use alloy::{
+    contract::Error as ContractError,
+    primitives::{Bytes, FixedBytes, B512},
+    sol_types::SolInterface,
+    transports::TransportError,
+};
 use ethereum_consensus::primitives::BlsPublicKey;
 use reth_primitives::keccak256;
 
@@ -37,6 +42,41 @@ fn pubkey_hash_digest(key: &BlsPublicKey) -> B512 {
     // |<---------- 16 bytes ---------->||<----------------------------------------- 48 bytes ----------------------------------------->|
     onchain_pubkey_repr[16..].copy_from_slice(key);
     onchain_pubkey_repr
+}
+
+/// Try to decode a contract error into a specific Solidity error interface.
+/// If the error cannot be decoded or it is not a contract error, return the original error.
+///
+/// Example usage:
+///
+/// ```rust no_run
+/// sol! {
+///    library ErrorLib {
+///       error SomeError(uint256 code);
+///    }
+/// }
+///
+/// // call a contract that may return an error with the SomeError interface
+/// let returndata = match myContract.call().await {
+///    Ok(returndata) => returndata,
+///    Err(err) => {
+///         let decoded_error = try_decode_contract_error::<ErrorLib::ErrorLibError>(err)?;
+///        // handle the decoded error however you want; for example, return it
+///         return Err(decoded_error);
+///    },
+/// }
+/// ```
+pub fn try_parse_contract_error<T: SolInterface>(error: ContractError) -> Result<T, ContractError> {
+    match error {
+        ContractError::TransportError(TransportError::ErrorResp(resp)) => {
+            let data = resp.data.unwrap_or_default();
+            let data = data.get().trim_matches('"');
+            let data = Bytes::from_str(data).unwrap_or_default();
+
+            T::abi_decode(&data, true).map_err(Into::into)
+        }
+        _ => Err(error),
+    }
 }
 
 #[cfg(test)]

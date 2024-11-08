@@ -27,8 +27,7 @@ use crate::{
 /// A client for interacting with the Constraints client API.
 #[derive(Debug, Clone)]
 pub struct ConstraintsClient {
-    /// The URL of the MEV-Boost target supporting the Constraints API.
-    pub url: Url,
+    url: Url,
     client: reqwest::Client,
     delegations: Vec<SignedDelegation>,
 }
@@ -85,6 +84,11 @@ impl ConstraintsClient {
             .filter(|d| d.message.validator_pubkey == *validator_pubkey)
             .map(|d| d.message.delegatee_pubkey.clone())
             .collect::<HashSet<_>>()
+    }
+
+    /// Returns the URL of the target client.
+    pub fn target(&self) -> &str {
+        self.url.as_str()
     }
 
     fn endpoint(&self, path: &str) -> Url {

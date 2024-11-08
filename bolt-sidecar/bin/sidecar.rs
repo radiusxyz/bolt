@@ -18,37 +18,22 @@ const BOLT: &str = r#"
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
+    println!("{}", BOLT);
+
     read_env_file()?;
 
     let opts = Opts::parse();
 
     init_telemetry_stack(opts.telemetry.metrics_port())?;
 
-    println!("{BOLT}");
-
     info!(chain = opts.chain.name(), "Starting Bolt sidecar");
 
     if opts.constraint_signing.constraint_private_key.is_some() {
-        match SidecarDriver::with_local_signer(&opts).await {
-            Ok(driver) => driver.run_forever().await,
-            Err(err) => {
-                bail!("Failed to initialize the sidecar driver with local signer: {:?}", err)
-            }
-        }
+        SidecarDriver::with_local_signer(&opts).await?.run_forever().await
     } else if opts.constraint_signing.commit_boost_signer_url.is_some() {
-        match SidecarDriver::with_commit_boost_signer(&opts).await {
-            Ok(driver) => driver.run_forever().await,
-            Err(err) => {
-                bail!("Failed to initialize the sidecar driver with commit boost: {:?}", err)
-            }
-        }
+        SidecarDriver::with_commit_boost_signer(&opts).await?.run_forever().await
     } else {
-        match SidecarDriver::with_keystore_signer(&opts).await {
-            Ok(driver) => driver.run_forever().await,
-            Err(err) => {
-                bail!("Failed to initialize the sidecar driver with keystore signer: {:?}", err)
-            }
-        }
+        SidecarDriver::with_keystore_signer(&opts).await?.run_forever().await
     }
 }
 

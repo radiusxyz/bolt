@@ -1,16 +1,11 @@
-use std::str::FromStr;
-use tracing::error;
-
 use alloy::{
-    contract::Error as ContractError,
-    primitives::{Address, Bytes},
+    primitives::Address,
     providers::{ProviderBuilder, RootProvider},
     sol,
-    sol_types::SolInterface,
-    transports::{http::Http, TransportError},
+    transports::http::Http,
 };
 use ethereum_consensus::primitives::BlsPublicKey;
-use eyre::bail;
+use eyre::{bail, Context};
 use reqwest::{Client, Url};
 use serde::Serialize;
 
@@ -23,7 +18,8 @@ use crate::config::chain::Chain;
 
 use super::utils::{self, CompressedHash};
 
-const CHUNK_SIZE: usize = 100;
+/// Maximum number of keys to fetch from the EL node in a single query.
+const MAX_CHUNK_SIZE: usize = 100;
 
 /// A wrapper over a BoltManagerContract that exposes various utility methods.
 #[derive(Debug, Clone)]
@@ -58,81 +54,73 @@ impl BoltManager {
     ) -> eyre::Result<Vec<ProposerStatus>> {
         let hashes_with_preimages = utils::pubkey_hashes(keys);
         let mut hashes = hashes_with_preimages.keys().cloned().collect::<Vec<_>>();
-        let total_keys = hashes.len();
 
-        let mut proposers_statuses = Vec::with_capacity(hashes.len());
+        let total_keys = hashes.len();
+        let chunk_count = total_keys.div_ceil(MAX_CHUNK_SIZE);
+
+        let mut proposers_statuses = Vec::with_capacity(total_keys);
 
         let mut i = 0;
         while !hashes.is_empty() {
             i += 1;
 
-            // No more than CHUNK_SIZE at a time to avoid EL config limits
-            //
-            // TODO: write an unsafe function that splits a vec into owned chunks without
-            // allocating
-            let hashes_chunk = hashes.drain(..CHUNK_SIZE.min(hashes.len())).collect::<Vec<_>>();
+            // No more than MAX_CHUNK_SIZE at a time to avoid EL config limits
+            let chunk_size = MAX_CHUNK_SIZE.min(hashes.len());
+            let hashes_chunk = hashes.drain(..chunk_size).collect::<Vec<_>>();
 
-            debug!(
-                "fetching {} proposer statuses for chunk {} of {}",
-                hashes_chunk.len(),
-                i,
-                total_keys.div_ceil(CHUNK_SIZE)
-            );
+            debug!("fetching proposer statuses for chunk {} of {}", i, chunk_count);
 
-            let returndata = self.0.getProposerStatuses(hashes_chunk).call().await;
+            let returndata = match self.0.getProposerStatuses(hashes_chunk).call().await {
+                Ok(returndata) => returndata,
+                Err(error) => {
+                    let decoded_error = utils::try_parse_contract_error(error)
+                        .wrap_err("Failed to fetch proposer statuses from EL client")?;
 
-            // TODO: clean this after https://github.com/alloy-rs/alloy/issues/787 is merged
-            let error = match returndata.map(|data| data.statuses) {
-                Ok(statuses) => {
-                    for status in &statuses {
-                        if !status.active {
-                            bail!(
-                            "validator with public key {:?} and public key hash {:?} is not active in Bolt",
-                            hashes_with_preimages.get(&status.pubkeyHash),
-                            status.pubkeyHash
-                        );
-                        } else if status.operator != commitment_signer_pubkey {
-                            bail!(generate_operator_keys_mismatch_error(
-                                status.pubkeyHash,
-                                commitment_signer_pubkey,
-                                status.operator
-                            ));
-                        }
-                    }
-
-                    proposers_statuses.extend(statuses);
-
-                    continue;
+                    bail!(generate_bolt_manager_error(decoded_error, commitment_signer_pubkey));
                 }
-                Err(error) => match error {
-                    ContractError::TransportError(TransportError::ErrorResp(err)) => {
-                        error!("error response from contract: {:?}", err);
-                        let data = err.data.unwrap_or_default();
-                        let data = data.get().trim_matches('"');
-                        let data = Bytes::from_str(data)?;
-
-                        BoltManagerContractErrors::abi_decode(&data, true)?
-                    }
-                    e => return Err(e)?,
-                },
             };
 
-            match error {
-                BoltManagerContractErrors::ValidatorDoesNotExist(ValidatorDoesNotExist {
-                    pubkeyHash: pubkey_hash,
-                }) => {
-                    bail!("ValidatorDoesNotExist -- validator with public key {:?} and public key hash {:?} is not registered in Bolt", hashes_with_preimages.get(&pubkey_hash), pubkey_hash);
-                }
-                BoltManagerContractErrors::InvalidQuery(_) => {
-                    bail!("InvalidQuery -- invalid zero public key hash");
-                }
-                BoltManagerContractErrors::KeyNotFound(_) => {
-                    bail!("KeyNotFound -- operator associated with commitment signer public key {:?} is not registered in Bolt", commitment_signer_pubkey);
+            for status in &returndata.statuses {
+                if !status.active {
+                    bail!(
+                        "validator with public key {:?} and public key hash {} is not active in Bolt",
+                        hashes_with_preimages.get(&status.pubkeyHash),
+                        status.pubkeyHash
+                    );
+                } else if status.operator != commitment_signer_pubkey {
+                    bail!(generate_operator_keys_mismatch_error(
+                        status.pubkeyHash,
+                        commitment_signer_pubkey,
+                        status.operator
+                    ));
                 }
             }
+
+            proposers_statuses.extend(returndata.statuses);
+
+            continue;
         }
 
         Ok(proposers_statuses)
+    }
+}
+
+fn generate_bolt_manager_error(
+    error: BoltManagerContractErrors,
+    commitment_signer_pubkey: Address,
+) -> String {
+    match error {
+        BoltManagerContractErrors::ValidatorDoesNotExist(ValidatorDoesNotExist {
+            pubkeyHash: pubkey_hash,
+        }) => {
+            format!("BoltManager::ValidatorDoesNotExist: validator with public key hash {} is not registered in Bolt", pubkey_hash)
+        }
+        BoltManagerContractErrors::InvalidQuery(_) => {
+            "BoltManager::InvalidQuery: invalid zero public key hash".to_string()
+        }
+        BoltManagerContractErrors::KeyNotFound(_) => {
+            format!("BoltManager::KeyNotFound: operator associated with commitment signer public key {} is not registered in Bolt", commitment_signer_pubkey)
+        }
     }
 }
 
@@ -142,7 +130,9 @@ fn generate_operator_keys_mismatch_error(
     operator: Address,
 ) -> String {
     format!(
-        "mismatch between commitment signer public key and authorized operator address for validator with public key hash {:?} in Bolt.\n - commitment signer public key: {:?}\n - authorized operator address: {:?}",
+        "Mismatch between commitment signer public key and authorized operator address for validator\nwith public key hash {:?}.
+         - commitment signer public key: {}
+         - authorized operator address: {}",
         pubkey_hash,
         commitment_signer_pubkey,
         operator

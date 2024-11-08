@@ -240,7 +240,7 @@ where
 {
     info!(
         port = config.server_port,
-        target = config.constraints_client.url.to_string(),
+        target = config.constraints_client.target(),
         "Starting builder proxy..."
     );
 
