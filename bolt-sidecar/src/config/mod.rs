@@ -31,7 +31,6 @@ pub const DEFAULT_CONSTRAINTS_PROXY_PORT: u16 = 18550;
 
 /// Command-line options for the Bolt sidecar
 #[derive(Debug, Parser, Deserialize)]
-#[clap(trailing_var_arg = true)]
 pub struct Opts {
     /// Port to listen on for incoming JSON-RPC requests of the Commitments API.
     /// This port should be open on your firewall in order to receive external requests!
@@ -96,14 +95,39 @@ pub struct Opts {
     /// Additional unrecognized arguments. Useful for CI and testing
     /// to avoid issues on potential extra flags provided (e.g. "--exact" from cargo nextest).
     #[cfg(test)]
-    #[clap(allow_hyphen_values = true)]
+    #[clap(allow_hyphen_values = true, trailing_var_arg = true)]
     #[serde(default)]
     pub extra_args: Vec<String>,
 }
 
+/// It removes environment variables that are set as empty strings, i.e. like `MY_VAR=`. This is
+/// useful to avoid unexpected edge cases and because we don't have options that make sense with an
+/// empty string value.
+pub fn strip_empty_envs() -> eyre::Result<()> {
+    for item in dotenvy::dotenv_iter()? {
+        let (key, val) = item?;
+        if val.is_empty() {
+            std::env::remove_var(key)
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
+    use dotenvy::dotenv;
+
     use super::*;
+
+    #[test]
+    #[ignore = "Doesn't need to run in CI, only for local development"]
+    fn test_strip_empty_envs() {
+        let _ = dotenv().expect("to load .env file");
+        strip_empty_envs().expect("to strip empty envs");
+        let opts = Opts::parse();
+        println!("{:#?}", opts);
+    }
 
     #[test]
     fn test_validate_cli_flags() {
