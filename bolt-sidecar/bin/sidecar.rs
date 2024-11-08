@@ -2,7 +2,11 @@ use clap::Parser;
 use eyre::{bail, Result};
 use tracing::info;
 
-use bolt_sidecar::{config::Opts, telemetry::init_telemetry_stack, SidecarDriver};
+use bolt_sidecar::{
+    config::{strip_empty_envs, Opts},
+    telemetry::init_telemetry_stack,
+    SidecarDriver,
+};
 
 const BOLT: &str = r#"
 ██████╗  ██████╗ ██╗  ████████╗
@@ -14,6 +18,10 @@ const BOLT: &str = r#"
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    if dotenvy::dotenv().is_ok() {
+        strip_empty_envs()?;
+        info!("Loaded .env file");
+    }
     let opts = Opts::parse();
 
     if let Err(err) = init_telemetry_stack(opts.telemetry.metrics_port()) {
