@@ -16,7 +16,7 @@ pub fn init_telemetry_stack(metrics_port: Option<u16>) -> Result<()> {
         let builder = PrometheusBuilder::new().with_http_listener(prometheus_addr);
 
         if let Err(e) = builder.install() {
-            bail!("failed to install Prometheus recorder: {:?}", e);
+            bail!("failed to init telemetry stack. Error installing Prometheus recorder: {:?}", e);
         } else {
             info!(
                 "Telemetry initialized. Serving Prometheus metrics at: http://{}",
