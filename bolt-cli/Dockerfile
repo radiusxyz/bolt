@@ -13,6 +13,9 @@ FROM base AS planner
 # Copy only Cargo files to cache dependencies
 COPY Cargo.toml Cargo.lock ./
 
+# Copy the main.rs file to allow cargo do detect a binary
+COPY src/main.rs ./src/main.rs
+
 # Prepare the recipe for caching dependencies (Cargo.toml/Cargo.lock)
 RUN cargo chef prepare --recipe-path recipe.json
 

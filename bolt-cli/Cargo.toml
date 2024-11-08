@@ -2,7 +2,6 @@
 name = "bolt"
 version = "0.1.0"
 edition = "2021"
-default-run = "bolt"
 
 [dependencies]
 # async
@@ -41,7 +40,3 @@ tempfile = "3.13.0"
 
 [build-dependencies]
 tonic-build = "0.12.3"
-
-[[bin]]
-name = "bolt"
-path = "./src/main.rs"
