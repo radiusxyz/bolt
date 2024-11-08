@@ -7,7 +7,7 @@ import {BoltValidatorsV2} from "../src/contracts/BoltValidatorsV2.sol";
 import {BoltManagerV2} from "../src/contracts/BoltManagerV2.sol";
 import {BoltParametersV1} from "../src/contracts/BoltParametersV1.sol";
 import {BoltEigenLayerMiddlewareV2} from "../src/contracts/BoltEigenLayerMiddlewareV2.sol";
-import {BoltConfig} from "../src/lib/Config.sol";
+import {BoltConfig} from "../src/lib/BoltConfig.sol";
 import {ValidatorsLib} from "../src/lib/ValidatorsLib.sol";
 import {IBoltValidatorsV2} from "../src/interfaces/IBoltValidatorsV2.sol";
 import {IBoltManagerV2} from "../src/interfaces/IBoltManagerV2.sol";

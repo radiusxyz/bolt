@@ -7,7 +7,7 @@ import {BoltParametersV1} from "../src/contracts/BoltParametersV1.sol";
 import {BoltValidatorsV1} from "../src/contracts/BoltValidatorsV1.sol";
 import {IBoltValidatorsV1} from "../src/interfaces/IBoltValidatorsV1.sol";
 import {BLS12381} from "../src/lib/bls/BLS12381.sol";
-import {BoltConfig} from "../src/lib/Config.sol";
+import {BoltConfig} from "../src/lib/BoltConfig.sol";
 import {Utils} from "./Utils.sol";
 
 contract BoltValidatorsTest is Test {

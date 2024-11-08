@@ -29,7 +29,7 @@ import {BoltValidatorsV2} from "../src/contracts/BoltValidatorsV2.sol";
 import {BoltManagerV2} from "../src/contracts/BoltManagerV2.sol";
 import {BoltSymbioticMiddlewareV1} from "../src/contracts/BoltSymbioticMiddlewareV1.sol";
 import {BLS12381} from "../src/lib/bls/BLS12381.sol";
-import {BoltConfig} from "../src/lib/Config.sol";
+import {BoltConfig} from "../src/lib/BoltConfig.sol";
 import {ValidatorsLib} from "../src/lib/ValidatorsLib.sol";
 import {Utils} from "./Utils.sol";
 

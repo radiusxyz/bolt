@@ -16,7 +16,7 @@ import {BoltSymbioticMiddlewareV1} from "../../../src/contracts/BoltSymbioticMid
 import {BoltSymbioticMiddlewareV2} from "../../../src/contracts/BoltSymbioticMiddlewareV2.sol";
 import {BoltValidatorsV1} from "../../../src/contracts/BoltValidatorsV1.sol";
 import {BoltValidatorsV2} from "../../../src/contracts/BoltValidatorsV2.sol";
-import {BoltConfig} from "../../../src/lib/Config.sol";
+import {BoltConfig} from "../../../src/lib/BoltConfig.sol";
 
 contract UpgradeBolt is Script {
     struct Deployments {

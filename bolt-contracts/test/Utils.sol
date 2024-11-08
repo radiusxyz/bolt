@@ -3,7 +3,7 @@ pragma solidity 0.8.25;
 
 import {Test, console} from "forge-std/Test.sol";
 
-import {BoltConfig} from "../src/lib/Config.sol";
+import {BoltConfig} from "../src/lib/BoltConfig.sol";
 
 contract Utils is Test {
     function readParameters() public view returns (BoltConfig.Parameters memory) {
