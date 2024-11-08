@@ -1,9 +1,14 @@
 use clap::Parser;
-use eyre::{bail, Result};
+use eyre::bail;
 use tracing::info;
 
+use tracing_subscriber::{
+    fmt::Layer as FmtLayer, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer,
+    Registry,
+};
+
 use bolt_sidecar::{
-    config::{strip_empty_envs, Opts},
+    config::{remove_empty_envs, Opts},
     telemetry::init_telemetry_stack,
     SidecarDriver,
 };
@@ -17,16 +22,13 @@ const BOLT: &str = r#"
 ╚═════╝  ╚═════╝ ╚══════╝╚═╝   "#;
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    if dotenvy::dotenv().is_ok() {
-        strip_empty_envs()?;
-        info!("Loaded .env file");
-    }
+async fn main() -> eyre::Result<()> {
+    read_env_file()?;
+    init_tracing()?;
+
     let opts = Opts::parse();
 
-    if let Err(err) = init_telemetry_stack(opts.telemetry.metrics_port()) {
-        bail!("Failed to initialize telemetry stack: {:?}", err)
-    }
+    init_telemetry_stack(opts.telemetry.metrics_port())?;
 
     println!("{BOLT}");
 
@@ -54,4 +56,28 @@ async fn main() -> Result<()> {
             }
         }
     }
+}
+
+fn init_tracing() -> eyre::Result<()> {
+    let std_layer = FmtLayer::default().with_writer(std::io::stdout).with_filter(
+        EnvFilter::builder()
+            .with_default_directive("bolt_sidecar=info".parse()?)
+            .from_env_lossy()
+            .add_directive("reqwest=error".parse()?)
+            .add_directive("alloy_transport_http=error".parse()?),
+    );
+    Registry::default().with(std_layer).try_init()?;
+    Ok(())
+}
+
+fn read_env_file() -> eyre::Result<()> {
+    match dotenvy::dotenv() {
+        // It means the .env file hasn't been found but it's okay since it's optional
+        Err(dotenvy::Error::Io(_)) => (),
+        Err(err) => bail!("Failed to load .env file: {:?}", err),
+        Ok(path) => println!("Loaded environment variables from path: {:?}", path),
+    };
+
+    remove_empty_envs()?;
+    Ok(())
 }

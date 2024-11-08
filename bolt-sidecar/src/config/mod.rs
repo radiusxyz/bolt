@@ -1,3 +1,5 @@
+use std::env;
+
 use alloy::primitives::Address;
 use clap::Parser;
 use reqwest::Url;
@@ -18,6 +20,7 @@ use telemetry::TelemetryOpts;
 /// Operating limits for commitments and constraints.
 pub mod limits;
 use limits::LimitsOpts;
+use tracing::debug;
 
 use crate::common::{BlsSecretKeyWrapper, EcdsaSecretKeyWrapper, JwtSecretConfig};
 
@@ -103,10 +106,11 @@ pub struct Opts {
 /// It removes environment variables that are set as empty strings, i.e. like `MY_VAR=`. This is
 /// useful to avoid unexpected edge cases and because we don't have options that make sense with an
 /// empty string value.
-pub fn strip_empty_envs() -> eyre::Result<()> {
-    for item in dotenvy::dotenv_iter()? {
-        let (key, val) = item?;
-        if val.is_empty() {
+pub fn remove_empty_envs() -> eyre::Result<()> {
+    for item in env::vars() {
+        let (key, val) = item;
+        if val.trim().is_empty() {
+            debug!("removing empty env var: {}", key);
             std::env::remove_var(key)
         }
     }
@@ -122,9 +126,9 @@ mod tests {
 
     #[test]
     #[ignore = "Doesn't need to run in CI, only for local development"]
-    fn test_strip_empty_envs() {
+    fn test_remove_empty_envs() {
         let _ = dotenv().expect("to load .env file");
-        strip_empty_envs().expect("to strip empty envs");
+        remove_empty_envs().expect("to remove empty envs");
         let opts = Opts::parse();
         println!("{:#?}", opts);
     }
