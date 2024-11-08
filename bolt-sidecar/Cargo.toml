@@ -13,6 +13,7 @@ tower-http = { version = "0.5.2", features = ["timeout"] }
 axum-extra = "0.9.3"
 warp = "0.3.7"
 futures = "0.3"
+tokio-retry = "0.3.0"
 
 # crypto
 blst = "0.3.12"

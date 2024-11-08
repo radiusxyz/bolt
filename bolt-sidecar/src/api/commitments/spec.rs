@@ -19,7 +19,7 @@ pub(super) const MAX_REQUEST_TIMEOUT: std::time::Duration = std::time::Duration:
 
 /// Error type for the commitments API.
 #[derive(Debug, Error)]
-pub enum Error {
+pub enum CommitmentError {
     /// Request rejected.
     #[error("Request rejected: {0}")]
     Rejected(#[from] RejectionError),
@@ -55,51 +55,51 @@ pub enum Error {
     InvalidJson(#[from] JsonRejection),
 }
 
-impl IntoResponse for Error {
+impl IntoResponse for CommitmentError {
     fn into_response(self) -> axum::http::Response<axum::body::Body> {
         match self {
-            Error::Rejected(err) => {
+            CommitmentError::Rejected(err) => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32000, err.to_string())))
                     .into_response()
             }
-            Error::Duplicate => {
+            CommitmentError::Duplicate => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32001, self.to_string())))
                     .into_response()
             }
-            Error::Internal => (
+            CommitmentError::Internal => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(JsonResponse::from_error(-32002, self.to_string())),
             )
                 .into_response(),
-            Error::NoSignature => {
+            CommitmentError::NoSignature => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32003, self.to_string())))
                     .into_response()
             }
-            Error::InvalidSignature(err) => {
+            CommitmentError::InvalidSignature(err) => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32004, err.to_string())))
                     .into_response()
             }
-            Error::Signature(err) => {
+            CommitmentError::Signature(err) => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32005, err.to_string())))
                     .into_response()
             }
-            Error::Consensus(err) => {
+            CommitmentError::Consensus(err) => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32006, err.to_string())))
                     .into_response()
             }
-            Error::Validation(err) => {
+            CommitmentError::Validation(err) => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32006, err.to_string())))
                     .into_response()
             }
-            Error::MalformedHeader => {
+            CommitmentError::MalformedHeader => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32007, self.to_string())))
                     .into_response()
             }
-            Error::UnknownMethod => {
+            CommitmentError::UnknownMethod => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32601, self.to_string())))
                     .into_response()
             }
-            Error::InvalidJson(err) => (
+            CommitmentError::InvalidJson(err) => (
                 StatusCode::BAD_REQUEST,
                 Json(JsonResponse::from_error(-32600, format!("Invalid request: {err}"))),
             )
@@ -124,5 +124,5 @@ pub trait CommitmentsApi {
     async fn request_inclusion(
         &self,
         inclusion_request: InclusionRequest,
-    ) -> Result<InclusionCommitment, Error>;
+    ) -> Result<InclusionCommitment, CommitmentError>;
 }

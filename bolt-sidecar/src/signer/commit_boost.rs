@@ -28,7 +28,9 @@ pub struct CommitBoostSigner {
     proxy_ecdsa: Arc<RwLock<Vec<EcdsaPublicKey>>>,
 }
 
+/// Error in the Commit-Boost signer.
 #[derive(Debug, Error)]
+#[allow(missing_docs)]
 pub enum CommitBoostError {
     #[error("failed to sign constraint: {0}")]
     NoSignature(String),

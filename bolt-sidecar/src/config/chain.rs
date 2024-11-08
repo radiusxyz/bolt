@@ -1,6 +1,7 @@
 use core::fmt;
 use std::{
     fmt::{Display, Formatter},
+    ops::Deref,
     time::Duration,
 };
 
@@ -25,6 +26,7 @@ pub const APPLICATION_BUILDER_DOMAIN_MASK: [u8; 4] = [0, 0, 0, 1];
 /// The domain mask for signing commit-boost messages.
 pub const COMMIT_BOOST_DOMAIN_MASK: [u8; 4] = [109, 109, 111, 67];
 
+/// Default chain configuration for the sidecar.
 pub const DEFAULT_CHAIN_CONFIG: ChainConfig = ChainConfig {
     chain: Chain::Mainnet,
     commitment_deadline: DEFAULT_COMMITMENT_DEADLINE_IN_MILLIS,
@@ -75,9 +77,18 @@ impl Default for ChainConfig {
     }
 }
 
+impl Deref for ChainConfig {
+    type Target = Chain;
+
+    fn deref(&self) -> &Self::Target {
+        &self.chain
+    }
+}
+
 /// Supported chains for the sidecar
 #[derive(Debug, Clone, Copy, ValueEnum, Deserialize)]
 #[clap(rename_all = "kebab_case")]
+#[allow(missing_docs)]
 pub enum Chain {
     Mainnet,
     Holesky,

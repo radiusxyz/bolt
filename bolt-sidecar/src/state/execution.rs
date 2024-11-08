@@ -167,9 +167,9 @@ pub struct ExecutionState<C> {
 /// Other values used for validation.
 #[derive(Debug)]
 pub struct ValidationParams {
-    block_gas_limit: u64,
-    max_tx_input_bytes: usize,
-    max_init_code_byte_size: usize,
+    pub block_gas_limit: u64,
+    pub max_tx_input_bytes: usize,
+    pub max_init_code_byte_size: usize,
 }
 
 impl Default for ValidationParams {
@@ -232,7 +232,6 @@ impl<C: StateFetcher> ExecutionState<C> {
     ) -> Result<(), ValidationError> {
         let CommitmentRequest::Inclusion(req) = request;
 
-        let signer = req.signer().expect("Set signer");
         req.recover_signers()?;
 
         let target_slot = req.slot;
@@ -352,7 +351,7 @@ impl<C: StateFetcher> ExecutionState<C> {
                 return Err(ValidationError::SlotTooLow(highest_slot_for_account));
             }
 
-            trace!(?signer, nonce_diff, %balance_diff, "Applying diffs to account state");
+            trace!(nonce_diff, %balance_diff, "Applying diffs to account state");
 
             let account_state = match self.account_state(sender).copied() {
                 Some(account) => account,
@@ -464,12 +463,12 @@ impl<C: StateFetcher> ExecutionState<C> {
         if let Some(template) = self.remove_block_template(slot) {
             debug!(%slot, "Removed block template for slot");
             let hashes = template.transaction_hashes();
-            let receipts = self.client.get_receipts(&hashes).await?;
+            let receipts = self.client.get_receipts_unordered(&hashes).await?;
 
             let mut receipts_len = 0;
             for receipt in receipts.iter().flatten() {
-                // Calculate the total tip revenue for this transaction: (effective_gas_price -
-                // basefee) * gas_used
+                // Calculate the total tip revenue for this transaction:
+                // (effective_gas_price - basefee) * gas_used
                 let tip_per_gas = receipt.effective_gas_price - self.basefee;
                 let total_tip = tip_per_gas * receipt.gas_used;
 

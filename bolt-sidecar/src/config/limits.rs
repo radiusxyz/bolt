@@ -3,9 +3,13 @@ use std::num::NonZero;
 use clap::Parser;
 use serde::Deserialize;
 
-// Default limit values
+/// Default max commitments to accept per block.
 pub const DEFAULT_MAX_COMMITMENTS: usize = 128;
+
+/// Default max committed gas per block.
 pub const DEFAULT_MAX_COMMITTED_GAS: u64 = 10_000_000;
+
+/// Default min priority fee to accept for a commitment.
 pub const DEFAULT_MIN_PRIORITY_FEE: u128 = 1_000_000_000; // 1 Gwei
 
 /// Limits for the sidecar.

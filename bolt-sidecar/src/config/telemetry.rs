@@ -1,6 +1,7 @@
 use clap::Parser;
 use serde::Deserialize;
 
+/// Telemetry and metrics related options.
 #[derive(Parser, Debug, Clone, Deserialize)]
 pub struct TelemetryOpts {
     /// The port on which to expose Prometheus metrics

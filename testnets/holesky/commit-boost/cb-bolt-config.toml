@@ -121,7 +121,6 @@ BOLT_SIDECAR_ENGINE_API = "http://100.85.200.41:4451"                           
 BOLT_SIDECAR_JWT_HEX = "89732cef77d7e9a20021ee8f419dbbb51bdf7f60586932c272ddef02e70cb755" # The engine JWT
 BOLT_SIDECAR_BUILDER_PROXY_PORT = "18551"                                                 # The port on which the sidecar builder-API will listen on. This is what your beacon node should connect to.
 BOLT_SIDECAR_FEE_RECIPIENT = "0x0000000000000000000000000000000000000000"                 # The fee recipient
-BOLT_SIDECAR_VALIDATOR_INDEXES = "1..2"                                                   # The active validator indexes
 
 BOLT_SIDECAR_METRICS_PORT = "10000"
 

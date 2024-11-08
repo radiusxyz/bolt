@@ -5,23 +5,23 @@ use axum::http::HeaderMap;
 
 use crate::primitives::commitment::SignatureError;
 
-use super::spec::{Error, SIGNATURE_HEADER};
+use super::spec::{CommitmentError, SIGNATURE_HEADER};
 
 /// Extracts the signature ([SIGNATURE_HEADER]) from the HTTP headers.
 #[inline]
-pub fn auth_from_headers(headers: &HeaderMap) -> Result<(Address, Signature), Error> {
-    let auth = headers.get(SIGNATURE_HEADER).ok_or(Error::NoSignature)?;
+pub fn auth_from_headers(headers: &HeaderMap) -> Result<(Address, Signature), CommitmentError> {
+    let auth = headers.get(SIGNATURE_HEADER).ok_or(CommitmentError::NoSignature)?;
 
     // Remove the "0x" prefix
-    let auth = auth.to_str().map_err(|_| Error::MalformedHeader)?;
+    let auth = auth.to_str().map_err(|_| CommitmentError::MalformedHeader)?;
 
     let mut split = auth.split(':');
 
-    let address = split.next().ok_or(Error::MalformedHeader)?;
-    let address = Address::from_str(address).map_err(|_| Error::MalformedHeader)?;
+    let address = split.next().ok_or(CommitmentError::MalformedHeader)?;
+    let address = Address::from_str(address).map_err(|_| CommitmentError::MalformedHeader)?;
 
-    let sig = split.next().ok_or(Error::MalformedHeader)?;
-    let sig = Signature::from_str(sig).map_err(|_| Error::InvalidSignature(SignatureError))?;
+    let sig = split.next().ok_or(CommitmentError::MalformedHeader)?;
+    let sig = Signature::from_str(sig).map_err(|_| CommitmentError::InvalidSignature(SignatureError))?;
 
     Ok((address, sig))
 }

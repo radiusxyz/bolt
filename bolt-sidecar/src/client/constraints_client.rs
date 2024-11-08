@@ -1,7 +1,3 @@
-//! Module for interacting with the Constraints client API via its Builder API interface.
-//! The Bolt sidecar's main purpose is to sit between the beacon node and Constraints client,
-//! so most requests are simply proxied to its API.
-
 use std::collections::HashSet;
 
 use axum::http::StatusCode;
@@ -50,6 +46,36 @@ impl ConstraintsClient {
     /// Adds a list of delegations to the client.
     pub fn add_delegations(&mut self, delegations: Vec<SignedDelegation>) {
         self.delegations.extend(delegations);
+    }
+
+    /// Return a public key that can be used to sign constraints with for the given
+    /// validator public key.
+    ///
+    /// Rationale:
+    /// - If there are no delegatee keys, try to use the validator key directly if available.
+    /// - If there are delegatee keys, try to use the first one that is available in the list.
+    pub fn find_signing_key(
+        &self,
+        validator_pubkey: BlsPublicKey,
+        available_pubkeys: HashSet<BlsPublicKey>,
+    ) -> Option<BlsPublicKey> {
+        let delegatees = self.find_delegatees(&validator_pubkey);
+
+        if delegatees.is_empty() {
+            if available_pubkeys.contains(&validator_pubkey) {
+                return Some(validator_pubkey);
+            } else {
+                return None;
+            }
+        } else {
+            for delegatee in delegatees {
+                if available_pubkeys.contains(&delegatee) {
+                    return Some(delegatee);
+                }
+            }
+        }
+
+        None
     }
 
     /// Finds all delegations for the given validator public key.

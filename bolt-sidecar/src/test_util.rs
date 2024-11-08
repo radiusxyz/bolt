@@ -21,13 +21,13 @@ use tracing::warn;
 
 use crate::{
     common::{BlsSecretKeyWrapper, EcdsaSecretKeyWrapper, JwtSecretConfig},
+    config::{ChainConfig, Opts},
     crypto::{ecdsa::SignableECDSA, SignableBLS},
     primitives::{
         CommitmentRequest, ConstraintsMessage, DelegationMessage, FullTransaction,
         InclusionRequest, RevocationMessage, SignedConstraints, SignedDelegation, SignedRevocation,
     },
     signer::local::LocalSigner,
-    ChainConfig, Opts,
 };
 
 /// The URL of the test execution client HTTP API.
@@ -90,7 +90,6 @@ pub(crate) async fn get_test_config() -> Option<Opts> {
         "BOLT_SIDECAR_COMMITMENT_PRIVATE_KEY",
         EcdsaSecretKeyWrapper::random().to_string(),
     );
-    env::set_var("BOLT_SIDECAR_VALIDATOR_INDEXES", "0..64");
 
     let _ = dotenvy::dotenv();
 
