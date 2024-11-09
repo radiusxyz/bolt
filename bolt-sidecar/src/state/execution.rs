@@ -457,9 +457,9 @@ impl<C: StateFetcher> ExecutionState<C> {
         let update = self.client.get_state_update(accounts, block_number).await?;
         trace!(%slot, ?update, "Applying execution state update");
 
-        self.apply_state_update(update);
-
         // Remove any block templates that are no longer valid
+        // NOTE: this needs to be called BEFORE applying the state update or we might remove
+        // constraints for which we need to get the receipts.
         if let Some(template) = self.remove_block_template(slot) {
             debug!(%slot, "Removed block template for slot");
             let hashes = template.transaction_hashes();
@@ -493,6 +493,8 @@ impl<C: StateFetcher> ExecutionState<C> {
                 });
             }
         }
+
+        self.apply_state_update(update);
 
         Ok(())
     }
