@@ -143,11 +143,6 @@ impl ChainConfig {
         }
     }
 
-    /// Get the chain name for the given chain.
-    pub fn name(&self) -> &'static str {
-        self.chain.name()
-    }
-
     /// Get the slot time for the given chain in seconds.
     pub fn slot_time(&self) -> u64 {
         self.slot_time
