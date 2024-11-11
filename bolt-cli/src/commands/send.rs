@@ -5,6 +5,7 @@ use alloy::{
         constants::GWEI_TO_WEI, BlobTransactionSidecar, SidecarBuilder, SimpleCoder, Transaction,
     },
     eips::eip2718::Encodable2718,
+    hex,
     network::{EthereumWallet, TransactionBuilder, TransactionBuilder4844},
     primitives::{keccak256, Address, B256, U256},
     providers::{ProviderBuilder, SendableTx},
@@ -227,9 +228,9 @@ async fn sign_request(
         keccak256(data)
     };
 
-    let signature = hex::encode(wallet.sign_hash(&digest).await?.as_bytes());
+    let signature = hex::encode_prefixed(wallet.sign_hash(&digest).await?.as_bytes());
 
-    Ok(format!("{}:0x{}", wallet.address(), signature))
+    Ok(format!("{}:{}", wallet.address(), signature))
 }
 
 fn prepare_rpc_request(method: &str, params: Value) -> Value {

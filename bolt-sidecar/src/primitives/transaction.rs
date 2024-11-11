@@ -1,6 +1,9 @@
 use std::{borrow::Cow, fmt};
 
-use alloy::primitives::{Address, U256};
+use alloy::{
+    hex,
+    primitives::{Address, U256},
+};
 use reth_primitives::{BlobTransactionSidecar, Bytes, PooledTransactionsElement, TxKind, TxType};
 use serde::{de, ser::SerializeSeq};
 
@@ -233,7 +236,7 @@ pub fn serialize_txs<S: serde::Serializer>(
     let mut seq = serializer.serialize_seq(Some(txs.len()))?;
     for tx in txs {
         let encoded = tx.tx.envelope_encoded();
-        seq.serialize_element(&format!("0x{}", hex::encode(encoded)))?;
+        seq.serialize_element(&hex::encode_prefixed(encoded))?;
     }
     seq.end()
 }
