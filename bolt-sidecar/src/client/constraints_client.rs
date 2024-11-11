@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use alloy::hex;
 use axum::http::StatusCode;
 use beacon_api_client::VersionedValue;
 use ethereum_consensus::{
@@ -91,6 +92,8 @@ impl ConstraintsClient {
         self.url.as_str()
     }
 
+    /// Joins the given path with the client's URL.
+    /// If the path is invalid, an error is logged and the client's URL is returned.
     fn endpoint(&self, path: &str) -> Url {
         self.url.join(path).unwrap_or_else(|e| {
             error!(err = ?e, "Failed to join path: {} with url: {}", path, self.url);
@@ -136,7 +139,8 @@ impl BuilderApi for ConstraintsClient {
             return Ok(());
         } else {
             let validator_pubkeys =
-                registrations.iter().map(|r| r.message.public_key.clone()).collect::<HashSet<_>>();
+                registrations.iter().map(|r| &r.message.public_key).collect::<HashSet<_>>();
+
             let filtered_delegations = self
                 .delegations
                 .iter()
@@ -157,8 +161,8 @@ impl BuilderApi for ConstraintsClient {
         &self,
         params: GetHeaderParams,
     ) -> Result<SignedBuilderBid, BuilderApiError> {
-        let parent_hash = format!("0x{}", hex::encode(params.parent_hash.as_ref()));
-        let public_key = format!("0x{}", hex::encode(params.public_key.as_ref()));
+        let parent_hash = hex::encode_prefixed(params.parent_hash.as_ref());
+        let public_key = hex::encode_prefixed(params.public_key.as_ref());
 
         let response = self
             .client
@@ -230,8 +234,8 @@ impl ConstraintsApi for ConstraintsClient {
         &self,
         params: GetHeaderParams,
     ) -> Result<VersionedValue<SignedBuilderBid>, BuilderApiError> {
-        let parent_hash = format!("0x{}", hex::encode(params.parent_hash.as_ref()));
-        let public_key = format!("0x{}", hex::encode(params.public_key.as_ref()));
+        let parent_hash = hex::encode_prefixed(params.parent_hash.as_ref());
+        let public_key = hex::encode_prefixed(params.public_key.as_ref());
 
         let response = self
             .client

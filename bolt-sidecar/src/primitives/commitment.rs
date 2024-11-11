@@ -1,6 +1,9 @@
 use std::str::FromStr;
 
-use alloy::primitives::{keccak256, Address, Signature, B256};
+use alloy::{
+    hex,
+    primitives::{keccak256, Address, Signature, B256},
+};
 use serde::{de, Deserialize, Deserializer, Serialize};
 
 use crate::crypto::SignerECDSA;
@@ -212,7 +215,7 @@ fn serialize_sig<S: serde::Serializer>(sig: &Signature, serializer: S) -> Result
     // As bytes encodes the parity as 27/28, need to change that.
     let mut bytes = sig.as_bytes();
     bytes[bytes.len() - 1] = if parity.y_parity() { 1 } else { 0 };
-    serializer.serialize_str(&format!("0x{}", hex::encode(bytes)))
+    serializer.serialize_str(&hex::encode_prefixed(bytes))
 }
 
 impl InclusionRequest {
@@ -258,7 +261,7 @@ impl ECDSASignatureExt for Signature {
     }
 
     fn to_hex(&self) -> String {
-        format!("0x{}", hex::encode(self.as_bytes_with_parity()))
+        hex::encode_prefixed(self.as_bytes_with_parity())
     }
 }
 

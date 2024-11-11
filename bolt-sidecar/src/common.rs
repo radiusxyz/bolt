@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use alloy::{primitives::U256, signers::k256::ecdsa::SigningKey};
+use alloy::{hex, primitives::U256, signers::k256::ecdsa::SigningKey};
 use blst::min_pk::SecretKey;
 use rand::{Rng, RngCore};
 use reth_primitives::PooledTransactionsElement;
@@ -144,7 +144,7 @@ impl Deref for BlsSecretKeyWrapper {
 
 impl fmt::Display for BlsSecretKeyWrapper {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{}", hex::encode(self.0.to_bytes()))
+        write!(f, "{}", hex::encode_prefixed(self.0.to_bytes()))
     }
 }
 
@@ -180,7 +180,7 @@ impl From<&str> for EcdsaSecretKeyWrapper {
 
 impl Display for EcdsaSecretKeyWrapper {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{}", hex::encode(self.0.to_bytes()))
+        write!(f, "{}", hex::encode_prefixed(self.0.to_bytes()))
     }
 }
 
