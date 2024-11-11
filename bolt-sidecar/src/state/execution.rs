@@ -460,7 +460,7 @@ impl<C: StateFetcher> ExecutionState<C> {
         // Remove any block templates that are no longer valid
         // NOTE: this needs to be called BEFORE applying the state update or we might remove
         // constraints for which we need to get the receipts.
-        if let Some(template) = self.remove_block_template(slot) {
+        for template in self.remove_block_templates_until(slot) {
             debug!(%slot, "Removed block template for slot");
             let hashes = template.transaction_hashes();
             let receipts = self.client.get_receipts_unordered(&hashes).await?;
@@ -543,11 +543,27 @@ impl<C: StateFetcher> ExecutionState<C> {
         self.block_templates.get(&slot)
     }
 
-    /// Gets the block template for the given slot number and removes it from the cache.
-    /// This should be called when we need to propose a block for the given slot,
-    /// or when a new head comes in which makes an older block template useless.
-    pub fn remove_block_template(&mut self, slot: u64) -> Option<BlockTemplate> {
-        self.block_templates.remove(&slot)
+    /// Removes all the block templates which slot is less then or equal `slot`, and returns them.
+    ///
+    /// This should be called when we need to propose a block for the given slot, or when a new
+    /// head comes in which makes an older block templates useless.
+    ///
+    /// NOTE: We remove all previous block templates to ensure that, when a new head is received
+    /// from the beacon client, all stale template are cleared. This prevents outdated templates
+    /// from persisting in cases of missed slots, where such events are not emitted.
+    pub fn remove_block_templates_until(&mut self, slot: u64) -> Vec<BlockTemplate> {
+        let mut slots_to_remove =
+            self.block_templates.keys().filter(|s| **s <= slot).copied().collect::<Vec<_>>();
+        slots_to_remove.sort();
+
+        let mut templates = Vec::with_capacity(slots_to_remove.len());
+        for s in slots_to_remove {
+            if let Some(template) = self.block_templates.remove(&s) {
+                templates.push(template);
+            }
+        }
+
+        templates
     }
 }
 
