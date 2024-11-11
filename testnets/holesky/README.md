@@ -474,7 +474,7 @@ Once the configuration files are in place, make sure you are in the
 `testnets/holesky` directory and then run:
 
 ```bash
-docker compose up -d --env-file bolt-sidecar.env
+docker compose --env-file bolt-sidecar.env up -d
 ```
 
 The docker compose setup comes with various observability tools, such as

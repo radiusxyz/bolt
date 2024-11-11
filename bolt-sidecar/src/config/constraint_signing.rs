@@ -49,6 +49,7 @@ impl fmt::Debug for ConstraintSigningOpts {
             .field("keystore_password", &"********") // Hides the actual password
             .field("keystore_path", &self.keystore_path)
             .field("keystore_secrets_path", &self.keystore_secrets_path)
+            .field("delegations_path", &self.delegations_path)
             .finish()
     }
 }
