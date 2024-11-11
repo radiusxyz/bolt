@@ -2,11 +2,6 @@ use clap::Parser;
 use eyre::bail;
 use tracing::info;
 
-use tracing_subscriber::{
-    fmt::Layer as FmtLayer, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer,
-    Registry,
-};
-
 use bolt_sidecar::{
     config::{remove_empty_envs, Opts},
     telemetry::init_telemetry_stack,
@@ -24,7 +19,6 @@ const BOLT: &str = r#"
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     read_env_file()?;
-    init_tracing()?;
 
     let opts = Opts::parse();
 
@@ -56,18 +50,6 @@ async fn main() -> eyre::Result<()> {
             }
         }
     }
-}
-
-fn init_tracing() -> eyre::Result<()> {
-    let std_layer = FmtLayer::default().with_writer(std::io::stdout).with_filter(
-        EnvFilter::builder()
-            .with_default_directive("bolt_sidecar=info".parse()?)
-            .from_env_lossy()
-            .add_directive("reqwest=error".parse()?)
-            .add_directive("alloy_transport_http=error".parse()?),
-    );
-    Registry::default().with(std_layer).try_init()?;
-    Ok(())
 }
 
 fn read_env_file() -> eyre::Result<()> {
