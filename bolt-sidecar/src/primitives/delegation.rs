@@ -2,7 +2,7 @@ use std::{fs, ops::Deref, path::PathBuf};
 
 use alloy::signers::k256::sha2::{Digest, Sha256};
 use ethereum_consensus::crypto::{PublicKey as BlsPublicKey, Signature as BlsSignature};
-use eyre::{bail, Result};
+use eyre::bail;
 
 use crate::crypto::SignableBLS;
 
@@ -66,7 +66,9 @@ impl SignableBLS for DelegationMessage {
 }
 
 /// read the delegations from disk if they exist and add them to the constraints client
-pub fn read_signed_delegations_from_file(file_path: &PathBuf) -> Result<Vec<SignedDelegation>> {
+pub fn read_signed_delegations_from_file(
+    file_path: &PathBuf,
+) -> eyre::Result<Vec<SignedDelegation>> {
     match fs::read_to_string(file_path) {
         Ok(contents) => match serde_json::from_str::<Vec<SignedDelegation>>(&contents) {
             Ok(delegations) => Ok(delegations),
