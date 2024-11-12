@@ -9,6 +9,7 @@ use commit_boost::prelude::SignProxyRequest;
 use ethereum_consensus::crypto::bls::PublicKey as BlsPublicKey;
 use parking_lot::RwLock;
 use reqwest::Url;
+use ssz::Decode;
 use thiserror::Error;
 use tracing::{debug, error, info};
 
@@ -122,9 +123,10 @@ impl CommitBoostSigner {
     /// Sign an object root with the Commit Boost domain.
     pub async fn sign_commit_boost_root(&self, data: [u8; 32]) -> SignerResult<BlsSignature> {
         // convert the pubkey from ethereum_consensus to commit-boost format
-        let pubkey = cb_common::signer::BlsPublicKey::from(
-            alloy::rpc::types::beacon::BlsPublicKey::from_slice(self.pubkey().as_ref()),
-        );
+        // TODO: compat: this parsing is the only way to obtain a Blspubkey. There are no other
+        // possible ways to obtain it without bumping Alloy version
+        let pubkey =
+            cb_common::signer::BlsPublicKey::from_ssz_bytes(self.pubkey().as_ref()).unwrap();
 
         let request = SignConsensusRequest { pubkey, object_root: data };
 
@@ -134,6 +136,8 @@ impl CommitBoostSigner {
             .signer_client
             .request_consensus_signature(request)
             .await
+            // TODO: compat: this is necessary until commit-boost bumps their alloy version
+            .map(|sig| BlsSignature::from_slice(sig.as_ref()))
             .map_err(CommitBoostError::SignerClientError)?)
     }
 }

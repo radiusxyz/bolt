@@ -1,10 +1,12 @@
 use std::{borrow::Cow, fmt};
 
 use alloy::{
+    consensus::BlobTransactionSidecar,
+    eips::eip2718::{Decodable2718, Encodable2718},
     hex,
-    primitives::{Address, U256},
+    primitives::{Address, Bytes, TxKind, U256},
 };
-use reth_primitives::{BlobTransactionSidecar, Bytes, PooledTransactionsElement, TxKind, TxType};
+use reth_primitives::{PooledTransactionsElement, TxType};
 use serde::{de, ser::SerializeSeq};
 
 /// Trait that exposes additional information on transaction types that don't already do it
@@ -41,7 +43,7 @@ impl TransactionExt for PooledTransactionsElement {
             PooledTransactionsElement::Legacy { transaction, .. } => transaction.gas_limit,
             PooledTransactionsElement::Eip2930 { transaction, .. } => transaction.gas_limit,
             PooledTransactionsElement::Eip1559 { transaction, .. } => transaction.gas_limit,
-            PooledTransactionsElement::BlobTransaction(blob_tx) => blob_tx.transaction.gas_limit,
+            PooledTransactionsElement::BlobTransaction(blob_tx) => blob_tx.transaction.tx.gas_limit,
             _ => unimplemented!(),
         }
     }
@@ -51,7 +53,7 @@ impl TransactionExt for PooledTransactionsElement {
             PooledTransactionsElement::Legacy { transaction, .. } => transaction.value,
             PooledTransactionsElement::Eip2930 { transaction, .. } => transaction.value,
             PooledTransactionsElement::Eip1559 { transaction, .. } => transaction.value,
-            PooledTransactionsElement::BlobTransaction(blob_tx) => blob_tx.transaction.value,
+            PooledTransactionsElement::BlobTransaction(blob_tx) => blob_tx.transaction.tx.value,
             _ => unimplemented!(),
         }
     }
@@ -72,7 +74,7 @@ impl TransactionExt for PooledTransactionsElement {
             PooledTransactionsElement::Eip2930 { transaction, .. } => transaction.to,
             PooledTransactionsElement::Eip1559 { transaction, .. } => transaction.to,
             PooledTransactionsElement::BlobTransaction(blob_tx) => {
-                TxKind::Call(blob_tx.transaction.to)
+                TxKind::Call(blob_tx.transaction.tx.to)
             }
             _ => unimplemented!(),
         }
@@ -83,7 +85,7 @@ impl TransactionExt for PooledTransactionsElement {
             PooledTransactionsElement::Legacy { transaction, .. } => &transaction.input,
             PooledTransactionsElement::Eip2930 { transaction, .. } => &transaction.input,
             PooledTransactionsElement::Eip1559 { transaction, .. } => &transaction.input,
-            PooledTransactionsElement::BlobTransaction(blob_tx) => &blob_tx.transaction.input,
+            PooledTransactionsElement::BlobTransaction(blob_tx) => &blob_tx.transaction.tx.input,
             _ => unimplemented!(),
         }
     }
@@ -94,7 +96,7 @@ impl TransactionExt for PooledTransactionsElement {
             PooledTransactionsElement::Eip2930 { transaction, .. } => Some(transaction.chain_id),
             PooledTransactionsElement::Eip1559 { transaction, .. } => Some(transaction.chain_id),
             PooledTransactionsElement::BlobTransaction(blob_tx) => {
-                Some(blob_tx.transaction.chain_id)
+                Some(blob_tx.transaction.tx.chain_id)
             }
             _ => unimplemented!(),
         }
@@ -102,7 +104,9 @@ impl TransactionExt for PooledTransactionsElement {
 
     fn blob_sidecar(&self) -> Option<&BlobTransactionSidecar> {
         match self {
-            PooledTransactionsElement::BlobTransaction(blob_tx) => Some(&blob_tx.sidecar),
+            PooledTransactionsElement::BlobTransaction(blob_tx) => {
+                Some(&blob_tx.transaction.sidecar)
+            }
             _ => None,
         }
     }
@@ -112,7 +116,7 @@ impl TransactionExt for PooledTransactionsElement {
             PooledTransactionsElement::Legacy { transaction, .. } => transaction.size(),
             PooledTransactionsElement::Eip2930 { transaction, .. } => transaction.size(),
             PooledTransactionsElement::Eip1559 { transaction, .. } => transaction.size(),
-            PooledTransactionsElement::BlobTransaction(blob_tx) => blob_tx.transaction.size(),
+            PooledTransactionsElement::BlobTransaction(blob_tx) => blob_tx.transaction.tx.size(),
             _ => unimplemented!(),
         }
     }
@@ -152,7 +156,7 @@ impl fmt::Debug for FullTransaction {
             PooledTransactionsElement::BlobTransaction(blob_tx) => {
                 let shortened_blobs: Vec<String> =
                     // Use alternative `Display` to print trimmed blob
-                    blob_tx.sidecar.blobs.iter().map(|blob| format!("{blob:#}")).collect();
+                    blob_tx.transaction.sidecar.blobs.iter().map(|blob| format!("{blob:#}")).collect();
 
                 debug_struct.field("tx", &"BlobTransaction");
                 debug_struct.field("hash", &blob_tx.hash);
@@ -160,8 +164,8 @@ impl fmt::Debug for FullTransaction {
                 debug_struct.field("signature", &blob_tx.signature);
 
                 debug_struct.field("sidecar_blobs", &shortened_blobs);
-                debug_struct.field("sidecar_commitments", &blob_tx.sidecar.commitments);
-                debug_struct.field("sidecar_proofs", &blob_tx.sidecar.proofs);
+                debug_struct.field("sidecar_commitments", &blob_tx.transaction.sidecar.commitments);
+                debug_struct.field("sidecar_proofs", &blob_tx.transaction.sidecar.proofs);
             }
             other => {
                 debug_struct.field("tx", other);
@@ -190,7 +194,7 @@ impl std::ops::DerefMut for FullTransaction {
 impl FullTransaction {
     /// Convenience method to parse a raw transaction into a `FullTransaction`.
     pub fn decode_enveloped(data: impl AsRef<[u8]>) -> eyre::Result<Self> {
-        let tx = PooledTransactionsElement::decode_enveloped(&mut data.as_ref())?;
+        let tx = PooledTransactionsElement::decode_2718(&mut data.as_ref())?;
         Ok(Self { tx, sender: None })
     }
 
@@ -235,7 +239,7 @@ pub fn serialize_txs<S: serde::Serializer>(
 ) -> Result<S::Ok, S::Error> {
     let mut seq = serializer.serialize_seq(Some(txs.len()))?;
     for tx in txs {
-        let encoded = tx.tx.envelope_encoded();
+        let encoded = tx.tx.encoded_2718();
         seq.serialize_element(&hex::encode_prefixed(encoded))?;
     }
     seq.end()
@@ -251,7 +255,7 @@ where
 
     for s in hex_strings {
         let data = hex::decode(s.trim_start_matches("0x")).map_err(de::Error::custom)?;
-        let tx = PooledTransactionsElement::decode_enveloped(&mut data.as_slice())
+        let tx = PooledTransactionsElement::decode_2718(&mut data.as_slice())
             .map_err(de::Error::custom)
             .map(|tx| FullTransaction { tx, sender: None })?;
         txs.push(tx);

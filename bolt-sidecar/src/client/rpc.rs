@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use alloy::{
     eips::BlockNumberOrTag,
-    primitives::{Address, Bytes, B256, U256, U64},
+    primitives::{Address, Bytes, TxHash, B256, U256, U64},
     rpc::{
         client::{self as alloyClient, ClientBuilder},
         types::{Block, FeeHistory, TransactionReceipt},
@@ -12,7 +12,6 @@ use alloy::{
 
 use futures::{stream::FuturesUnordered, StreamExt};
 use reqwest::{Client, Url};
-use reth_primitives::TxHash;
 
 use crate::primitives::AccountState;
 
