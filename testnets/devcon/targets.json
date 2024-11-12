@@ -1,0 +1,20 @@
+[
+  {
+    "targets": ["cb_bolt:10000"],
+    "labels": {
+      "job": "cb_bolt"
+    }
+  },
+  {
+    "targets": ["cb_pbs:10000"],
+    "labels": {
+      "job": "pbs"
+    }
+  },
+  {
+    "targets": ["cb_cadvisor:8080"],
+    "labels": {
+      "job": "cadvisor"
+    }
+  }
+]
