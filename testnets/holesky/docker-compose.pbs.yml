@@ -64,7 +64,7 @@ services:
       ["/bin/sh", "-c", "chmod +x /scripts/run-bn.sh && /scripts/run-bn.sh"]
 
   helix-relay:
-    image: ghcr.io/chainbound/helix:v0.3.0-alpha.rc2
+    image: ghcr.io/chainbound/helix:v0.3.0-alpha.rc4
     restart: unless-stopped
     depends_on:
       - db
@@ -77,6 +77,6 @@ services:
       - "44040:4040"
     environment:
       - RELAY_KEY=0x607a11b45a7219cc61a3d9c5fd08c7eebd602a6a19a977f8d3771d5711a550f2
-      - RUST_LOG=helix_cmd=debug,helix_api=debug,helix_common=debug,helix_datastore=debug,helix_housekeeper=debug,helix_database=debug,helix_beacon_client=debug
+      - RUST_LOG=helix_cmd=debug,helix_api=debug,helix_common=debug,helix_datastore=debug,helix_housekeeper=debug,helix_database=debug,helix_beacon_client=debug,helix_website=debug
       - RUST_BACKTRACE=1
     command: --config /helix-config.yml
