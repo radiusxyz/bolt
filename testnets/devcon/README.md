@@ -20,6 +20,11 @@ After you're done, you can start the setup with the following command
 docker-compose -f cb.docker-compose.yml --env-file .cb.env up -d
 ```
 
+## Connecting Validators
+
+Once the setup is running, you can point your beacon node's `builder-endpoint` to the commit-boost PBS module.
+In the provided config files, this is exposed on the host at port 18550, and should be reachable at `http://localhost:18550`.
+
 ## Architecture Overview
 
 Here is an overview of the setup you will be running:
