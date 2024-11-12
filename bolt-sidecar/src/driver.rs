@@ -374,12 +374,14 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
     /// Handle a commitment deadline event, submitting constraints to the Constraints client service
     /// and starting to build a local payload for the given target slot.
     async fn handle_commitment_deadline(&mut self, slot: u64) {
-        debug!(slot, "Commitment deadline reached, building local block");
-
         let Some(template) = self.execution.get_block_template(slot) else {
-            warn!("No block template found for slot {slot} when requested");
+            // Nothing to do then. Block templates are created only when constraints are added,
+            // which means we haven't issued any commitment for this slot because we are
+            // (probably) not the proposer for this block.
             return;
         };
+
+        info!(slot, "Commitment deadline reached, building local block");
 
         if let Err(e) = self.local_builder.build_new_local_payload(slot, template).await {
             error!(err = ?e, "Error while building local payload at deadline for slot {slot}");
