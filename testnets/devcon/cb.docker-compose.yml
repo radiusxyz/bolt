@@ -1,0 +1,98 @@
+services:
+  cb_bolt:
+    image: ghcr.io/chainbound/bolt-sidecar:v0.3.0-alpha.rc2
+    container_name: cb_bolt
+    env_file:
+      - .bolt-sidecar.env
+    environment:
+      CB_MODULE_ID: BOLT
+      CB_CONFIG: /cb-config.toml
+      CB_SIGNER_JWT: ${CB_JWT_BOLT}
+      CB_SIGNER_URL: http://cb_signer:20000
+    ports:
+      - 8017:8017
+    networks:
+      - signer_network
+      - monitoring_network
+    depends_on:
+      - cb_signer
+  cb_pbs:
+    image: ghcr.io/commit-boost/pbs:latest
+    container_name: cb_pbs
+    ports:
+      - 18550:18550
+    environment:
+      CB_CONFIG: /cb-config.toml
+      CB_METRICS_PORT: 10000
+      CB_LOGS_DIR: /var/logs/commit-boost
+    volumes:
+      - ./cb-bolt-config.toml:/cb-config.toml:ro
+      - ./logs/pbs:/var/logs/commit-boost
+    networks:
+      - monitoring_network
+  cb_signer:
+    image: ghcr.io/commit-boost/signer:latest
+    container_name: cb_signer
+    environment:
+      CB_CONFIG: /cb-config.toml
+      CB_JWTS: ${CB_JWTS}
+      CB_SIGNER_PORT: 20000
+      CB_METRICS_PORT: 10000
+      CB_LOGS_DIR: /var/logs/commit-boost
+      CB_SIGNER_LOADER_FILE: /keys.json
+    volumes:
+      - ./cb-bolt-config.toml:/cb-config.toml:ro
+      - ././keys.json:/keys.json:ro
+      - ./logs/signer:/var/logs/commit-boost
+    networks:
+      - signer_network
+      - monitoring_network
+  cb_prometheus:
+    image: prom/prometheus:latest
+    container_name: cb_prometheus
+    ports:
+      - 9090:9090
+    volumes:
+      - ./cb-prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./targets.json:/etc/prometheus/targets.json
+      - prometheus-data:/prometheus
+    networks:
+      - monitoring_network
+  cb_grafana:
+    image: grafana/grafana:latest
+    container_name: cb_grafana
+    ports:
+      - 3000:3000
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+      - grafana-data:/var/lib/grafana
+    networks:
+      - monitoring_network
+    depends_on:
+      - cb_prometheus
+    logging:
+      driver: none
+  cb_cadvisor:
+    image: gcr.io/cadvisor/cadvisor
+    container_name: cb_cadvisor
+    ports:
+      - 8080:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - monitoring_network
+volumes:
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+networks:
+  monitoring_network:
+    driver: bridge
+  signer_network:
+    driver: bridge
