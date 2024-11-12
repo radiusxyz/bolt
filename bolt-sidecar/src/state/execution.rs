@@ -432,7 +432,6 @@ impl<C: StateFetcher> ExecutionState<C> {
 
     /// Commits the transaction to the target block. Initializes a new block template
     /// if one does not exist for said block number.
-    /// TODO: remove `pub` modifier once `try_commit` is fully implemented.
     pub fn add_constraint(&mut self, target_slot: u64, signed_constraints: SignedConstraints) {
         if let Some(template) = self.block_templates.get_mut(&target_slot) {
             template.add_constraints(signed_constraints);
