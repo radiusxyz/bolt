@@ -1,6 +1,3 @@
-//! This module contains the `RpcClient` struct, which is a wrapper around the `alloy_rpc_client`.
-//! It provides a simple interface to interact with the Execution layer JSON-RPC API.
-
 use std::ops::{Deref, DerefMut};
 
 use alloy::{
@@ -114,6 +111,7 @@ impl RpcClient {
     }
 
     /// Send a raw transaction to the network.
+    #[allow(unused)]
     pub async fn send_raw_transaction(&self, raw: Bytes) -> TransportResult<B256> {
         self.0.request("eth_sendRawTransaction", [raw]).await
     }

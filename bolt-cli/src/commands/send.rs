@@ -1,8 +1,11 @@
 use std::time::Duration;
 
 use alloy::{
-    consensus::{BlobTransactionSidecar, SidecarBuilder, SimpleCoder, Transaction},
+    consensus::{
+        constants::GWEI_TO_WEI, BlobTransactionSidecar, SidecarBuilder, SimpleCoder, Transaction,
+    },
     eips::eip2718::Encodable2718,
+    hex,
     network::{EthereumWallet, TransactionBuilder, TransactionBuilder4844},
     primitives::{keccak256, Address, B256, U256},
     providers::{ProviderBuilder, SendableTx},
@@ -73,6 +76,12 @@ impl SendCommand {
         for _ in 0..self.count {
             // generate a simple self-transfer of ETH
             let mut req = create_tx_request(wallet.address(), self.blob);
+            if let Some(max_fee) = self.max_fee {
+                req.set_max_fee_per_gas(max_fee * GWEI_TO_WEI as u128);
+            }
+
+            req.set_max_priority_fee_per_gas(self.priority_fee * GWEI_TO_WEI as u128);
+
             if let Some(next_nonce) = next_nonce {
                 req.set_nonce(next_nonce);
             }
@@ -219,9 +228,9 @@ async fn sign_request(
         keccak256(data)
     };
 
-    let signature = hex::encode(wallet.sign_hash(&digest).await?.as_bytes());
+    let signature = hex::encode_prefixed(wallet.sign_hash(&digest).await?.as_bytes());
 
-    Ok(format!("{}:0x{}", wallet.address(), signature))
+    Ok(format!("{}:{}", wallet.address(), signature))
 }
 
 fn prepare_rpc_request(method: &str, params: Value) -> Value {

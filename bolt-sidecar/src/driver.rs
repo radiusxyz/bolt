@@ -1,38 +1,39 @@
-use std::{
-    collections::HashSet,
-    fmt,
-    time::{Duration, Instant},
-};
+use std::{fmt, sync::Arc, time::Instant};
 
 use alloy::{rpc::types::beacon::events::HeadEvent, signers::local::PrivateKeySigner};
 use beacon_api_client::mainnet::Client as BeaconClient;
 use ethereum_consensus::{
     clock::{self, SlotStream, SystemTimeProvider},
-    crypto::bls::PublicKey as BlsPublicKey,
     phase0::mainnet::SLOTS_PER_EPOCH,
 };
+use eyre::Context;
 use futures::StreamExt;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    builder::payload_fetcher::LocalPayloadFetcher,
-    chain_io::manager::BoltManager,
-    commitments::{
-        server::{CommitmentsApiServer, Event as CommitmentEvent},
-        spec::Error as CommitmentError,
+    api::{
+        builder::{start_builder_proxy_server, BuilderProxyConfig},
+        commitments::{
+            server::{CommitmentEvent, CommitmentsApiServer},
+            spec::CommitmentError,
+        },
+        spec::ConstraintsApi,
     },
-    crypto::{bls::cl_public_key_to_arr, SignableBLS, SignerECDSA},
+    builder::payload_fetcher::LocalPayloadFetcher,
+    chain_io::BoltManager,
+    client::ConstraintsClient,
+    common::retry_with_backoff,
+    config::Opts,
+    crypto::{SignableBLS, SignerECDSA},
     primitives::{
         read_signed_delegations_from_file, CommitmentRequest, ConstraintsMessage,
         FetchPayloadRequest, SignedConstraints, TransactionExt,
     },
-    signer::{keystore::KeystoreSigner, local::LocalSigner},
-    start_builder_proxy_server,
+    signer::{keystore::KeystoreSigner, local::LocalSigner, CommitBoostSigner, SignerBLS},
     state::{fetcher::StateFetcher, ConsensusState, ExecutionState, HeadTracker, StateClient},
     telemetry::ApiMetrics,
-    BuilderProxyConfig, CommitBoostSigner, ConstraintsApi, ConstraintsClient, LocalBuilder, Opts,
-    SignerBLS,
+    LocalBuilder,
 };
 
 /// The driver for the sidecar, responsible for managing the main event loop.
@@ -67,22 +68,6 @@ pub struct SidecarDriver<C, ECDSA> {
     slot_stream: SlotStream<SystemTimeProvider>,
 }
 
-impl fmt::Debug for SidecarDriver<StateClient, PrivateKeySigner> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SidecarDriver")
-            .field("head_tracker", &self.head_tracker)
-            .field("execution", &self.execution)
-            .field("consensus", &self.consensus)
-            .field("constraint_signer", &self.constraint_signer)
-            .field("commitment_signer", &self.commitment_signer)
-            .field("local_builder", &self.local_builder)
-            .field("constraints_client", &self.constraints_client)
-            .field("api_events_rx", &self.api_events_rx)
-            .field("payload_requests_rx", &self.payload_requests_rx)
-            .finish()
-    }
-}
-
 impl SidecarDriver<StateClient, PrivateKeySigner> {
     /// Create a new sidecar driver with the given [Opts] and private key signer.
     pub async fn with_local_signer(opts: &Opts) -> eyre::Result<Self> {
@@ -103,7 +88,9 @@ impl SidecarDriver<StateClient, PrivateKeySigner> {
         let commitment_key = opts.commitment_private_key.0.clone();
         let commitment_signer = PrivateKeySigner::from_signing_key(commitment_key);
 
-        Self::from_components(opts, constraint_signer, commitment_signer, state_client).await
+        Self::from_components(opts, constraint_signer, commitment_signer, state_client)
+            .await
+            .wrap_err("Failed to initialize sidecar with local signer")
     }
 }
 
@@ -133,7 +120,9 @@ impl SidecarDriver<StateClient, PrivateKeySigner> {
         let commitment_key = opts.commitment_private_key.0.clone();
         let commitment_signer = PrivateKeySigner::from_signing_key(commitment_key);
 
-        Self::from_components(opts, keystore_signer, commitment_signer, state_client).await
+        Self::from_components(opts, keystore_signer, commitment_signer, state_client)
+            .await
+            .wrap_err("Failed to initialize sidecar with keystore signer")
     }
 }
 
@@ -150,7 +139,9 @@ impl SidecarDriver<StateClient, CommitBoostSigner> {
 
         let cb_bls_signer = SignerBLS::CommitBoost(commit_boost_signer.clone());
 
-        Self::from_components(opts, cb_bls_signer, commit_boost_signer, state_client).await
+        Self::from_components(opts, cb_bls_signer, commit_boost_signer, state_client)
+            .await
+            .wrap_err("Failed to initialize sidecar with commit-boost signer")
     }
 }
 
@@ -165,40 +156,34 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         let mut constraints_client = ConstraintsClient::new(opts.constraints_api_url.clone());
 
         // read the delegations from disk if they exist and add them to the constraints client.
-        let validator_public_keys = if let Some(delegations_file_path) =
-            opts.constraint_signing.delegations_path.as_ref()
+        let validator_pubkeys = if let Some(delegations_path) =
+            &opts.constraint_signing.delegations_path
         {
-            let delegations = read_signed_delegations_from_file(delegations_file_path)?;
-            let validator_public_keys =
-                delegations.iter().map(|d| d.message.validator_pubkey.clone()).collect::<Vec<_>>();
+            let delegations = read_signed_delegations_from_file(delegations_path)?;
+            let keys = delegations.iter().map(|d| d.validator_pubkey.clone()).collect::<Vec<_>>();
             constraints_client.add_delegations(delegations);
-            validator_public_keys
+            keys
         } else {
+            // If no delegations are provided, we just use the public keys from the signer.
             Vec::from_iter(constraint_signer.available_pubkeys())
         };
 
         // Verify the operator and validator keys with the bolt manager
-        if let Some(bolt_manager) =
-            BoltManager::from_chain(opts.execution_api_url.clone(), opts.chain.chain)
+        if let Some(manager) = BoltManager::from_chain(opts.execution_api_url.clone(), *opts.chain)
         {
             let commitment_signer_pubkey = commitment_signer.public_key();
-            let validator_public_keys_len = validator_public_keys.len();
             info!(
-                validator_public_keys_len,
-                commitment_signer_pubkey = ?commitment_signer_pubkey,
+                validator_pubkeys = %validator_pubkeys.len(),
+                commitment_signer = ?commitment_signer_pubkey,
                 "Verifying validators and operator keys with Bolt Manager, this may take a while..."
             );
-            bolt_manager
-                .verify_validator_pubkeys(validator_public_keys, commitment_signer_pubkey)
-                .await?;
-            info!(
-                validator_public_keys_len,
-                commitment_signer_pubkey = ?commitment_signer_pubkey,
-                "Verified validators and operator keys verified with Bolt Manager successfully"
-            );
+
+            manager.verify_validator_pubkeys(validator_pubkeys, commitment_signer_pubkey).await?;
+
+            info!("Successfully verified validators and operator keys with Bolt Manager.");
         } else {
             warn!(
-                "No Bolt Manager contract deployed on {} chain, skipping validators and operator public keys verification",
+                "Bolt Manager is not deployed on {}, skipping validators and operator public keys verification",
                 opts.chain.name()
             );
         }
@@ -216,7 +201,6 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
 
         let consensus = ConsensusState::new(
             beacon_client,
-            opts.validator_indexes.clone(),
             opts.chain.commitment_deadline(),
             opts.chain.enable_unsafe_lookahead,
         );
@@ -259,15 +243,6 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
     /// Any errors encountered are contained to the specific `handler` in which
     /// they occurred, and the driver will continue to run as long as possible.
     pub async fn run_forever(mut self) -> ! {
-        const BOLT: &str = r#"
-            ██████╗  ██████╗ ██╗  ████████╗
-            ██╔══██╗██╔═══██╗██║  ╚══██╔══╝
-            ██████╔╝██║   ██║██║     ██║   
-            ██╔══██╗██║   ██║██║     ██║   
-            ██████╔╝╚██████╔╝███████╗██║   
-            ╚═════╝  ╚═════╝ ╚══════╝╚═╝   "#;
-        println!("{BOLT}");
-
         loop {
             tokio::select! {
                 Some(api_event) = self.api_events_rx.recv() => {
@@ -276,7 +251,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                 Ok(head_event) = self.head_tracker.next_head() => {
                     self.handle_new_head_event(head_event).await;
                 }
-                Some(slot) = self.consensus.commitment_deadline.wait() => {
+                Some(slot) = self.consensus.wait_commitment_deadline() => {
                     self.handle_commitment_deadline(slot).await;
                 }
                 Some(payload_request) = self.payload_requests_rx.recv() => {
@@ -302,20 +277,21 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         let validator_pubkey = match self.consensus.validate_request(&request) {
             Ok(pubkey) => pubkey,
             Err(err) => {
-                error!(?err, "Consensus: failed to validate request");
+                warn!(?err, "Consensus: failed to validate request");
                 let _ = response.send(Err(CommitmentError::Consensus(err)));
                 return;
             }
         };
 
         if let Err(err) = self.execution.validate_request(&mut request).await {
-            error!(?err, "Execution: failed to commit request");
+            warn!(?err, "Execution: failed to validate request");
             ApiMetrics::increment_validation_errors(err.to_tag_str().to_owned());
             let _ = response.send(Err(CommitmentError::Validation(err)));
             return;
         }
 
-        // TODO: match when we have more request types
+        // When we'll add more commitment types, we'll need to match on the request type here.
+        // For now, we only support inclusion requests so the flow is straightforward.
         let CommitmentRequest::Inclusion(inclusion_request) = request.clone();
         let target_slot = inclusion_request.slot;
 
@@ -325,33 +301,38 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             "Validation against execution state passed"
         );
 
-        let delegatees = self.constraints_client.find_delegatees(&validator_pubkey);
         let available_pubkeys = self.constraint_signer.available_pubkeys();
 
-        let Some(pubkey) = pick_public_key(validator_pubkey, available_pubkeys, delegatees) else {
+        // Find a public key to sign new constraints with for this slot.
+        // This can either be the validator pubkey or a delegatee (if one is available).
+        let Some(signing_pubkey) =
+            self.constraints_client.find_signing_key(validator_pubkey, available_pubkeys)
+        else {
             error!(%target_slot, "No available public key to sign constraints with");
             let _ = response.send(Err(CommitmentError::Internal));
             return;
         };
 
         // NOTE: we iterate over the transactions in the request and generate a signed constraint
-        // for each one. This is because the transactions in the commitment request are not
-        // supposed to be treated as a relative-ordering bundle, but a batch
-        // with no ordering guarantees.
+        // for each one. This is because the transactions in the commitment request are not supposed
+        // to be treated as a relative-ordering bundle, but a batch with no ordering guarantees.
+        //
+        // For more information, check out the constraints API docs:
+        // https://docs.boltprotocol.xyz/technical-docs/api/builder#constraints
         for tx in inclusion_request.txs {
             let tx_type = tx.tx_type();
-            let message = ConstraintsMessage::from_transaction(pubkey.clone(), target_slot, tx);
+            let message = ConstraintsMessage::from_tx(signing_pubkey.clone(), target_slot, tx);
             let digest = message.digest();
 
-            let signature = match self.constraint_signer {
-                SignerBLS::Local(ref signer) => signer.sign_commit_boost_root(digest),
-                SignerBLS::CommitBoost(ref signer) => signer.sign_commit_boost_root(digest).await,
-                SignerBLS::Keystore(ref signer) => {
-                    signer.sign_commit_boost_root(digest, cl_public_key_to_arr(pubkey.clone()))
+            let signature_result = match &self.constraint_signer {
+                SignerBLS::Local(signer) => signer.sign_commit_boost_root(digest),
+                SignerBLS::CommitBoost(signer) => signer.sign_commit_boost_root(digest).await,
+                SignerBLS::Keystore(signer) => {
+                    signer.sign_commit_boost_root(digest, signing_pubkey.clone())
                 }
             };
 
-            let signed_constraints = match signature {
+            let signed_constraints = match signature_result {
                 Ok(signature) => SignedConstraints { message, signature },
                 Err(e) => {
                     error!(?e, "Failed to sign constraints");
@@ -404,22 +385,23 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             error!(err = ?e, "Error while building local payload at deadline for slot {slot}");
         };
 
-        // TODO: fix retry logic, and move this to separate task in the constraints client itself
-        let constraints = template.signed_constraints_list.clone();
+        let constraints = Arc::new(template.signed_constraints_list.clone());
         let constraints_client = self.constraints_client.clone();
-        tokio::spawn(async move {
-            let max_retries = 5;
-            let mut i = 0;
-            while let Err(e) = constraints_client.submit_constraints(&constraints).await {
-                error!(err = ?e, "Error submitting constraints to constraints client, retrying...");
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                i += 1;
-                if i >= max_retries {
-                    error!("Max retries reached while submitting to Constraints client");
-                    break;
+
+        // Submit constraints to the constraints service with an exponential retry mechanism.
+        tokio::spawn(retry_with_backoff(10, move || {
+            let constraints_client = constraints_client.clone();
+            let constraints = Arc::clone(&constraints);
+            async move {
+                match constraints_client.submit_constraints(constraints.as_ref()).await {
+                    Ok(_) => Ok(()),
+                    Err(e) => {
+                        error!(err = ?e, "Failed to submit constraints, retrying...");
+                        Err(e)
+                    }
                 }
             }
-        });
+        }));
     }
 
     /// Handle a fetch payload request, responding with the local payload if available.
@@ -438,28 +420,18 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
     }
 }
 
-/// Pick a pubkey to sign constraints with.
-///
-/// Rationale:
-/// - If there are no delegatee keys, try to use the validator key directly if available.
-/// - If there are delegatee keys, try to use the first one that is available in the list.
-fn pick_public_key(
-    validator: BlsPublicKey,
-    available: HashSet<BlsPublicKey>,
-    delegatees: HashSet<BlsPublicKey>,
-) -> Option<BlsPublicKey> {
-    if delegatees.is_empty() {
-        if available.contains(&validator) {
-            return Some(validator);
-        } else {
-            return None;
-        }
-    } else {
-        for delegatee in delegatees {
-            if available.contains(&delegatee) {
-                return Some(delegatee);
-            }
-        }
+impl fmt::Debug for SidecarDriver<StateClient, PrivateKeySigner> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SidecarDriver")
+            .field("head_tracker", &self.head_tracker)
+            .field("execution", &self.execution)
+            .field("consensus", &self.consensus)
+            .field("constraint_signer", &self.constraint_signer)
+            .field("commitment_signer", &self.commitment_signer)
+            .field("local_builder", &self.local_builder)
+            .field("constraints_client", &self.constraints_client)
+            .field("api_events_rx", &self.api_events_rx)
+            .field("payload_requests_rx", &self.payload_requests_rx)
+            .finish()
     }
-    None
 }

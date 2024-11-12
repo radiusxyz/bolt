@@ -1,7 +1,4 @@
-//! Package `template` contains the functionality for building local block templates that can
-//! be used as a fallback. It's also used to keep any intermediary state that is needed to simulate
-//! new commitment requests.
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use alloy::primitives::{Address, U256};
 use ethereum_consensus::{

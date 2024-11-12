@@ -5,7 +5,7 @@ use std::time::Duration;
 use tokio::{sync::broadcast, task::AbortHandle, time::sleep};
 use tracing::warn;
 
-use crate::BeaconClient;
+use crate::client::BeaconClient;
 
 /// The delay between retries when attempting to reconnect to the beacon client
 const RETRY_DELAY: Duration = Duration::from_secs(1);
@@ -98,9 +98,7 @@ mod tests {
     use reqwest::Url;
     use tracing::warn;
 
-    use crate::{
-        state::head_tracker::HeadTracker, test_util::try_get_beacon_api_url, BeaconClient,
-    };
+    use crate::{client::BeaconClient, state::HeadTracker, test_util::try_get_beacon_api_url};
 
     #[tokio::test]
     async fn test_fetch_next_beacon_head() -> eyre::Result<()> {

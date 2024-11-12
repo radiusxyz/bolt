@@ -5,13 +5,14 @@
 ## Configuration
 
 There are 2 JSON configuration files:
-- [`config/holesky/deployments.json`](../../config/holesky/deployments.json): contains deployment addresses of EigenLayer ([here](https://github.com/Layr-Labs/eigenlayer-contracts/blob/dev/README.md#deployments)) and Symbiotic ([here](https://docs.symbiotic.fi/deployments)). 
+
+- [`config/holesky/deployments.json`](../../config/holesky/deployments.json): contains deployment addresses of EigenLayer ([here](https://github.com/Layr-Labs/eigenlayer-contracts/blob/dev/README.md#deployments)) and Symbiotic ([here](https://docs.symbiotic.fi/deployments/current)).
 - [`config/holesky/parameters.json`](../../config/holesky/parameters.json): contains the launch parameters for `BoltParameters`.
 
-
-
 ## Deployment Guide
+
 Make sure we have a full compilation for the Foundry Upgrades Toolkit:
+
 ```bash
 forge clean && forge build
 ```
@@ -54,6 +55,7 @@ addresses into the [`deployments.json`](../../config/holesky/deployments.json) f
 ### Deployment
 
 Run the following script to deploy Bolt V1:
+
 ```bash
 forge script script/holesky/admin/Deploy.s.sol --rpc-url $HOLESKY_RPC --private-key $ADMIN_PRIVATE_KEY --verify --broadcast -vvvv
 ```
@@ -74,17 +76,18 @@ forge script script/holesky/admin/helpers/Symbiotic.s.sol --rpc-url $HOLESKY_RPC
 Also set the AVS metadata in the EigenLayer AVS Directory, needs to be run with the **admin private key** used at deployment.
 
 ```bash
-forge script script/holesky/admin/helpers/RegisterAVS.s.sol --rpc-url $HOLESKY_RPC --private-key $ADMIN_PRIVATE_KEY --broadcast -vvvv 
+forge script script/holesky/admin/helpers/RegisterAVS.s.sol --rpc-url $HOLESKY_RPC --private-key $ADMIN_PRIVATE_KEY --broadcast -vvvv
 ```
 
 > [!IMPORTANT]
 > After the `deployments.json` file has been fully updated with the correct contract addresses, push it to Github.
 
-
 ### Other Scripts
 
 #### Modifying supported Symbiotic Vaults
+
 This script will update supported vaults according to `deployments.json`, and remove any vaults that have been whitelisted but are no longer in the `symbiotic.supportedVaults` list.
+
 ```bash
 forge script script/holesky/admin/helpers/UpdateSupportedVaults.s.sol --rpc-url $HOLESKY_RPC --private-key $ADMIN_PRIVATE_KEY --broadcast -vvv
 ```

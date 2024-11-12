@@ -1,20 +1,37 @@
-use std::fmt::Debug;
 use std::{borrow::Cow, fmt};
 
-use alloy::primitives::{Address, U256};
+use alloy::{
+    hex,
+    primitives::{Address, U256},
+};
 use reth_primitives::{BlobTransactionSidecar, Bytes, PooledTransactionsElement, TxKind, TxType};
 use serde::{de, ser::SerializeSeq};
 
 /// Trait that exposes additional information on transaction types that don't already do it
 /// by themselves (e.g. [`PooledTransactionsElement`]).
 pub trait TransactionExt {
+    /// Returns the gas limit of the transaction.
     fn gas_limit(&self) -> u64;
+
+    /// Returns the value of the transaction.
     fn value(&self) -> U256;
+
+    /// Returns the type of the transaction.
     fn tx_type(&self) -> TxType;
+
+    /// Returns the kind of the transaction.
     fn tx_kind(&self) -> TxKind;
+
+    /// Returns the input data of the transaction.
     fn input(&self) -> &Bytes;
+
+    /// Returns the chain ID of the transaction.
     fn chain_id(&self) -> Option<u64>;
+
+    /// Returns the blob sidecar of the transaction, if any.
     fn blob_sidecar(&self) -> Option<&BlobTransactionSidecar>;
+
+    /// Returns the size of the transaction in bytes.
     fn size(&self) -> usize;
 }
 
@@ -101,6 +118,7 @@ impl TransactionExt for PooledTransactionsElement {
     }
 }
 
+/// Returns a string representation of the transaction type.
 pub const fn tx_type_str(tx_type: TxType) -> &'static str {
     match tx_type {
         TxType::Legacy => "legacy",
@@ -114,7 +132,9 @@ pub const fn tx_type_str(tx_type: TxType) -> &'static str {
 /// A wrapper type for a full, complete transaction (i.e. with blob sidecars attached).
 #[derive(Clone, PartialEq, Eq)]
 pub struct FullTransaction {
+    /// The transaction itself.
     pub tx: PooledTransactionsElement,
+    /// The sender of the transaction, if recovered.
     pub sender: Option<Address>,
 }
 
@@ -174,6 +194,7 @@ impl FullTransaction {
         Ok(Self { tx, sender: None })
     }
 
+    /// Returns the inner transaction.
     pub fn into_inner(self) -> PooledTransactionsElement {
         self.tx
     }
@@ -215,7 +236,7 @@ pub fn serialize_txs<S: serde::Serializer>(
     let mut seq = serializer.serialize_seq(Some(txs.len()))?;
     for tx in txs {
         let encoded = tx.tx.envelope_encoded();
-        seq.serialize_element(&format!("0x{}", hex::encode(encoded)))?;
+        seq.serialize_element(&hex::encode_prefixed(encoded))?;
     }
     seq.end()
 }

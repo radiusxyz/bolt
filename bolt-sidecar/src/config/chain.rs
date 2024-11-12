@@ -1,6 +1,7 @@
 use core::fmt;
 use std::{
     fmt::{Display, Formatter},
+    ops::Deref,
     time::Duration,
 };
 
@@ -25,6 +26,7 @@ pub const APPLICATION_BUILDER_DOMAIN_MASK: [u8; 4] = [0, 0, 0, 1];
 /// The domain mask for signing commit-boost messages.
 pub const COMMIT_BOOST_DOMAIN_MASK: [u8; 4] = [109, 109, 111, 67];
 
+/// Default chain configuration for the sidecar.
 pub const DEFAULT_CHAIN_CONFIG: ChainConfig = ChainConfig {
     chain: Chain::Mainnet,
     commitment_deadline: DEFAULT_COMMITMENT_DEADLINE_IN_MILLIS,
@@ -41,11 +43,7 @@ pub const MANAGER_ADDRESS_HOLESKY: Address = address!("440202829b493F9FF43E730EB
 #[derive(Debug, Clone, Copy, Args, Deserialize)]
 pub struct ChainConfig {
     /// Chain on which the sidecar is running
-    #[clap(
-        long,
-        env = "BOLT_SIDECAR_CHAIN",
-        default_value_t = DEFAULT_CHAIN_CONFIG.chain
-    )]
+    #[clap(long, env = "BOLT_SIDECAR_CHAIN", default_value_t = Chain::Mainnet)]
     pub(crate) chain: Chain,
     /// The deadline in the slot at which the sidecar will stop accepting
     /// new commitments for the next block (parsed as milliseconds).
@@ -79,9 +77,18 @@ impl Default for ChainConfig {
     }
 }
 
+impl Deref for ChainConfig {
+    type Target = Chain;
+
+    fn deref(&self) -> &Self::Target {
+        &self.chain
+    }
+}
+
 /// Supported chains for the sidecar
 #[derive(Debug, Clone, Copy, ValueEnum, Deserialize)]
 #[clap(rename_all = "kebab_case")]
+#[allow(missing_docs)]
 pub enum Chain {
     Mainnet,
     Holesky,
@@ -90,6 +97,7 @@ pub enum Chain {
 }
 
 impl Chain {
+    /// Get the chain name for the given chain.
     pub fn name(&self) -> &'static str {
         match self {
             Chain::Mainnet => "mainnet",
@@ -133,11 +141,6 @@ impl ChainConfig {
             Chain::Helder => 7014190335,
             Chain::Kurtosis => 3151908,
         }
-    }
-
-    /// Get the chain name for the given chain.
-    pub fn name(&self) -> &'static str {
-        self.chain.name()
     }
 
     /// Get the slot time for the given chain in seconds.

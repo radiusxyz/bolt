@@ -9,4 +9,4 @@ useGitIgnore: true
 
 ignorePatterns:
   - pattern: "^https://.*etherscan.io/.*$"
-
+  - pattern: "^https://.*docs.eigenlayer.xyz/.*$"

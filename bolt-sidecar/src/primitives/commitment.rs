@@ -1,12 +1,16 @@
-use serde::{de, Deserialize, Deserializer, Serialize};
 use std::str::FromStr;
 
-use alloy::primitives::{keccak256, Address, Signature, B256};
+use alloy::{
+    hex,
+    primitives::{keccak256, Address, Signature, B256},
+};
+use serde::{de, Deserialize, Deserializer, Serialize};
 
 use crate::crypto::SignerECDSA;
 
 use super::{deserialize_txs, serialize_txs, FullTransaction, TransactionExt};
 
+/// Error type for signature errors.
 #[derive(Debug, thiserror::Error)]
 #[error("Invalid signature")]
 pub struct SignatureError;
@@ -23,6 +27,7 @@ pub enum CommitmentRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum SignedCommitment {
+    /// A signed inclusion commitment.
     Inclusion(InclusionCommitment),
 }
 
@@ -48,9 +53,6 @@ impl CommitmentRequest {
     pub fn as_inclusion_request(&self) -> Option<&InclusionRequest> {
         match self {
             CommitmentRequest::Inclusion(req) => Some(req),
-            // TODO: remove this when we have more request types
-            #[allow(unreachable_patterns)]
-            _ => None,
         }
     }
 
@@ -89,6 +91,7 @@ pub struct InclusionRequest {
     /// this specific commitment to be included at the given slot.
     #[serde(skip)]
     pub signature: Option<Signature>,
+    /// The signer of the request (if recovered).
     #[serde(skip)]
     pub signer: Option<Address>,
 }
@@ -186,6 +189,7 @@ impl InclusionRequest {
         self.signer = Some(signer);
     }
 
+    /// Recovers the signer of all transactions in the request.
     pub fn recover_signers(&mut self) -> Result<(), SignatureError> {
         for tx in &mut self.txs {
             let signer = tx.recover_signer().ok_or(SignatureError)?;
@@ -211,7 +215,7 @@ fn serialize_sig<S: serde::Serializer>(sig: &Signature, serializer: S) -> Result
     // As bytes encodes the parity as 27/28, need to change that.
     let mut bytes = sig.as_bytes();
     bytes[bytes.len() - 1] = if parity.y_parity() { 1 } else { 0 };
-    serializer.serialize_str(&format!("0x{}", hex::encode(bytes)))
+    serializer.serialize_str(&hex::encode_prefixed(bytes))
 }
 
 impl InclusionRequest {
@@ -237,9 +241,11 @@ impl From<InclusionRequest> for CommitmentRequest {
     }
 }
 
+/// Extension trait for ECDSA signatures.
 pub trait ECDSASignatureExt {
     /// Returns the ECDSA signature as bytes with the correct parity bit.
     fn as_bytes_with_parity(&self) -> [u8; 65];
+
     /// Rethrns the ECDSA signature as a 0x-prefixed hex string with the correct parity bit.
     fn to_hex(&self) -> String;
 }
@@ -255,7 +261,7 @@ impl ECDSASignatureExt for Signature {
     }
 
     fn to_hex(&self) -> String {
-        format!("0x{}", hex::encode(self.as_bytes_with_parity()))
+        hex::encode_prefixed(self.as_bytes_with_parity())
     }
 }
 

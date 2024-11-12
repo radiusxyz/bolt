@@ -47,8 +47,8 @@ impl ConstraintsMessage {
     }
 
     /// Builds a constraints message from a single transaction.
-    pub fn from_transaction(pubkey: BlsPublicKey, slot: u64, transaction: FullTransaction) -> Self {
-        Self { pubkey, slot, top: false, transactions: vec![transaction] }
+    pub fn from_tx(pubkey: BlsPublicKey, slot: u64, tx: FullTransaction) -> Self {
+        Self { pubkey, slot, top: false, transactions: vec![tx] }
     }
 }
 
@@ -140,7 +140,7 @@ mod tests {
         let tx_bytes = bytes!("f8678085019dc6838082520894deaddeaddeaddeaddeaddeaddeaddeaddeaddead38808360306ca06664c078fa60bd3ece050903dd295949908dd9686ec8871fa558f868e031cd39a00ed4f0b122b32b73f19230fabe6a726e2d07f84eda5beaa42a1ae1271bdee39f").to_vec();
         let tx = FullTransaction::decode_enveloped(tx_bytes.as_slice()).unwrap();
 
-        let constraint = ConstraintsMessage::from_transaction(signer.pubkey(), 165, tx);
+        let constraint = ConstraintsMessage::from_tx(signer.pubkey(), 165, tx);
 
         let digest = constraint.digest();
         let signature = signer.sign_commit_boost_root(digest).unwrap();

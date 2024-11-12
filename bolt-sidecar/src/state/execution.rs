@@ -1,15 +1,12 @@
 use alloy::{
     eips::eip4844::MAX_BLOBS_PER_BLOCK,
-    primitives::{Address, B256, U256},
+    primitives::{Address, U256},
     transports::TransportError,
 };
 use reth_primitives::{
     revm_primitives::EnvKzgSettings, BlobTransactionValidationError, PooledTransactionsElement,
 };
-use std::{
-    collections::{HashMap, HashSet},
-    ops::Deref,
-};
+use std::{collections::HashMap, ops::Deref};
 use thiserror::Error;
 use tracing::{debug, trace, warn};
 
@@ -170,9 +167,9 @@ pub struct ExecutionState<C> {
 /// Other values used for validation.
 #[derive(Debug)]
 pub struct ValidationParams {
-    block_gas_limit: u64,
-    max_tx_input_bytes: usize,
-    max_init_code_byte_size: usize,
+    pub block_gas_limit: u64,
+    pub max_tx_input_bytes: usize,
+    pub max_init_code_byte_size: usize,
 }
 
 impl Default for ValidationParams {
@@ -235,7 +232,6 @@ impl<C: StateFetcher> ExecutionState<C> {
     ) -> Result<(), ValidationError> {
         let CommitmentRequest::Inclusion(req) = request;
 
-        let signer = req.signer().expect("Set signer");
         req.recover_signers()?;
 
         let target_slot = req.slot;
@@ -303,7 +299,7 @@ impl<C: StateFetcher> ExecutionState<C> {
         }
 
         // Ensure max_priority_fee_per_gas is greater than or equal to min_priority_fee
-        if !req.validate_min_priority_fee(max_basefee, self.limits.min_priority_fee.get()) {
+        if !req.validate_min_priority_fee(max_basefee, self.limits.min_priority_fee) {
             return Err(ValidationError::MaxPriorityFeePerGasTooLow);
         }
 
@@ -355,7 +351,7 @@ impl<C: StateFetcher> ExecutionState<C> {
                 return Err(ValidationError::SlotTooLow(highest_slot_for_account));
             }
 
-            trace!(?signer, nonce_diff, %balance_diff, "Applying diffs to account state");
+            trace!(nonce_diff, %balance_diff, "Applying diffs to account state");
 
             let account_state = match self.account_state(sender).copied() {
                 Some(account) => account,
@@ -461,17 +457,18 @@ impl<C: StateFetcher> ExecutionState<C> {
         let update = self.client.get_state_update(accounts, block_number).await?;
         trace!(%slot, ?update, "Applying execution state update");
 
-        self.apply_state_update(update);
-
         // Remove any block templates that are no longer valid
-        if let Some(template) = self.remove_block_template(slot) {
+        // NOTE: this needs to be called BEFORE applying the state update or we might remove
+        // constraints for which we need to get the receipts.
+        for template in self.remove_block_templates_until(slot) {
             debug!(%slot, "Removed block template for slot");
             let hashes = template.transaction_hashes();
-            let receipts = self.client.get_receipts(&hashes).await?;
+            let receipts = self.client.get_receipts_unordered(&hashes).await?;
 
             let mut receipts_len = 0;
             for receipt in receipts.iter().flatten() {
-                // Calculate the total tip revenue for this transaction: (effective_gas_price - basefee) * gas_used
+                // Calculate the total tip revenue for this transaction:
+                // (effective_gas_price - basefee) * gas_used
                 let tip_per_gas = receipt.effective_gas_price - self.basefee;
                 let total_tip = tip_per_gas * receipt.gas_used;
 
@@ -496,6 +493,8 @@ impl<C: StateFetcher> ExecutionState<C> {
                 });
             }
         }
+
+        self.apply_state_update(update);
 
         Ok(())
     }
@@ -544,11 +543,27 @@ impl<C: StateFetcher> ExecutionState<C> {
         self.block_templates.get(&slot)
     }
 
-    /// Gets the block template for the given slot number and removes it from the cache.
-    /// This should be called when we need to propose a block for the given slot,
-    /// or when a new head comes in which makes an older block template useless.
-    pub fn remove_block_template(&mut self, slot: u64) -> Option<BlockTemplate> {
-        self.block_templates.remove(&slot)
+    /// Removes all the block templates which slot is less then or equal `slot`, and returns them.
+    ///
+    /// This should be called when we need to propose a block for the given slot, or when a new
+    /// head comes in which makes an older block templates useless.
+    ///
+    /// NOTE: We remove all previous block templates to ensure that, when a new head is received
+    /// from the beacon client, all stale template are cleared. This prevents outdated templates
+    /// from persisting in cases of missed slots, where such events are not emitted.
+    pub fn remove_block_templates_until(&mut self, slot: u64) -> Vec<BlockTemplate> {
+        let mut slots_to_remove =
+            self.block_templates.keys().filter(|s| **s <= slot).copied().collect::<Vec<_>>();
+        slots_to_remove.sort();
+
+        let mut templates = Vec::with_capacity(slots_to_remove.len());
+        for s in slots_to_remove {
+            if let Some(template) = self.block_templates.remove(&s) {
+                templates.push(template);
+            }
+        }
+
+        templates
     }
 }
 
@@ -799,7 +814,7 @@ mod tests {
         let limits = LimitsOpts {
             max_commitments_per_slot: NonZero::new(10).unwrap(),
             max_committed_gas_per_slot: NonZero::new(5_000_000).unwrap(),
-            min_priority_fee: NonZero::new(200000000).unwrap(), // 0.2 gwei
+            min_priority_fee: 200000000, // 0.2 gwei
         };
 
         let mut state = ExecutionState::new(client.clone(), limits).await?;
@@ -838,7 +853,7 @@ mod tests {
         let limits = LimitsOpts {
             max_commitments_per_slot: NonZero::new(10).unwrap(),
             max_committed_gas_per_slot: NonZero::new(5_000_000).unwrap(),
-            min_priority_fee: NonZero::new(2000000000).unwrap(),
+            min_priority_fee: 2000000000,
         };
         let mut state = ExecutionState::new(client.clone(), limits).await?;
 
@@ -869,7 +884,7 @@ mod tests {
         let limits = LimitsOpts {
             max_commitments_per_slot: NonZero::new(10).unwrap(),
             max_committed_gas_per_slot: NonZero::new(5_000_000).unwrap(),
-            min_priority_fee: NonZero::new(2 * GWEI_TO_WEI as u128).unwrap(),
+            min_priority_fee: 2 * GWEI_TO_WEI as u128,
         };
 
         let mut state = ExecutionState::new(client.clone(), limits).await?;
@@ -911,7 +926,7 @@ mod tests {
         let limits = LimitsOpts {
             max_commitments_per_slot: NonZero::new(10).unwrap(),
             max_committed_gas_per_slot: NonZero::new(5_000_000).unwrap(),
-            min_priority_fee: NonZero::new(2 * GWEI_TO_WEI as u128).unwrap(),
+            min_priority_fee: 2 * GWEI_TO_WEI as u128,
         };
 
         let mut state = ExecutionState::new(client.clone(), limits).await?;
@@ -958,7 +973,7 @@ mod tests {
         let limits = LimitsOpts {
             max_commitments_per_slot: NonZero::new(10).unwrap(),
             max_committed_gas_per_slot: NonZero::new(5_000_000).unwrap(),
-            min_priority_fee: NonZero::new(2 * GWEI_TO_WEI as u128).unwrap(),
+            min_priority_fee: 2 * GWEI_TO_WEI as u128,
         };
 
         let mut state = ExecutionState::new(client.clone(), limits).await?;
@@ -1096,7 +1111,7 @@ mod tests {
         let limits: LimitsOpts = LimitsOpts {
             max_commitments_per_slot: NonZero::new(10).unwrap(),
             max_committed_gas_per_slot: NonZero::new(5_000_000).unwrap(),
-            min_priority_fee: NonZero::new(1000000000).unwrap(),
+            min_priority_fee: 1000000000,
         };
         let mut state = ExecutionState::new(client.clone(), limits).await?;
 

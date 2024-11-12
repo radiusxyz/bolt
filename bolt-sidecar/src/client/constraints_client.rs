@@ -1,9 +1,6 @@
-//! Module for interacting with the Constraints client API via its Builder API interface.
-//! The Bolt sidecar's main purpose is to sit between the beacon node and Constraints client,
-//! so most requests are simply proxied to its API.
-
 use std::collections::HashSet;
 
+use alloy::hex;
 use axum::http::StatusCode;
 use beacon_api_client::VersionedValue;
 use ethereum_consensus::{
@@ -31,8 +28,7 @@ use crate::{
 /// A client for interacting with the Constraints client API.
 #[derive(Debug, Clone)]
 pub struct ConstraintsClient {
-    /// The URL of the MEV-Boost target supporting the Constraints API.
-    pub url: Url,
+    url: Url,
     client: reqwest::Client,
     delegations: Vec<SignedDelegation>,
 }
@@ -52,6 +48,36 @@ impl ConstraintsClient {
         self.delegations.extend(delegations);
     }
 
+    /// Return a public key that can be used to sign constraints with for the given
+    /// validator public key.
+    ///
+    /// Rationale:
+    /// - If there are no delegatee keys, try to use the validator key directly if available.
+    /// - If there are delegatee keys, try to use the first one that is available in the list.
+    pub fn find_signing_key(
+        &self,
+        validator_pubkey: BlsPublicKey,
+        available_pubkeys: HashSet<BlsPublicKey>,
+    ) -> Option<BlsPublicKey> {
+        let delegatees = self.find_delegatees(&validator_pubkey);
+
+        if delegatees.is_empty() {
+            if available_pubkeys.contains(&validator_pubkey) {
+                return Some(validator_pubkey);
+            } else {
+                return None;
+            }
+        } else {
+            for delegatee in delegatees {
+                if available_pubkeys.contains(&delegatee) {
+                    return Some(delegatee);
+                }
+            }
+        }
+
+        None
+    }
+
     /// Finds all delegations for the given validator public key.
     pub fn find_delegatees(&self, validator_pubkey: &BlsPublicKey) -> HashSet<BlsPublicKey> {
         self.delegations
@@ -61,6 +87,13 @@ impl ConstraintsClient {
             .collect::<HashSet<_>>()
     }
 
+    /// Returns the URL of the target client.
+    pub fn target(&self) -> &str {
+        self.url.as_str()
+    }
+
+    /// Joins the given path with the client's URL.
+    /// If the path is invalid, an error is logged and the client's URL is returned.
     fn endpoint(&self, path: &str) -> Url {
         self.url.join(path).unwrap_or_else(|e| {
             error!(err = ?e, "Failed to join path: {} with url: {}", path, self.url);
@@ -100,12 +133,14 @@ impl BuilderApi for ConstraintsClient {
             return Err(BuilderApiError::FailedRegisteringValidators(error));
         }
 
-        // If there are any delegations, propagate the one associated to the incoming registrations to the relay
+        // If there are any delegations, propagate the one associated to the incoming
+        // registrations to the relay
         if self.delegations.is_empty() {
             return Ok(());
         } else {
             let validator_pubkeys =
-                registrations.iter().map(|r| r.message.public_key.clone()).collect::<HashSet<_>>();
+                registrations.iter().map(|r| &r.message.public_key).collect::<HashSet<_>>();
+
             let filtered_delegations = self
                 .delegations
                 .iter()
@@ -126,8 +161,8 @@ impl BuilderApi for ConstraintsClient {
         &self,
         params: GetHeaderParams,
     ) -> Result<SignedBuilderBid, BuilderApiError> {
-        let parent_hash = format!("0x{}", hex::encode(params.parent_hash.as_ref()));
-        let public_key = format!("0x{}", hex::encode(params.public_key.as_ref()));
+        let parent_hash = hex::encode_prefixed(params.parent_hash.as_ref());
+        let public_key = hex::encode_prefixed(params.public_key.as_ref());
 
         let response = self
             .client
@@ -199,8 +234,8 @@ impl ConstraintsApi for ConstraintsClient {
         &self,
         params: GetHeaderParams,
     ) -> Result<VersionedValue<SignedBuilderBid>, BuilderApiError> {
-        let parent_hash = format!("0x{}", hex::encode(params.parent_hash.as_ref()));
-        let public_key = format!("0x{}", hex::encode(params.public_key.as_ref()));
+        let parent_hash = hex::encode_prefixed(params.parent_hash.as_ref());
+        let public_key = hex::encode_prefixed(params.public_key.as_ref());
 
         let response = self
             .client
@@ -222,8 +257,6 @@ impl ConstraintsApi for ConstraintsClient {
         if !matches!(header.version, Fork::Deneb) {
             return Err(BuilderApiError::InvalidFork(header.version.to_string()));
         };
-
-        // TODO: verify proofs here?
 
         Ok(header)
     }

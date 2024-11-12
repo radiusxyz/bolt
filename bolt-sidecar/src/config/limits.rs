@@ -3,9 +3,13 @@ use std::num::NonZero;
 use clap::Parser;
 use serde::Deserialize;
 
-// Default limit values
+/// Default max commitments to accept per block.
 pub const DEFAULT_MAX_COMMITMENTS: usize = 128;
+
+/// Default max committed gas per block.
 pub const DEFAULT_MAX_COMMITTED_GAS: u64 = 10_000_000;
+
+/// Default min priority fee to accept for a commitment.
 pub const DEFAULT_MIN_PRIORITY_FEE: u128 = 1_000_000_000; // 1 Gwei
 
 /// Limits for the sidecar.
@@ -31,7 +35,7 @@ pub struct LimitsOpts {
         env = "BOLT_SIDECAR_MIN_PRIORITY_FEE",
         default_value_t = LimitsOpts::default().min_priority_fee
     )]
-    pub min_priority_fee: NonZero<u128>,
+    pub min_priority_fee: u128,
 }
 
 impl Default for LimitsOpts {
@@ -41,7 +45,7 @@ impl Default for LimitsOpts {
                 .expect("Valid non-zero"),
             max_committed_gas_per_slot: NonZero::new(DEFAULT_MAX_COMMITTED_GAS)
                 .expect("Valid non-zero"),
-            min_priority_fee: NonZero::new(DEFAULT_MIN_PRIORITY_FEE).expect("Valid non-zero"),
+            min_priority_fee: DEFAULT_MIN_PRIORITY_FEE,
         }
     }
 }

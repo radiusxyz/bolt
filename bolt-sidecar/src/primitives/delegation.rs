@@ -1,7 +1,8 @@
-use std::{fs, path::PathBuf};
+use std::{fs, ops::Deref, path::PathBuf};
 
 use alloy::signers::k256::sha2::{Digest, Sha256};
 use ethereum_consensus::crypto::{PublicKey as BlsPublicKey, Signature as BlsSignature};
+use eyre::bail;
 
 use crate::crypto::SignableBLS;
 
@@ -16,16 +17,33 @@ pub enum SignedMessageAction {
     Revocation,
 }
 
+/// A signed delegation message.
+///
+/// This is a message that is signed by a validator to delegate its
+/// constraint signing power to another key (delegatee).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct SignedDelegation {
+    /// The delegation message.
     pub message: DelegationMessage,
+    /// The signature of the delegation message.
     pub signature: BlsSignature,
 }
 
+impl Deref for SignedDelegation {
+    type Target = DelegationMessage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.message
+    }
+}
+
+/// A delegation message.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct DelegationMessage {
     action: u8,
+    /// The validator pubkey that is delegating its power.
     pub validator_pubkey: BlsPublicKey,
+    /// The delegatee pubkey that is receiving the power.
     pub delegatee_pubkey: BlsPublicKey,
 }
 
@@ -54,22 +72,39 @@ pub fn read_signed_delegations_from_file(
     match fs::read_to_string(file_path) {
         Ok(contents) => match serde_json::from_str::<Vec<SignedDelegation>>(&contents) {
             Ok(delegations) => Ok(delegations),
-            Err(err) => Err(eyre::eyre!("Failed to parse signed delegations from disk: {:?}", err)),
+            Err(err) => bail!("Failed to parse signed delegations from disk: {:?}", err),
         },
-        Err(err) => Err(eyre::eyre!("Failed to read signed delegations from disk: {:?}", err)),
+        Err(err) => bail!("Failed to read signed delegations from disk: {:?}", err),
     }
 }
 
+/// A signed revocation message.
+///
+/// This is a message that is signed by a validator to revoke its
+/// constraint signing power from another key (delegatee).
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 pub struct SignedRevocation {
+    /// The revocation message.
     pub message: RevocationMessage,
+    /// The signature of the revocation message.
     pub signature: BlsSignature,
 }
 
+impl Deref for SignedRevocation {
+    type Target = RevocationMessage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.message
+    }
+}
+
+/// A revocation message.
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 pub struct RevocationMessage {
     action: u8,
+    /// The validator pubkey that is revoking a delegatee's power.
     pub validator_pubkey: BlsPublicKey,
+    /// The delegatee pubkey that is losing the power.
     pub delegatee_pubkey: BlsPublicKey,
 }
 

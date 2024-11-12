@@ -1,0 +1,14 @@
+[
+  {
+    "targets": ["bolt-sidecar-holesky:9091"],
+    "labels": {
+      "job": "bolt-sidecar-holesky"
+    }
+  },
+  {
+    "targets": ["bolt-cadvisor-holesky:8080"],
+    "labels": {
+      "job": "bolt-cadvisor-holesky"
+    }
+  }
+]

@@ -28,7 +28,9 @@ pub struct CommitBoostSigner {
     proxy_ecdsa: Arc<RwLock<Vec<EcdsaPublicKey>>>,
 }
 
+/// Error in the Commit-Boost signer.
 #[derive(Debug, Error)]
+#[allow(missing_docs)]
 pub enum CommitBoostError {
     #[error("failed to sign constraint: {0}")]
     NoSignature(String),
@@ -91,8 +93,6 @@ impl CommitBoostSigner {
     }
 
     /// Verify the BLS signature of the object with the given public key.
-    ///
-    /// Note: The default implementation should be used where possible.
     pub fn verify_bls(
         &self,
         data: &[u8; 32],
@@ -103,8 +103,6 @@ impl CommitBoostSigner {
     }
 
     /// Verify the ECDSA signature of the object with the given public key.
-    ///
-    /// Note: The default implementation should be used where possible.
     pub fn verify_ecdsa(&self, data: &[u8; 32], sig: &Signature, pubkey: &EcdsaPublicKey) -> bool {
         let sig = secp256k1::ecdsa::Signature::from_str(&sig.to_hex()).expect("signature is valid");
         let pubkey =

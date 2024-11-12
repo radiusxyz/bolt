@@ -1,5 +1,3 @@
-//! An ERC-2335 keystore signer.
-
 use std::{
     collections::HashSet,
     ffi::OsString,
@@ -9,18 +7,22 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use alloy::rpc::types::beacon::constants::BLS_PUBLIC_KEY_BYTES_LEN;
-
 use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
 use lighthouse_bls::Keypair;
 use lighthouse_eth2_keystore::Keystore;
 use ssz::Encode;
 
-use crate::{builder::signature::compute_signing_root, crypto::bls::BLSSig, ChainConfig};
+use crate::{
+    builder::signature::compute_signing_root,
+    config::ChainConfig,
+    crypto::bls::{cl_public_key_to_arr, BLSSig},
+};
 
 use super::SignerResult;
 
+/// Error in the keystore signer.
 #[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
 pub enum KeystoreError {
     #[error("failed to read keystore directory: {0}")]
     ReadFromDirectory(#[from] std::io::Error),
@@ -36,6 +38,8 @@ pub enum KeystoreError {
     SignatureLength(String, String),
 }
 
+/// A signer that can sign messages with multiple keypairs loaded from
+/// ERC-2335 keystores files.
 #[derive(Clone)]
 pub struct KeystoreSigner {
     keypairs: Vec<Keypair>,
@@ -44,6 +48,7 @@ pub struct KeystoreSigner {
 
 impl KeystoreSigner {
     /// Creates a new `KeystoreSigner` from the keystore files in the `keys_path` directory.
+    /// The secret is expected to be the same password for all the keystore files.
     pub fn from_password(
         keys_path: &PathBuf,
         password: &[u8],
@@ -65,6 +70,8 @@ impl KeystoreSigner {
         Ok(Self { keypairs, chain })
     }
 
+    /// Creates a new `KeystoreSigner` from the keystore files in the `keys_path` directory.
+    /// The secret files are expected to be in the `secrets_path` directory.
     pub fn from_secrets_directory(
         keys_path: &PathBuf,
         secrets_path: &Path,
@@ -109,7 +116,7 @@ impl KeystoreSigner {
     pub fn sign_commit_boost_root(
         &self,
         root: [u8; 32],
-        public_key: [u8; BLS_PUBLIC_KEY_BYTES_LEN],
+        public_key: BlsPublicKey,
     ) -> SignerResult<BLSSig> {
         self.sign_root(root, public_key, self.chain.commit_boost_domain())
     }
@@ -118,7 +125,7 @@ impl KeystoreSigner {
     fn sign_root(
         &self,
         root: [u8; 32],
-        public_key: [u8; BLS_PUBLIC_KEY_BYTES_LEN],
+        public_key: BlsPublicKey,
         domain: [u8; 32],
     ) -> SignerResult<BLSSig> {
         let sk = self
@@ -126,7 +133,9 @@ impl KeystoreSigner {
             .iter()
             // `as_ssz_bytes` returns the raw bytes we need
             .find(|kp| kp.pk.as_ssz_bytes() == public_key.as_ref())
-            .ok_or(KeystoreError::UnknownPublicKey(hex::encode(public_key)))?;
+            .ok_or(KeystoreError::UnknownPublicKey(hex::encode(cl_public_key_to_arr(
+                public_key,
+            ))))?;
 
         let signing_root = compute_signing_root(root, domain);
 
@@ -193,8 +202,9 @@ mod tests {
     };
 
     use blst::min_pk::SecretKey;
+    use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
 
-    use crate::{signer::local::LocalSigner, ChainConfig};
+    use crate::{config::ChainConfig, signer::local::LocalSigner};
 
     use super::KeystoreSigner;
     /// The str path of the root of the project
@@ -365,7 +375,10 @@ mod tests {
 
             let sig_local = local_signer.sign_commit_boost_root([0; 32]).expect("to sign message");
             let sig_keystore = keystore_signer_from_password
-                .sign_commit_boost_root([0; 32], public_key_bytes)
+                .sign_commit_boost_root(
+                    [0; 32],
+                    BlsPublicKey::try_from(public_key_bytes.as_ref()).unwrap(),
+                )
                 .expect("to sign message");
             assert_eq!(sig_local, sig_keystore);
         }

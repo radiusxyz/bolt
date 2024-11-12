@@ -21,13 +21,13 @@ use tracing::warn;
 
 use crate::{
     common::{BlsSecretKeyWrapper, EcdsaSecretKeyWrapper, JwtSecretConfig},
+    config::{ChainConfig, Opts},
     crypto::{ecdsa::SignableECDSA, SignableBLS},
     primitives::{
         CommitmentRequest, ConstraintsMessage, DelegationMessage, FullTransaction,
         InclusionRequest, RevocationMessage, SignedConstraints, SignedDelegation, SignedRevocation,
     },
     signer::local::LocalSigner,
-    ChainConfig, Opts,
 };
 
 /// The URL of the test execution client HTTP API.

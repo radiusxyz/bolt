@@ -1,0 +1,85 @@
+services:
+  bolt-sidecar-holesky:
+    image: ghcr.io/chainbound/bolt-sidecar:v0.3.0-alpha.rc2
+    container_name: bolt-sidecar-holesky
+    restart: unless-stopped
+    ports:
+      # NOTE: to read these envs, it is necessary to provide them via `--env-file` or having them already set.
+      - "${BOLT_SIDECAR_PORT:-8017}:${BOLT_SIDECAR_PORT:-8017}" # This port should be opened on your firewall!
+      - "${BOLT_SIDECAR_CONSTRAINTS_PROXY_PORT:-18550}:${BOLT_SIDECAR_CONSTRAINTS_PROXY_PORT:-18550}"
+    entrypoint: /usr/local/bin/entrypoint.sh
+    volumes:
+      - ./entrypoint.sh:/usr/local/bin/entrypoint.sh
+      - ./bolt-sidecar.env:/usr/local/bin/.env
+      # NOTE: to read these envs, it is necessary to provide them via `--env-file` or having them already set.
+      - ${BOLT_SIDECAR_DELEGATIONS_PATH:-/dev/null}:/etc/delegations.json
+      - ${BOLT_SIDECAR_KEYSTORE_PATH:-/dev/null}:/etc/keystores
+      - ${BOLT_SIDECAR_KEYSTORE_SECRETS_PATH:-/dev/null}:/etc/secrets
+    networks:
+      - bolt-default
+
+  bolt-mev-boost-holesky:
+    image: ghcr.io/chainbound/bolt-mev-boost:v0.3.0-alpha.rc2
+    container_name: bolt-mev-boost-holesky
+    restart: unless-stopped
+    env_file: ./mev-boost.env
+    entrypoint: /bin/sh -c '/app/mev-boost'
+    networks:
+      - bolt-default
+
+  bolt-prometheus-holesky:
+    image: prom/prometheus:latest
+    container_name: bolt-prometheus-holesky
+    ports:
+      - 18017:9090
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./targets.json:/etc/prometheus/targets.json
+      - prometheus-data:/prometheus
+    networks:
+      - bolt-default
+
+  bolt-cadvisor-holesky:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: bolt-cadvisor-holesky
+    restart: unless-stopped
+    ports:
+      - "38017:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - bolt-default
+    command:
+      - --housekeeping_interval=10s
+      - --docker_only
+
+  bolt-grafana-holesky:
+    image: grafana/grafana:latest
+    container_name: bolt-grafana-holesky
+    ports:
+      - 28017:3000
+    volumes:
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+      - grafana-data:/var/lib/grafana
+    networks:
+      - bolt-default
+    depends_on:
+      - bolt-prometheus-holesky
+
+volumes:
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  bolt-default:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.56.0.0/16
+          gateway: 172.56.0.1
