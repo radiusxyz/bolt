@@ -82,8 +82,9 @@ pub struct Opts {
     #[clap(long, env = "BOLT_SIDECAR_COMMITMENT_PRIVATE_KEY")]
     pub commitment_private_key: EcdsaSecretKeyWrapper,
     /// Unsafely disables consensus checks when validating commitments.
-    /// If enabled, the sidecar will sign every incoming commitment with the first private key
-    /// available
+    ///
+    /// If enabled, the sidecar will sign every commitment request with the first private key
+    /// available without checking if connected validators are scheduled to propose a block.
     #[clap(long, env = "BOLT_SIDECAR_UNSAFE_DISABLE_CONSENSUS_CHECKS", default_value_t = false)]
     pub unsafe_disable_consensus_checks: bool,
     /// Operating limits for the sidecar
