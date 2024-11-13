@@ -188,8 +188,8 @@ pub struct InclusionProofs {
     /// The transaction hashes these inclusion proofs are for. The hash tree roots of
     /// these transactions are the leaves of the transactions tree.
     pub transaction_hashes: Vec<TxHash>,
-    /// The generalized indeces of the nodes in the transactions tree.
-    pub generalized_indeces: Vec<usize>,
+    /// The generalized indexes of the nodes in the transactions tree.
+    pub generalized_indexes: Vec<usize>,
     /// The proof hashes for the transactions tree.
     pub merkle_hashes: Vec<B256>,
 }
