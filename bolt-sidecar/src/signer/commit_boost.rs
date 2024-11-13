@@ -123,10 +123,9 @@ impl CommitBoostSigner {
     /// Sign an object root with the Commit Boost domain.
     pub async fn sign_commit_boost_root(&self, data: [u8; 32]) -> SignerResult<BlsSignature> {
         // convert the pubkey from ethereum_consensus to commit-boost format
-        // TODO: compat: this parsing is the only way to obtain a Blspubkey. There are no other
-        // possible ways to obtain it without bumping Alloy version
-        let pubkey =
-            cb_common::signer::BlsPublicKey::from_ssz_bytes(self.pubkey().as_ref()).unwrap();
+        // TODO: compat: this is the only way to obtain a BlsPubkey for now unfortunately
+        let pubkey = cb_common::signer::BlsPublicKey::from_ssz_bytes(self.pubkey().as_ref())
+            .expect("pubkey bytes conversion");
 
         let request = SignConsensusRequest { pubkey, object_root: data };
 
@@ -183,6 +182,20 @@ mod test {
     use super::*;
     use rand::Rng;
     use tracing::warn;
+
+    #[test]
+    fn test_convert_pubkey_bytes() {
+        // Generate random data for the test
+        let mut rnd = [0u8; 128];
+        rand::thread_rng().fill(&mut rnd);
+        let consensus_pubkey = BlsPublicKey::try_from(rnd[..48].as_ref()).unwrap();
+
+        let cb_pubkey = cb_common::signer::BlsPublicKey::from_ssz_bytes(consensus_pubkey.as_ref())
+            .expect("pubkey bytes conversion");
+
+        // make sure the bytes haven't changed
+        assert_eq!(consensus_pubkey.to_vec(), cb_pubkey.to_vec());
+    }
 
     #[test]
     fn test_url_parse_address() {

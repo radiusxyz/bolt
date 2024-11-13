@@ -76,7 +76,7 @@ impl SignerECDSA for PrivateKeySigner {
         let sig = Signer::sign_hash(self, hash.into()).await?;
         // TODO: compat: this is necessary since alloy PrimitiveSignature and Signature
         // are different types in the new version
-        Ok(AlloySignature::try_from(sig.as_bytes().as_ref()).unwrap())
+        Ok(AlloySignature::try_from(sig.as_bytes().as_ref()).expect("signature conversion"))
     }
 }
 
