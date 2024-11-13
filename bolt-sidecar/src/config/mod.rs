@@ -81,9 +81,13 @@ pub struct Opts {
     /// then used when registering the operator in the `BoltManager` contract.
     #[clap(long, env = "BOLT_SIDECAR_COMMITMENT_PRIVATE_KEY")]
     pub commitment_private_key: EcdsaSecretKeyWrapper,
+    /// Unsafely disables consensus checks when validating commitments.
+    /// If enabled, the sidecar will sign every incoming commitment with the first private key
+    /// available
+    #[clap(long, env = "BOLT_SIDECAR_UNSAFE_DISABLE_CONSENSUS_CHECKS", default_value_t = false)]
+    pub unsafe_disable_consensus_checks: bool,
     /// Operating limits for the sidecar
     #[clap(flatten)]
-    #[serde(default)]
     pub limits: LimitsOpts,
     /// Chain config for the chain on which the sidecar is running
     #[clap(flatten)]

@@ -203,6 +203,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             beacon_client,
             opts.chain.commitment_deadline(),
             opts.chain.enable_unsafe_lookahead,
+            opts.unsafe_disable_consensus_checks,
         );
 
         let (payload_requests_tx, payload_requests_rx) = mpsc::channel(16);
@@ -274,6 +275,11 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
 
         let start = Instant::now();
 
+        // When we'll add more commitment types, we'll need to match on the request type here.
+        // For now, we only support inclusion requests so the flow is straightforward.
+        let CommitmentRequest::Inclusion(inclusion_request) = request.clone();
+        let target_slot = inclusion_request.slot;
+
         let validator_pubkey = match self.consensus.validate_request(&request) {
             Ok(pubkey) => pubkey,
             Err(err) => {
@@ -283,6 +289,22 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             }
         };
 
+        let available_pubkeys = self.constraint_signer.available_pubkeys();
+
+        // Find a public key to sign new constraints with for this slot.
+        // This can either be the validator pubkey or a delegatee (if one is available).
+        let signing_pubkey = if self.consensus.unsafe_disable_consensus_checks {
+            // Take the first one available
+            available_pubkeys.iter().take(1).next().cloned()
+        } else {
+            self.constraints_client.find_signing_key(validator_pubkey, available_pubkeys)
+        };
+        let Some(signing_pubkey) = signing_pubkey else {
+            error!(%target_slot, "No available public key to sign constraints with");
+            let _ = response.send(Err(CommitmentError::Internal));
+            return;
+        };
+
         if let Err(err) = self.execution.validate_request(&mut request).await {
             warn!(?err, "Execution: failed to validate request");
             ApiMetrics::increment_validation_errors(err.to_tag_str().to_owned());
@@ -290,28 +312,11 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             return;
         }
 
-        // When we'll add more commitment types, we'll need to match on the request type here.
-        // For now, we only support inclusion requests so the flow is straightforward.
-        let CommitmentRequest::Inclusion(inclusion_request) = request.clone();
-        let target_slot = inclusion_request.slot;
-
         info!(
             target_slot,
             elapsed = ?start.elapsed(),
             "Validation against execution state passed"
         );
-
-        let available_pubkeys = self.constraint_signer.available_pubkeys();
-
-        // Find a public key to sign new constraints with for this slot.
-        // This can either be the validator pubkey or a delegatee (if one is available).
-        let Some(signing_pubkey) =
-            self.constraints_client.find_signing_key(validator_pubkey, available_pubkeys)
-        else {
-            error!(%target_slot, "No available public key to sign constraints with");
-            let _ = response.send(Err(CommitmentError::Internal));
-            return;
-        };
 
         // NOTE: we iterate over the transactions in the request and generate a signed constraint
         // for each one. This is because the transactions in the commitment request are not supposed

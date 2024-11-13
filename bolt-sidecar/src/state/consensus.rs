@@ -11,7 +11,7 @@ use tracing::debug;
 use super::CommitmentDeadline;
 use crate::{
     client::BeaconClient,
-    primitives::{CommitmentRequest, Slot},
+    primitives::{CommitmentRequest, InclusionRequest, Slot},
     telemetry::ApiMetrics,
 };
 
@@ -72,6 +72,11 @@ pub struct ConsensusState {
     /// It is considered unsafe because it is possible for the next epoch's duties to
     /// change if there are beacon chain deposits or withdrawals in the current epoch.
     unsafe_lookahead_enabled: bool,
+    /// If consensus checks should be disabled when accepting commitments. For testing purposes only.
+    ///
+    /// If enabled, the sidecar will sign every incoming commitment with the first private key
+    /// available.
+    pub unsafe_disable_consensus_checks: bool,
 }
 
 impl fmt::Debug for ConsensusState {
@@ -93,6 +98,7 @@ impl ConsensusState {
         beacon_api_client: BeaconClient,
         commitment_deadline_duration: Duration,
         unsafe_lookahead_enabled: bool,
+        unsafe_disable_consensus_checks: bool,
     ) -> Self {
         ConsensusState {
             beacon_api_client,
@@ -102,6 +108,7 @@ impl ConsensusState {
             commitment_deadline: CommitmentDeadline::new(0, commitment_deadline_duration),
             commitment_deadline_duration,
             unsafe_lookahead_enabled,
+            unsafe_disable_consensus_checks,
         }
     }
 
@@ -116,6 +123,10 @@ impl ConsensusState {
         &self,
         request: &CommitmentRequest,
     ) -> Result<BlsPublicKey, ConsensusError> {
+        if self.unsafe_disable_consensus_checks {
+            return Ok(BlsPublicKey::default());
+        }
+
         let CommitmentRequest::Inclusion(req) = request;
 
         // Check if the slot is in the current epoch or next epoch (if unsafe lookahead is enabled)
@@ -124,8 +135,8 @@ impl ConsensusState {
         }
 
         // If the request is for the next slot, check if it's within the commitment deadline
-        if req.slot == self.latest_slot + 1 &&
-            self.latest_slot_timestamp + self.commitment_deadline_duration < Instant::now()
+        if req.slot == self.latest_slot + 1
+            && self.latest_slot_timestamp + self.commitment_deadline_duration < Instant::now()
         {
             return Err(ConsensusError::DeadlineExceeded);
         }
@@ -209,9 +220,9 @@ impl ConsensusState {
     /// Returns the furthest slot for which a commitment request is considered valid, whether in
     /// the current epoch or next epoch (if unsafe lookahead is enabled)
     fn furthest_slot(&self) -> u64 {
-        self.epoch.start_slot +
-            SLOTS_PER_EPOCH +
-            if self.unsafe_lookahead_enabled { SLOTS_PER_EPOCH } else { 0 }
+        self.epoch.start_slot
+            + SLOTS_PER_EPOCH
+            + if self.unsafe_lookahead_enabled { SLOTS_PER_EPOCH } else { 0 }
     }
 }
 
@@ -246,6 +257,7 @@ mod tests {
             commitment_deadline: CommitmentDeadline::new(0, commitment_deadline_duration),
             commitment_deadline_duration,
             unsafe_lookahead_enabled: false,
+            unsafe_disable_consensus_checks: false,
         };
 
         // Update the slot to 32
@@ -292,11 +304,12 @@ mod tests {
             commitment_deadline_duration,
             // We test for both epochs
             unsafe_lookahead_enabled: true,
+            unsafe_disable_consensus_checks: false,
         };
 
         let epoch =
-            state.beacon_api_client.get_beacon_header(BlockId::Head).await?.header.message.slot /
-                SLOTS_PER_EPOCH;
+            state.beacon_api_client.get_beacon_header(BlockId::Head).await?.header.message.slot
+                / SLOTS_PER_EPOCH;
 
         state.fetch_proposer_duties(epoch).await?;
         assert_eq!(state.epoch.proposer_duties.len(), SLOTS_PER_EPOCH as usize * 2);

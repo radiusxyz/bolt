@@ -13,7 +13,7 @@ use crate::{
     builder::BlockTemplate,
     common::{calculate_max_basefee, max_transaction_cost, validate_transaction},
     config::limits::LimitsOpts,
-    primitives::{AccountState, CommitmentRequest, SignedConstraints, Slot},
+    primitives::{AccountState, CommitmentRequest, InclusionRequest, SignedConstraints, Slot},
     telemetry::ApiMetrics,
 };
 
