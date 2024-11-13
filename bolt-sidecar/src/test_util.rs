@@ -24,8 +24,8 @@ use crate::{
     config::{ChainConfig, Opts},
     crypto::{ecdsa::SignableECDSA, SignableBLS},
     primitives::{
-        CommitmentRequest, ConstraintsMessage, DelegationMessage, FullTransaction,
-        InclusionRequest, RevocationMessage, SignedConstraints, SignedDelegation, SignedRevocation,
+        ConstraintsMessage, DelegationMessage, FullTransaction, InclusionRequest,
+        RevocationMessage, SignedConstraints, SignedDelegation, SignedRevocation,
     },
     signer::local::LocalSigner,
 };
@@ -161,11 +161,11 @@ impl SignableECDSA for TestSignableData {
 
 /// Create a valid signed commitment request for testing purposes
 /// from the given transaction, private key of the sender, and slot.
-pub(crate) async fn create_signed_commitment_request(
+pub(crate) async fn create_signed_inclusion_request(
     txs: &[TransactionRequest],
     sk: &K256SecretKey,
     slot: u64,
-) -> eyre::Result<CommitmentRequest> {
+) -> eyre::Result<InclusionRequest> {
     let sk = K256SigningKey::from_slice(sk.to_bytes().as_slice())?;
     let signer = PrivateKeySigner::from_signing_key(sk.clone());
     let wallet = EthereumWallet::from(signer.clone());
@@ -185,7 +185,7 @@ pub(crate) async fn create_signed_commitment_request(
     request.set_signature(Signature::try_from(signature.as_bytes().as_ref()).unwrap());
     request.set_signer(signer.address());
 
-    Ok(CommitmentRequest::Inclusion(request))
+    Ok(request)
 }
 
 fn random_constraints(count: usize) -> Vec<FullTransaction> {

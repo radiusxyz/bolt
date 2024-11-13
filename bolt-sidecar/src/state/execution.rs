@@ -13,7 +13,7 @@ use crate::{
     builder::BlockTemplate,
     common::{calculate_max_basefee, max_transaction_cost, validate_transaction},
     config::limits::LimitsOpts,
-    primitives::{AccountState, CommitmentRequest, SignedConstraints, Slot},
+    primitives::{AccountState, InclusionRequest, SignedConstraints, Slot},
     telemetry::ApiMetrics,
 };
 
@@ -227,10 +227,8 @@ impl<C: StateFetcher> ExecutionState<C> {
     /// TODO: should also validate everything in https://github.com/paradigmxyz/reth/blob/9aa44e1a90b262c472b14cd4df53264c649befc2/crates/transaction-pool/src/validate/eth.rs#L153
     pub async fn validate_request(
         &mut self,
-        request: &mut CommitmentRequest,
+        req: &mut InclusionRequest,
     ) -> Result<(), ValidationError> {
-        let CommitmentRequest::Inclusion(req) = request;
-
         req.recover_signers()?;
 
         let target_slot = req.slot;
@@ -595,7 +593,7 @@ mod tests {
         crypto::SignableBLS,
         primitives::{ConstraintsMessage, SignedConstraints},
         state::fetcher,
-        test_util::{create_signed_commitment_request, default_test_transaction, launch_anvil},
+        test_util::{create_signed_inclusion_request, default_test_transaction, launch_anvil},
     };
 
     use super::*;
@@ -618,7 +616,7 @@ mod tests {
 
         let tx = default_test_transaction(*sender, None);
 
-        let mut request = create_signed_commitment_request(&[tx], sender_pk, 10).await?;
+        let mut request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
 
         assert!(state.validate_request(&mut request).await.is_ok());
 
@@ -644,7 +642,7 @@ mod tests {
         // Create a transaction with a nonce that is too high
         let tx = default_test_transaction(*sender, Some(1));
 
-        let mut request = create_signed_commitment_request(&[tx], sender_pk, 10).await?;
+        let mut request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
 
         // Insert a constraint diff for slot 11
         let mut diffs = HashMap::new();
@@ -690,7 +688,7 @@ mod tests {
         // Create a transaction with a nonce that is too low
         let tx = default_test_transaction(*sender, Some(0));
 
-        let mut request = create_signed_commitment_request(&[tx], sender_pk, 10).await?;
+        let mut request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
 
         assert!(matches!(
             state.validate_request(&mut request).await,
@@ -702,7 +700,7 @@ mod tests {
         // Create a transaction with a nonce that is too high
         let tx = default_test_transaction(*sender, Some(2));
 
-        let mut request = create_signed_commitment_request(&[tx], sender_pk, 10).await?;
+        let mut request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
 
         assert!(matches!(
             state.validate_request(&mut request).await,
@@ -732,7 +730,7 @@ mod tests {
         let tx = default_test_transaction(*sender, None)
             .with_value(uint!(11_000_U256 * Uint::from(ETH_TO_WEI)));
 
-        let mut request = create_signed_commitment_request(&[tx], sender_pk, 10).await?;
+        let mut request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
 
         assert!(matches!(
             state.validate_request(&mut request).await,
@@ -766,8 +764,8 @@ mod tests {
 
         // burn the balance
         let tx = default_test_transaction(*sender, Some(0)).with_value(uint!(balance_to_burn));
-        let request = create_signed_commitment_request(&[tx], sender_pk, 10).await?;
-        let tx_bytes = request.as_inclusion_request().unwrap().txs.first().unwrap().encoded_2718();
+        let request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
+        let tx_bytes = request.txs.first().unwrap().encoded_2718();
         let _ = client.inner().send_raw_transaction(tx_bytes.into()).await?;
 
         // wait for the transaction to be included to update the sender balance
@@ -777,21 +775,18 @@ mod tests {
 
         // create a new transaction and request a preconfirmation for it
         let tx = default_test_transaction(*sender, Some(1));
-        let mut request = create_signed_commitment_request(&[tx], sender_pk, 10).await?;
+        let mut request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
 
         assert!(state.validate_request(&mut request).await.is_ok());
 
-        let message = ConstraintsMessage::build(
-            Default::default(),
-            request.as_inclusion_request().unwrap().clone(),
-        );
+        let message = ConstraintsMessage::build(Default::default(), request.clone());
         let signature = signer.sign_commit_boost_root(message.digest())?;
         let signed_constraints = SignedConstraints { message, signature };
         state.add_constraint(10, signed_constraints);
 
         // create a new transaction and request a preconfirmation for it
         let tx = default_test_transaction(*sender, Some(2));
-        let mut request = create_signed_commitment_request(&[tx], sender_pk, 10).await?;
+        let mut request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
 
         // this should fail because the balance is insufficient as we spent
         // all of it on the previous preconfirmation
@@ -832,7 +827,7 @@ mod tests {
             .with_max_fee_per_gas(basefee - 1)
             .with_max_priority_fee_per_gas(basefee / 2);
 
-        let mut request = create_signed_commitment_request(&[tx], sender_pk, 10).await?;
+        let mut request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
 
         assert!(matches!(
             state.validate_request(&mut request).await,
@@ -865,7 +860,7 @@ mod tests {
 
         let tx = default_test_transaction(*sender, None).with_gas_limit(6_000_000);
 
-        let mut request = create_signed_commitment_request(&[tx], sender_pk, 10).await?;
+        let mut request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
 
         assert!(matches!(
             state.validate_request(&mut request).await,
@@ -899,7 +894,7 @@ mod tests {
         let tx = default_test_transaction(*sender, None)
             .with_max_priority_fee_per_gas(GWEI_TO_WEI as u128);
 
-        let mut request = create_signed_commitment_request(&[tx], sender_pk, 10).await?;
+        let mut request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
 
         assert!(matches!(
             state.validate_request(&mut request).await,
@@ -910,7 +905,7 @@ mod tests {
         let tx = default_test_transaction(*sender, None)
             .with_max_priority_fee_per_gas(3 * GWEI_TO_WEI as u128);
 
-        let mut request = create_signed_commitment_request(&[tx], sender_pk, 10).await?;
+        let mut request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
 
         assert!(state.validate_request(&mut request).await.is_ok());
 
@@ -946,7 +941,7 @@ mod tests {
         let tx = default_test_transaction(*sender, None)
             .with_gas_price(max_base_fee + GWEI_TO_WEI as u128);
 
-        let mut request = create_signed_commitment_request(&[tx], sender_pk, 10).await?;
+        let mut request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
 
         assert!(matches!(
             state.validate_request(&mut request).await,
@@ -957,7 +952,7 @@ mod tests {
         let tx = default_test_transaction(*sender, None)
             .with_gas_price(max_base_fee + 3 * GWEI_TO_WEI as u128);
 
-        let mut request = create_signed_commitment_request(&[tx], sender_pk, 10).await?;
+        let mut request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
 
         assert!(state.validate_request(&mut request).await.is_ok());
 
@@ -993,8 +988,7 @@ mod tests {
         let tx = default_test_transaction(*sender, None)
             .with_gas_price(max_base_fee + 3 * GWEI_TO_WEI as u128);
 
-        let mut request =
-            create_signed_commitment_request(&[tx.clone(), tx], sender_pk, 10).await?;
+        let mut request = create_signed_inclusion_request(&[tx.clone(), tx], sender_pk, 10).await?;
 
         let response = state.validate_request(&mut request).await;
         println!("{response:?}");
@@ -1029,8 +1023,8 @@ mod tests {
         let signed = tx.clone().build(&signer).await?;
 
         let target_slot = 10;
-        let mut request = create_signed_commitment_request(&[tx], sender_pk, target_slot).await?;
-        let inclusion_request = request.as_inclusion_request().unwrap().clone();
+        let mut request = create_signed_inclusion_request(&[tx], sender_pk, target_slot).await?;
+        let inclusion_request = request.clone();
 
         assert!(state.validate_request(&mut request).await.is_ok());
 
@@ -1077,8 +1071,8 @@ mod tests {
         let tx = default_test_transaction(*sender, None);
 
         let target_slot = 10;
-        let mut request = create_signed_commitment_request(&[tx], sender_pk, target_slot).await?;
-        let inclusion_request = request.as_inclusion_request().unwrap().clone();
+        let mut request = create_signed_inclusion_request(&[tx], sender_pk, target_slot).await?;
+        let inclusion_request = request.clone();
 
         assert!(state.validate_request(&mut request).await.is_ok());
 
@@ -1124,8 +1118,8 @@ mod tests {
         let tx = default_test_transaction(*sender, None).with_gas_limit(4_999_999);
 
         let target_slot = 10;
-        let mut request = create_signed_commitment_request(&[tx], sender_pk, target_slot).await?;
-        let inclusion_request = request.as_inclusion_request().unwrap().clone();
+        let mut request = create_signed_inclusion_request(&[tx], sender_pk, target_slot).await?;
+        let inclusion_request = request.clone();
 
         assert!(state.validate_request(&mut request).await.is_ok());
 
@@ -1141,7 +1135,7 @@ mod tests {
         // This tx will exceed the committed gas limit
         let tx = default_test_transaction(*sender, Some(1));
 
-        let mut request = create_signed_commitment_request(&[tx], sender_pk, 10).await?;
+        let mut request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
 
         assert!(matches!(
             state.validate_request(&mut request).await,
@@ -1171,7 +1165,7 @@ mod tests {
         let tx2 = default_test_transaction(*sender, Some(1));
         let tx3 = default_test_transaction(*sender, Some(2));
 
-        let mut request = create_signed_commitment_request(&[tx1, tx2, tx3], sender_pk, 10).await?;
+        let mut request = create_signed_inclusion_request(&[tx1, tx2, tx3], sender_pk, 10).await?;
 
         assert!(state.validate_request(&mut request).await.is_ok());
 
@@ -1198,7 +1192,7 @@ mod tests {
         let tx2 = default_test_transaction(*sender, Some(1));
         let tx3 = default_test_transaction(*sender, Some(3)); // wrong nonce, should be 2
 
-        let mut request = create_signed_commitment_request(&[tx1, tx2, tx3], sender_pk, 10).await?;
+        let mut request = create_signed_inclusion_request(&[tx1, tx2, tx3], sender_pk, 10).await?;
 
         assert!(matches!(
             state.validate_request(&mut request).await,
@@ -1229,7 +1223,7 @@ mod tests {
         let tx3 = default_test_transaction(*sender, Some(2))
             .with_value(uint!(11_000_U256 * Uint::from(ETH_TO_WEI)));
 
-        let mut request = create_signed_commitment_request(&[tx1, tx2, tx3], sender_pk, 10).await?;
+        let mut request = create_signed_inclusion_request(&[tx1, tx2, tx3], sender_pk, 10).await?;
 
         assert!(matches!(
             state.validate_request(&mut request).await,

@@ -4,7 +4,7 @@ use alloy::{rpc::types::beacon::events::HeadEvent, signers::local::PrivateKeySig
 use beacon_api_client::mainnet::Client as BeaconClient;
 use ethereum_consensus::{
     clock::{self, SlotStream, SystemTimeProvider},
-    phase0::mainnet::SLOTS_PER_EPOCH,
+    phase0::mainnet::{BlsPublicKey, SLOTS_PER_EPOCH},
 };
 use eyre::Context;
 use futures::StreamExt;
@@ -27,8 +27,8 @@ use crate::{
     config::Opts,
     crypto::{SignableBLS, SignerECDSA},
     primitives::{
-        read_signed_delegations_from_file, CommitmentRequest, ConstraintsMessage,
-        FetchPayloadRequest, SignedConstraints, TransactionExt,
+        commitment::SignedCommitment, read_signed_delegations_from_file, CommitmentRequest,
+        ConstraintsMessage, FetchPayloadRequest, SignedConstraints, TransactionExt,
     },
     signer::{keystore::KeystoreSigner, local::LocalSigner, CommitBoostSigner, SignerBLS},
     state::{fetcher::StateFetcher, ConsensusState, ExecutionState, HeadTracker, StateClient},
@@ -66,6 +66,8 @@ pub struct SidecarDriver<C, ECDSA> {
     payload_requests_rx: mpsc::Receiver<FetchPayloadRequest>,
     /// Stream of slots made from the consensus clock
     slot_stream: SlotStream<SystemTimeProvider>,
+    /// Whether to skip consensus checks (should only be used for testing)
+    unsafe_skip_consensus_checks: bool,
 }
 
 impl SidecarDriver<StateClient, PrivateKeySigner> {
@@ -224,7 +226,10 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         let (api_events_tx, api_events_rx) = mpsc::channel(1024);
         CommitmentsApiServer::new(api_addr).run(api_events_tx).await;
 
+        let unsafe_skip_consensus_checks = opts.unsafe_disable_consensus_checks;
+
         Ok(SidecarDriver {
+            unsafe_skip_consensus_checks,
             head_tracker,
             execution,
             consensus,
@@ -268,32 +273,59 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
 
     /// Handle an incoming API event, validating the request and responding with a commitment.
     async fn handle_incoming_api_event(&mut self, event: CommitmentEvent) {
-        let CommitmentEvent { mut request, response } = event;
+        let CommitmentEvent { request, response } = event;
+
         info!("Received new commitment request: {:?}", request);
         ApiMetrics::increment_inclusion_commitments_received();
 
         let start = Instant::now();
 
-        let validator_pubkey = match self.consensus.validate_request(&request) {
-            Ok(pubkey) => pubkey,
-            Err(err) => {
-                warn!(?err, "Consensus: failed to validate request");
-                let _ = response.send(Err(CommitmentError::Consensus(err)));
+        // When we'll add more commitment types, we'll need to match on the request type here.
+        // For now, we only support inclusion requests so the flow is straightforward.
+        let CommitmentRequest::Inclusion(mut inclusion_request) = request;
+        let target_slot = inclusion_request.slot;
+
+        let available_pubkeys = self.constraint_signer.available_pubkeys();
+
+        // Determine the constraint signing public key for this request. Rationale:
+        // - If we're skipping consensus checks, we can use any available pubkey in the keystore.
+        // - On regular operation, we need to validate the request against the consensus state to
+        //   determine if the sidecar is the proposer for the given slot. If so, we use the
+        //   validator pubkey or any of its active delegatees to sign constraints.
+        let signing_pubkey = if self.unsafe_skip_consensus_checks {
+            // PERF: this is inefficient, but it's only used for testing purposes.
+            let mut ap = available_pubkeys.iter().collect::<Vec<_>>();
+            ap.sort();
+            ap.first().cloned().cloned().expect("at least one available pubkey")
+        } else {
+            let validator_pubkey = match self.consensus.validate_request(&inclusion_request) {
+                Ok(pubkey) => pubkey,
+                Err(err) => {
+                    warn!(?err, "Consensus: failed to validate request");
+                    let _ = response.send(Err(CommitmentError::Consensus(err)));
+                    return;
+                }
+            };
+
+            // Find a public key to sign new constraints with for this slot.
+            // This can either be the validator pubkey or a delegatee (if one is available).
+            let Some(signing_key) =
+                self.constraints_client.find_signing_key(validator_pubkey, available_pubkeys)
+            else {
+                error!(%target_slot, "No available public key to sign constraints with");
+                let _ = response.send(Err(CommitmentError::Internal));
                 return;
-            }
+            };
+
+            signing_key
         };
 
-        if let Err(err) = self.execution.validate_request(&mut request).await {
+        if let Err(err) = self.execution.validate_request(&mut inclusion_request).await {
             warn!(?err, "Execution: failed to validate request");
             ApiMetrics::increment_validation_errors(err.to_tag_str().to_owned());
             let _ = response.send(Err(CommitmentError::Validation(err)));
             return;
         }
-
-        // When we'll add more commitment types, we'll need to match on the request type here.
-        // For now, we only support inclusion requests so the flow is straightforward.
-        let CommitmentRequest::Inclusion(inclusion_request) = request.clone();
-        let target_slot = inclusion_request.slot;
 
         info!(
             target_slot,
@@ -301,34 +333,23 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             "Validation against execution state passed"
         );
 
-        let available_pubkeys = self.constraint_signer.available_pubkeys();
-
-        // Find a public key to sign new constraints with for this slot.
-        // This can either be the validator pubkey or a delegatee (if one is available).
-        let Some(signing_pubkey) =
-            self.constraints_client.find_signing_key(validator_pubkey, available_pubkeys)
-        else {
-            error!(%target_slot, "No available public key to sign constraints with");
-            let _ = response.send(Err(CommitmentError::Internal));
-            return;
-        };
-
         // NOTE: we iterate over the transactions in the request and generate a signed constraint
         // for each one. This is because the transactions in the commitment request are not supposed
         // to be treated as a relative-ordering bundle, but a batch with no ordering guarantees.
         //
         // For more information, check out the constraints API docs:
         // https://docs.boltprotocol.xyz/technical-docs/api/builder#constraints
-        for tx in inclusion_request.txs {
+        for tx in inclusion_request.txs.iter() {
             let tx_type = tx.tx_type();
-            let message = ConstraintsMessage::from_tx(signing_pubkey.clone(), target_slot, tx);
+            let message =
+                ConstraintsMessage::from_tx(signing_pubkey.clone(), target_slot, tx.clone());
             let digest = message.digest();
 
             let signature_result = match &self.constraint_signer {
                 SignerBLS::Local(signer) => signer.sign_commit_boost_root(digest),
                 SignerBLS::CommitBoost(signer) => signer.sign_commit_boost_root(digest).await,
                 SignerBLS::Keystore(signer) => {
-                    signer.sign_commit_boost_root(digest, signing_pubkey.clone())
+                    signer.sign_commit_boost_root(digest, &signing_pubkey)
                 }
             };
 
@@ -346,10 +367,10 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         }
 
         // Create a commitment by signing the request
-        match request.commit_and_sign(&self.commitment_signer).await {
+        match inclusion_request.commit_and_sign(&self.commitment_signer).await {
             Ok(commitment) => {
                 debug!(target_slot, elapsed = ?start.elapsed(), "Commitment signed and sent");
-                response.send(Ok(commitment)).ok()
+                response.send(Ok(SignedCommitment::Inclusion(commitment))).ok()
             }
             Err(err) => {
                 error!(?err, "Failed to sign commitment");

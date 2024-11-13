@@ -175,7 +175,7 @@ mod test {
 
     use crate::{
         primitives::commitment::ECDSASignatureExt,
-        test_util::{create_signed_commitment_request, default_test_transaction},
+        test_util::{create_signed_inclusion_request, default_test_transaction},
     };
 
     use super::*;
@@ -194,7 +194,7 @@ mod test {
         let sk = SecretKey::random(&mut rand::thread_rng());
         let signer = PrivateKeySigner::from(sk.clone());
         let tx = default_test_transaction(signer.address(), None);
-        let req = create_signed_commitment_request(&[tx], &sk, 12).await.unwrap();
+        let req = create_signed_inclusion_request(&[tx], &sk, 12).await.unwrap();
 
         let payload = json!({
             "jsonrpc": "2.0",
@@ -236,9 +236,9 @@ mod test {
         let sk = SecretKey::random(&mut rand::thread_rng());
         let signer = PrivateKeySigner::from(sk.clone());
         let tx = default_test_transaction(signer.address(), None);
-        let req = create_signed_commitment_request(&[tx], &sk, 12).await.unwrap();
+        let req = create_signed_inclusion_request(&[tx], &sk, 12).await.unwrap();
 
-        let sig = req.signature().unwrap().to_hex();
+        let sig = req.signature.unwrap().to_hex();
 
         let payload = json!({
             "jsonrpc": "2.0",

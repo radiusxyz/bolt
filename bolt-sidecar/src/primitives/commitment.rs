@@ -63,9 +63,7 @@ impl CommitmentRequest {
     ) -> eyre::Result<SignedCommitment> {
         match self {
             CommitmentRequest::Inclusion(req) => {
-                let digest = req.digest();
-                let signature = signer.sign_hash(&digest).await?;
-                Ok(SignedCommitment::Inclusion(InclusionCommitment { request: req, signature }))
+                req.commit_and_sign(signer).await.map(SignedCommitment::Inclusion)
             }
         }
     }
@@ -97,6 +95,16 @@ pub struct InclusionRequest {
 }
 
 impl InclusionRequest {
+    /// Commits and signs the request with the provided signer. Returns an [InclusionCommitment].
+    pub async fn commit_and_sign<S: SignerECDSA>(
+        self,
+        signer: &S,
+    ) -> eyre::Result<InclusionCommitment> {
+        let digest = self.digest();
+        let signature = signer.sign_hash(&digest).await?;
+        Ok(InclusionCommitment { request: self, signature })
+    }
+
     /// Validates the transaction fees against a minimum basefee.
     /// Returns true if the fee is greater than or equal to the min, false otherwise.
     pub fn validate_basefee(&self, min: u128) -> bool {
