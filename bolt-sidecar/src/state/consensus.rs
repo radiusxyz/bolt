@@ -72,12 +72,6 @@ pub struct ConsensusState {
     /// It is considered unsafe because it is possible for the next epoch's duties to
     /// change if there are beacon chain deposits or withdrawals in the current epoch.
     unsafe_lookahead_enabled: bool,
-    /// If consensus checks should be disabled when accepting commitments. For testing purposes
-    /// only.
-    ///
-    /// If enabled, the sidecar will sign every incoming commitment with the first private key
-    /// available.
-    pub unsafe_disable_consensus_checks: bool,
 }
 
 impl fmt::Debug for ConsensusState {
@@ -99,7 +93,6 @@ impl ConsensusState {
         beacon_api_client: BeaconClient,
         commitment_deadline_duration: Duration,
         unsafe_lookahead_enabled: bool,
-        unsafe_disable_consensus_checks: bool,
     ) -> Self {
         ConsensusState {
             beacon_api_client,
@@ -109,7 +102,6 @@ impl ConsensusState {
             commitment_deadline: CommitmentDeadline::new(0, commitment_deadline_duration),
             commitment_deadline_duration,
             unsafe_lookahead_enabled,
-            unsafe_disable_consensus_checks,
         }
     }
 
@@ -121,10 +113,6 @@ impl ConsensusState {
     ///
     /// If the request is valid, return the validator public key for the target slot.
     pub fn validate_request(&self, req: &InclusionRequest) -> Result<BlsPublicKey, ConsensusError> {
-        if self.unsafe_disable_consensus_checks {
-            return Ok(BlsPublicKey::default());
-        }
-
         // Check if the slot is in the current epoch or next epoch (if unsafe lookahead is enabled)
         if req.slot < self.epoch.start_slot || req.slot >= self.furthest_slot() {
             return Err(ConsensusError::InvalidSlot(req.slot));
@@ -253,7 +241,6 @@ mod tests {
             commitment_deadline: CommitmentDeadline::new(0, commitment_deadline_duration),
             commitment_deadline_duration,
             unsafe_lookahead_enabled: false,
-            unsafe_disable_consensus_checks: false,
         };
 
         // Update the slot to 32
@@ -300,7 +287,6 @@ mod tests {
             commitment_deadline_duration,
             // We test for both epochs
             unsafe_lookahead_enabled: true,
-            unsafe_disable_consensus_checks: false,
         };
 
         let epoch =

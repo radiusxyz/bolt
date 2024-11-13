@@ -18,6 +18,6 @@ pub trait SignableBLS {
 }
 
 /// Convert a BLS public key from Consensus Types to a byte array.
-pub fn cl_public_key_to_arr(pubkey: BlsPublicKey) -> [u8; BLS_PUBLIC_KEY_BYTES_LEN] {
-    pubkey.as_ref().try_into().expect("BLS keys are 48 bytes")
+pub fn cl_public_key_to_arr(pubkey: impl AsRef<BlsPublicKey>) -> [u8; BLS_PUBLIC_KEY_BYTES_LEN] {
+    pubkey.as_ref().as_ref().try_into().expect("BLS keys are 48 bytes")
 }

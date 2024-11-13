@@ -63,7 +63,7 @@ impl CommitmentRequest {
     ) -> eyre::Result<SignedCommitment> {
         match self {
             CommitmentRequest::Inclusion(req) => {
-                Ok(SignedCommitment::Inclusion(req.commit_and_sign(signer).await?))
+                req.commit_and_sign(signer).await.map(SignedCommitment::Inclusion)
             }
         }
     }
@@ -74,12 +74,6 @@ impl CommitmentRequest {
             CommitmentRequest::Inclusion(req) => req.signature.as_ref(),
         }
     }
-}
-
-pub trait CommittableRequest {
-    type Target;
-
-    async fn commit_and_sign<S: SignerECDSA>(self, signer: &S) -> eyre::Result<Self::Target>;
 }
 
 /// Request to include a transaction at a specific slot.
@@ -100,11 +94,9 @@ pub struct InclusionRequest {
     pub signer: Option<Address>,
 }
 
-impl CommittableRequest for InclusionRequest {
-    type Target = InclusionCommitment;
-
-    /// Commits and signs the request with the provided signer. Returns a [SignedCommitment].
-    async fn commit_and_sign<S: SignerECDSA>(
+impl InclusionRequest {
+    /// Commits and signs the request with the provided signer. Returns an [InclusionCommitment].
+    pub async fn commit_and_sign<S: SignerECDSA>(
         self,
         signer: &S,
     ) -> eyre::Result<InclusionCommitment> {
@@ -112,9 +104,7 @@ impl CommittableRequest for InclusionRequest {
         let signature = signer.sign_hash(&digest).await?;
         Ok(InclusionCommitment { request: self, signature })
     }
-}
 
-impl InclusionRequest {
     /// Validates the transaction fees against a minimum basefee.
     /// Returns true if the fee is greater than or equal to the min, false otherwise.
     pub fn validate_basefee(&self, min: u128) -> bool {

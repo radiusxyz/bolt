@@ -12,11 +12,7 @@ use lighthouse_bls::Keypair;
 use lighthouse_eth2_keystore::Keystore;
 use ssz::Encode;
 
-use crate::{
-    builder::signature::compute_signing_root,
-    config::ChainConfig,
-    crypto::bls::{cl_public_key_to_arr, BLSSig},
-};
+use crate::{builder::signature::compute_signing_root, config::ChainConfig, crypto::bls::BLSSig};
 
 use super::SignerResult;
 
@@ -116,7 +112,7 @@ impl KeystoreSigner {
     pub fn sign_commit_boost_root(
         &self,
         root: [u8; 32],
-        public_key: BlsPublicKey,
+        public_key: &BlsPublicKey,
     ) -> SignerResult<BLSSig> {
         self.sign_root(root, public_key, self.chain.commit_boost_domain())
     }
@@ -125,7 +121,7 @@ impl KeystoreSigner {
     fn sign_root(
         &self,
         root: [u8; 32],
-        public_key: BlsPublicKey,
+        public_key: &BlsPublicKey,
         domain: [u8; 32],
     ) -> SignerResult<BLSSig> {
         let sk = self
@@ -133,9 +129,7 @@ impl KeystoreSigner {
             .iter()
             // `as_ssz_bytes` returns the raw bytes we need
             .find(|kp| kp.pk.as_ssz_bytes() == public_key.as_ref())
-            .ok_or(KeystoreError::UnknownPublicKey(hex::encode(cl_public_key_to_arr(
-                public_key,
-            ))))?;
+            .ok_or(KeystoreError::UnknownPublicKey(public_key.to_string()))?;
 
         let signing_root = compute_signing_root(root, domain);
 
@@ -377,7 +371,7 @@ mod tests {
             let sig_keystore = keystore_signer_from_password
                 .sign_commit_boost_root(
                     [0; 32],
-                    BlsPublicKey::try_from(public_key_bytes.as_ref()).unwrap(),
+                    &BlsPublicKey::try_from(public_key_bytes.as_ref()).unwrap(),
                 )
                 .expect("to sign message");
             assert_eq!(sig_local, sig_keystore);

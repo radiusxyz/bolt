@@ -27,9 +27,8 @@ use crate::{
     config::Opts,
     crypto::{SignableBLS, SignerECDSA},
     primitives::{
-        commitment::{CommittableRequest, SignedCommitment},
-        read_signed_delegations_from_file, CommitmentRequest, ConstraintsMessage,
-        FetchPayloadRequest, SignedConstraints, TransactionExt,
+        commitment::SignedCommitment, read_signed_delegations_from_file, CommitmentRequest,
+        ConstraintsMessage, FetchPayloadRequest, SignedConstraints, TransactionExt,
     },
     signer::{keystore::KeystoreSigner, local::LocalSigner, CommitBoostSigner, SignerBLS},
     state::{fetcher::StateFetcher, ConsensusState, ExecutionState, HeadTracker, StateClient},
@@ -67,6 +66,8 @@ pub struct SidecarDriver<C, ECDSA> {
     payload_requests_rx: mpsc::Receiver<FetchPayloadRequest>,
     /// Stream of slots made from the consensus clock
     slot_stream: SlotStream<SystemTimeProvider>,
+    /// Whether to skip consensus checks (should only be used for testing)
+    unsafe_skip_consensus_checks: bool,
 }
 
 impl SidecarDriver<StateClient, PrivateKeySigner> {
@@ -204,7 +205,6 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             beacon_client,
             opts.chain.commitment_deadline(),
             opts.chain.enable_unsafe_lookahead,
-            opts.unsafe_disable_consensus_checks,
         );
 
         let (payload_requests_tx, payload_requests_rx) = mpsc::channel(16);
@@ -226,7 +226,10 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         let (api_events_tx, api_events_rx) = mpsc::channel(1024);
         CommitmentsApiServer::new(api_addr).run(api_events_tx).await;
 
+        let unsafe_skip_consensus_checks = opts.unsafe_disable_consensus_checks;
+
         Ok(SidecarDriver {
+            unsafe_skip_consensus_checks,
             head_tracker,
             execution,
             consensus,
@@ -271,6 +274,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
     /// Handle an incoming API event, validating the request and responding with a commitment.
     async fn handle_incoming_api_event(&mut self, event: CommitmentEvent) {
         let CommitmentEvent { request, response } = event;
+
         info!("Received new commitment request: {:?}", request);
         ApiMetrics::increment_inclusion_commitments_received();
 
@@ -281,29 +285,36 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         let CommitmentRequest::Inclusion(mut inclusion_request) = request;
         let target_slot = inclusion_request.slot;
 
-        let validator_pubkey = match self.consensus.validate_request(&inclusion_request) {
-            Ok(pubkey) => pubkey,
-            Err(err) => {
-                warn!(?err, "Consensus: failed to validate request");
-                let _ = response.send(Err(CommitmentError::Consensus(err)));
-                return;
-            }
-        };
-
         let available_pubkeys = self.constraint_signer.available_pubkeys();
 
-        // Find a public key to sign new constraints with for this slot.
-        // This can either be the validator pubkey or a delegatee (if one is available).
-        let signing_pubkey = if self.consensus.unsafe_disable_consensus_checks {
-            // Take the first one available
-            available_pubkeys.iter().take(1).next().cloned()
+        // Determine the constraint signing public key for this request. Rationale:
+        // - If we're skipping consensus checks, we can use any available pubkey in the keystore.
+        // - On regular operation, we need to validate the request against the consensus state to
+        //   determine if the sidecar is the proposer for the given slot. If so, we use the
+        //   validator pubkey or any of its active delegatees to sign constraints.
+        let signing_pubkey = if self.unsafe_skip_consensus_checks {
+            available_pubkeys.iter().take(1).next().cloned().expect("at least one available pubkey")
         } else {
-            self.constraints_client.find_signing_key(validator_pubkey, available_pubkeys)
-        };
-        let Some(signing_pubkey) = signing_pubkey else {
-            error!(%target_slot, "No available public key to sign constraints with");
-            let _ = response.send(Err(CommitmentError::Internal));
-            return;
+            let validator_pubkey = match self.consensus.validate_request(&inclusion_request) {
+                Ok(pubkey) => pubkey,
+                Err(err) => {
+                    warn!(?err, "Consensus: failed to validate request");
+                    let _ = response.send(Err(CommitmentError::Consensus(err)));
+                    return;
+                }
+            };
+
+            // Find a public key to sign new constraints with for this slot.
+            // This can either be the validator pubkey or a delegatee (if one is available).
+            let Some(signing_key) =
+                self.constraints_client.find_signing_key(validator_pubkey, available_pubkeys)
+            else {
+                error!(%target_slot, "No available public key to sign constraints with");
+                let _ = response.send(Err(CommitmentError::Internal));
+                return;
+            };
+
+            signing_key
         };
 
         if let Err(err) = self.execution.validate_request(&mut inclusion_request).await {
@@ -335,7 +346,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                 SignerBLS::Local(signer) => signer.sign_commit_boost_root(digest),
                 SignerBLS::CommitBoost(signer) => signer.sign_commit_boost_root(digest).await,
                 SignerBLS::Keystore(signer) => {
-                    signer.sign_commit_boost_root(digest, signing_pubkey.clone())
+                    signer.sign_commit_boost_root(digest, &signing_pubkey)
                 }
             };
 
