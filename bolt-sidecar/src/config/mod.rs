@@ -87,6 +87,9 @@ pub struct Opts {
     /// available without checking if connected validators are scheduled to propose a block.
     #[clap(long, env = "BOLT_SIDECAR_UNSAFE_DISABLE_CONSENSUS_CHECKS", default_value_t = false)]
     pub unsafe_disable_consensus_checks: bool,
+    /// Unsafely disables on-chain checks of validators and operator when starting the sidecar
+    #[clap(long, env = "BOLT_SIDECAR_UNSAFE_DISABLE_ONCHAIN_CHECKS", default_value_t = false)]
+    pub unsafe_disable_onchain_checks: bool,
     /// Operating limits for the sidecar
     #[clap(flatten)]
     pub limits: LimitsOpts,
