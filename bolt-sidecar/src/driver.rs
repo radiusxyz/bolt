@@ -4,7 +4,7 @@ use alloy::{rpc::types::beacon::events::HeadEvent, signers::local::PrivateKeySig
 use beacon_api_client::mainnet::Client as BeaconClient;
 use ethereum_consensus::{
     clock::{self, SlotStream, SystemTimeProvider},
-    phase0::mainnet::{BlsPublicKey, SLOTS_PER_EPOCH},
+    phase0::mainnet::SLOTS_PER_EPOCH,
 };
 use eyre::Context;
 use futures::StreamExt;
@@ -170,9 +170,12 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             Vec::from_iter(constraint_signer.available_pubkeys())
         };
 
-        // Verify the operator and validator keys with the bolt manager
-        if let Some(manager) = BoltManager::from_chain(opts.execution_api_url.clone(), *opts.chain)
+        if opts.unsafe_disable_onchain_checks {
+            info!("Skipping validators and operator public keys verification, --unsafe-disable-onchain-checks is 'true'");
+        } else if let Some(manager) =
+            BoltManager::from_chain(opts.execution_api_url.clone(), *opts.chain)
         {
+            // Verify the operator and validator keys with the bolt manager
             let commitment_signer_pubkey = commitment_signer.public_key();
             info!(
                 validator_pubkeys = %validator_pubkeys.len(),
