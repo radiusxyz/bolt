@@ -27,6 +27,7 @@ use crate::{
     config::Opts,
     crypto::{SignableBLS, SignerECDSA},
     primitives::{
+        commitment::{CommittableRequest, SignedCommitment},
         read_signed_delegations_from_file, CommitmentRequest, ConstraintsMessage,
         FetchPayloadRequest, SignedConstraints, TransactionExt,
     },
@@ -269,7 +270,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
 
     /// Handle an incoming API event, validating the request and responding with a commitment.
     async fn handle_incoming_api_event(&mut self, event: CommitmentEvent) {
-        let CommitmentEvent { mut request, response } = event;
+        let CommitmentEvent { request, response } = event;
         info!("Received new commitment request: {:?}", request);
         ApiMetrics::increment_inclusion_commitments_received();
 
@@ -277,10 +278,10 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
 
         // When we'll add more commitment types, we'll need to match on the request type here.
         // For now, we only support inclusion requests so the flow is straightforward.
-        let CommitmentRequest::Inclusion(inclusion_request) = request.clone();
+        let CommitmentRequest::Inclusion(mut inclusion_request) = request;
         let target_slot = inclusion_request.slot;
 
-        let validator_pubkey = match self.consensus.validate_request(&request) {
+        let validator_pubkey = match self.consensus.validate_request(&inclusion_request) {
             Ok(pubkey) => pubkey,
             Err(err) => {
                 warn!(?err, "Consensus: failed to validate request");
@@ -305,7 +306,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             return;
         };
 
-        if let Err(err) = self.execution.validate_request(&mut request).await {
+        if let Err(err) = self.execution.validate_request(&mut inclusion_request).await {
             warn!(?err, "Execution: failed to validate request");
             ApiMetrics::increment_validation_errors(err.to_tag_str().to_owned());
             let _ = response.send(Err(CommitmentError::Validation(err)));
@@ -324,9 +325,10 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         //
         // For more information, check out the constraints API docs:
         // https://docs.boltprotocol.xyz/technical-docs/api/builder#constraints
-        for tx in inclusion_request.txs {
+        for tx in inclusion_request.txs.iter() {
             let tx_type = tx.tx_type();
-            let message = ConstraintsMessage::from_tx(signing_pubkey.clone(), target_slot, tx);
+            let message =
+                ConstraintsMessage::from_tx(signing_pubkey.clone(), target_slot, tx.clone());
             let digest = message.digest();
 
             let signature_result = match &self.constraint_signer {
@@ -351,10 +353,10 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         }
 
         // Create a commitment by signing the request
-        match request.commit_and_sign(&self.commitment_signer).await {
+        match inclusion_request.commit_and_sign(&self.commitment_signer).await {
             Ok(commitment) => {
                 debug!(target_slot, elapsed = ?start.elapsed(), "Commitment signed and sent");
-                response.send(Ok(commitment)).ok()
+                response.send(Ok(SignedCommitment::Inclusion(commitment))).ok()
             }
             Err(err) => {
                 error!(?err, "Failed to sign commitment");

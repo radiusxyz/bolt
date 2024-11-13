@@ -11,7 +11,7 @@ use tracing::debug;
 use super::CommitmentDeadline;
 use crate::{
     client::BeaconClient,
-    primitives::{CommitmentRequest, InclusionRequest, Slot},
+    primitives::{InclusionRequest, Slot},
     telemetry::ApiMetrics,
 };
 
@@ -119,15 +119,10 @@ impl ConsensusState {
     /// 2. The request hasn't passed the slot deadline.
     ///
     /// If the request is valid, return the validator public key for the target slot.
-    pub fn validate_request(
-        &self,
-        request: &CommitmentRequest,
-    ) -> Result<BlsPublicKey, ConsensusError> {
+    pub fn validate_request(&self, req: &InclusionRequest) -> Result<BlsPublicKey, ConsensusError> {
         if self.unsafe_disable_consensus_checks {
             return Ok(BlsPublicKey::default());
         }
-
-        let CommitmentRequest::Inclusion(req) = request;
 
         // Check if the slot is in the current epoch or next epoch (if unsafe lookahead is enabled)
         if req.slot < self.epoch.start_slot || req.slot >= self.furthest_slot() {

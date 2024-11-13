@@ -63,9 +63,7 @@ impl CommitmentRequest {
     ) -> eyre::Result<SignedCommitment> {
         match self {
             CommitmentRequest::Inclusion(req) => {
-                let digest = req.digest();
-                let signature = signer.sign_hash(&digest).await?;
-                Ok(SignedCommitment::Inclusion(InclusionCommitment { request: req, signature }))
+                Ok(SignedCommitment::Inclusion(req.commit_and_sign(signer).await?))
             }
         }
     }
@@ -76,6 +74,12 @@ impl CommitmentRequest {
             CommitmentRequest::Inclusion(req) => req.signature.as_ref(),
         }
     }
+}
+
+pub trait CommittableRequest {
+    type Target;
+
+    async fn commit_and_sign<S: SignerECDSA>(self, signer: &S) -> eyre::Result<Self::Target>;
 }
 
 /// Request to include a transaction at a specific slot.
@@ -94,6 +98,20 @@ pub struct InclusionRequest {
     /// The signer of the request (if recovered).
     #[serde(skip)]
     pub signer: Option<Address>,
+}
+
+impl CommittableRequest for InclusionRequest {
+    type Target = InclusionCommitment;
+
+    /// Commits and signs the request with the provided signer. Returns a [SignedCommitment].
+    async fn commit_and_sign<S: SignerECDSA>(
+        self,
+        signer: &S,
+    ) -> eyre::Result<InclusionCommitment> {
+        let digest = self.digest();
+        let signature = signer.sign_hash(&digest).await?;
+        Ok(InclusionCommitment { request: self, signature })
+    }
 }
 
 impl InclusionRequest {
