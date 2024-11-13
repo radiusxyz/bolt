@@ -173,8 +173,10 @@ pub struct RevocationMessage {
     pub delegatee_pubkey: BlsPublicKey,
 }
 
+/// Reference: https://docs.boltprotocol.xyz/technical-docs/api/builder#get_header_with_proofs
 pub type GetHeaderWithProofsResponse = VersionedResponse<SignedExecutionPayloadHeaderWithProofs>;
 
+/// Reference: https://docs.boltprotocol.xyz/technical-docs/api/builder#get_header_with_proofs
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct SignedExecutionPayloadHeaderWithProofs {
     #[serde(flatten)]
@@ -183,6 +185,7 @@ pub struct SignedExecutionPayloadHeaderWithProofs {
     pub proofs: InclusionProofs,
 }
 
+/// Reference: https://docs.boltprotocol.xyz/technical-docs/api/builder#get_header_with_proofs
 #[derive(Debug, Default, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct InclusionProofs {
     /// The transaction hashes these inclusion proofs are for. The hash tree roots of
