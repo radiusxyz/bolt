@@ -4,7 +4,7 @@ use alloy::{rpc::types::beacon::events::HeadEvent, signers::local::PrivateKeySig
 use beacon_api_client::mainnet::Client as BeaconClient;
 use ethereum_consensus::{
     clock::{self, SlotStream, SystemTimeProvider},
-    phase0::mainnet::SLOTS_PER_EPOCH,
+    phase0::mainnet::{BlsPublicKey, SLOTS_PER_EPOCH},
 };
 use eyre::Context;
 use futures::StreamExt;
@@ -293,7 +293,10 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         //   determine if the sidecar is the proposer for the given slot. If so, we use the
         //   validator pubkey or any of its active delegatees to sign constraints.
         let signing_pubkey = if self.unsafe_skip_consensus_checks {
-            available_pubkeys.iter().take(1).next().cloned().expect("at least one available pubkey")
+            // PERF: this is inefficient, but it's only used for testing purposes.
+            let mut ap = available_pubkeys.iter().collect::<Vec<_>>();
+            ap.sort();
+            ap.first().cloned().cloned().expect("at least one available pubkey")
         } else {
             let validator_pubkey = match self.consensus.validate_request(&inclusion_request) {
                 Ok(pubkey) => pubkey,
