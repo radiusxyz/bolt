@@ -27,7 +27,7 @@ pub fn verify_multiproofs(
     root: B256,
 ) -> Result<(), ProofError> {
     // Check if the length of the leaves and indices match
-    if proofs.transaction_hashes.len() != proofs.generalized_indeces.len() {
+    if proofs.transaction_hashes.len() != proofs.generalized_indexes.len() {
         return Err(ProofError::LengthMismatch);
     }
 
@@ -68,7 +68,7 @@ pub fn verify_multiproofs(
     ssz_rs::multiproofs::verify_merkle_multiproof(
         &leaves,
         &proofs.merkle_hashes,
-        &proofs.generalized_indeces,
+        &proofs.generalized_indexes,
         root,
     )
     .map_err(|_| ProofError::VerificationFailed)?;
