@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use alloy::primitives::{Address, U256};
+use alloy::primitives::{Address, TxHash, U256};
 use ethereum_consensus::{
     crypto::{KzgCommitment, KzgProof},
     deneb::mainnet::{Blob, BlobsBundle},
 };
-use reth_primitives::{TransactionSigned, TxHash};
+use reth_primitives::TransactionSigned;
 use tracing::warn;
 
 use crate::{

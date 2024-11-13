@@ -9,6 +9,7 @@ use commit_boost::prelude::SignProxyRequest;
 use ethereum_consensus::crypto::bls::PublicKey as BlsPublicKey;
 use parking_lot::RwLock;
 use reqwest::Url;
+use ssz::Decode;
 use thiserror::Error;
 use tracing::{debug, error, info};
 
@@ -122,9 +123,9 @@ impl CommitBoostSigner {
     /// Sign an object root with the Commit Boost domain.
     pub async fn sign_commit_boost_root(&self, data: [u8; 32]) -> SignerResult<BlsSignature> {
         // convert the pubkey from ethereum_consensus to commit-boost format
-        let pubkey = cb_common::signer::BlsPublicKey::from(
-            alloy::rpc::types::beacon::BlsPublicKey::from_slice(self.pubkey().as_ref()),
-        );
+        // TODO: compat: this is the only way to obtain a BlsPubkey for now unfortunately
+        let pubkey = cb_common::signer::BlsPublicKey::from_ssz_bytes(self.pubkey().as_ref())
+            .expect("pubkey bytes conversion");
 
         let request = SignConsensusRequest { pubkey, object_root: data };
 
@@ -134,6 +135,8 @@ impl CommitBoostSigner {
             .signer_client
             .request_consensus_signature(request)
             .await
+            // TODO: compat: this is necessary until commit-boost bumps their alloy version
+            .map(|sig| BlsSignature::from_slice(sig.as_ref()))
             .map_err(CommitBoostError::SignerClientError)?)
     }
 }
@@ -179,6 +182,20 @@ mod test {
     use super::*;
     use rand::Rng;
     use tracing::warn;
+
+    #[test]
+    fn test_convert_pubkey_bytes() {
+        // Generate random data for the test
+        let mut rnd = [0u8; 128];
+        rand::thread_rng().fill(&mut rnd);
+        let consensus_pubkey = BlsPublicKey::try_from(rnd[..48].as_ref()).unwrap();
+
+        let cb_pubkey = cb_common::signer::BlsPublicKey::from_ssz_bytes(consensus_pubkey.as_ref())
+            .expect("pubkey bytes conversion");
+
+        // make sure the bytes haven't changed
+        assert_eq!(consensus_pubkey.to_vec(), cb_pubkey.to_vec());
+    }
 
     #[test]
     fn test_url_parse_address() {

@@ -1,9 +1,12 @@
 use alloy::{
-    eips::eip4895::Withdrawal,
+    eips::{eip2718::Encodable2718, eip4895::Withdrawal},
     primitives::{Address, Bloom, B256, U256},
-    rpc::types::engine::{
-        ExecutionPayload as AlloyExecutionPayload, ExecutionPayloadV1, ExecutionPayloadV2,
-        ExecutionPayloadV3,
+    rpc::types::{
+        engine::{
+            ExecutionPayload as AlloyExecutionPayload, ExecutionPayloadV1, ExecutionPayloadV2,
+            ExecutionPayloadV3,
+        },
+        Withdrawals,
     },
 };
 use ethereum_consensus::{
@@ -20,7 +23,7 @@ use ethereum_consensus::{
     ssz::prelude::{ssz_rs, ByteList, ByteVector, HashTreeRoot, List},
     types::mainnet::ExecutionPayload as ConsensusExecutionPayload,
 };
-use reth_primitives::{SealedBlock, TransactionSigned, Withdrawals};
+use reth_primitives::{SealedBlock, TransactionSigned};
 
 /// Compatibility: convert a sealed header into an ethereum-consensus execution payload header.
 /// This requires recalculating the withdrals and transactions roots as SSZ instead of MPT roots.
@@ -29,7 +32,7 @@ pub(crate) fn to_execution_payload_header(
     transactions: Vec<TransactionSigned>,
 ) -> ConsensusExecutionPayloadHeader {
     // Transactions and withdrawals are treated as opaque byte arrays in consensus types
-    let transactions_bytes = transactions.iter().map(|t| t.envelope_encoded()).collect::<Vec<_>>();
+    let transactions_bytes = transactions.iter().map(|t| t.encoded_2718()).collect::<Vec<_>>();
 
     let mut transactions_ssz: List<Transaction, MAX_TRANSACTIONS_PER_PAYLOAD> = List::default();
 
@@ -42,7 +45,7 @@ pub(crate) fn to_execution_payload_header(
     let mut withdrawals_ssz: List<ConsensusWithdrawal, MAX_WITHDRAWALS_PER_PAYLOAD> =
         List::default();
 
-    if let Some(withdrawals) = sealed_block.withdrawals.as_ref() {
+    if let Some(withdrawals) = sealed_block.body.withdrawals.as_ref() {
         for w in withdrawals.iter() {
             withdrawals_ssz.push(to_consensus_withdrawal(w));
         }
@@ -79,6 +82,7 @@ pub(crate) fn to_alloy_execution_payload(
     block_hash: B256,
 ) -> AlloyExecutionPayload {
     let alloy_withdrawals = block
+        .body
         .withdrawals
         .as_ref()
         .map(|withdrawals| {
@@ -123,11 +127,11 @@ pub(crate) fn to_alloy_execution_payload(
 pub(crate) fn to_consensus_execution_payload(value: &SealedBlock) -> ConsensusExecutionPayload {
     let hash = value.hash();
     let header = &value.header;
-    let transactions = &value.body;
-    let withdrawals = &value.withdrawals;
+    let transactions = &value.body.transactions;
+    let withdrawals = &value.body.withdrawals;
     let transactions = transactions
         .iter()
-        .map(|t| spec::Transaction::try_from(t.envelope_encoded().as_ref()).unwrap())
+        .map(|t| spec::Transaction::try_from(t.encoded_2718().as_ref()).unwrap())
         .collect::<Vec<_>>();
     let withdrawals = withdrawals
         .as_ref()
@@ -163,11 +167,9 @@ pub(crate) fn to_consensus_execution_payload(value: &SealedBlock) -> ConsensusEx
     ConsensusExecutionPayload::Deneb(payload)
 }
 
-/// Compatibility: convert a withdrawal from ethereum-consensus to a Reth withdrawal
-pub(crate) fn to_reth_withdrawal(
-    value: ethereum_consensus::capella::Withdrawal,
-) -> reth_primitives::Withdrawal {
-    reth_primitives::Withdrawal {
+/// Compatibility: convert a Withdrawal from ethereum-consensus to alloy::primitives
+pub(crate) fn to_alloy_withdrawal(value: ethereum_consensus::capella::Withdrawal) -> Withdrawal {
+    Withdrawal {
         index: value.index as u64,
         validator_index: value.validator_index as u64,
         address: Address::from_slice(value.address.as_ref()),
@@ -175,9 +177,9 @@ pub(crate) fn to_reth_withdrawal(
     }
 }
 
-/// Compatibility: convert a withdrawal from Reth to ethereum-consensus
+/// Compatibility: convert a withdrawal from alloy::primitives to ethereum-consensus
 pub(crate) fn to_consensus_withdrawal(
-    value: &reth_primitives::Withdrawal,
+    value: &Withdrawal,
 ) -> ethereum_consensus::capella::Withdrawal {
     ethereum_consensus::capella::Withdrawal {
         index: value.index as usize,

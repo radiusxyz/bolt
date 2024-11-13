@@ -2,12 +2,11 @@ use std::{collections::HashMap, str::FromStr};
 
 use alloy::{
     contract::Error as ContractError,
-    primitives::{Bytes, FixedBytes, B512},
+    primitives::{keccak256, Bytes, FixedBytes, B512},
     sol_types::SolInterface,
     transports::TransportError,
 };
 use ethereum_consensus::primitives::BlsPublicKey;
-use reth_primitives::keccak256;
 
 /// A 20-byte compressed hash of a BLS public key.
 ///

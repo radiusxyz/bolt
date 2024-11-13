@@ -73,7 +73,10 @@ impl SignerECDSA for PrivateKeySigner {
     }
 
     async fn sign_hash(&self, hash: &[u8; 32]) -> eyre::Result<AlloySignature> {
-        Ok(Signer::sign_hash(self, hash.into()).await?)
+        let sig = Signer::sign_hash(self, hash.into()).await?;
+        // TODO: compat: this is necessary since alloy PrimitiveSignature and Signature
+        // are different types in the new version
+        Ok(AlloySignature::try_from(sig.as_bytes().as_ref()).expect("signature conversion"))
     }
 }
 

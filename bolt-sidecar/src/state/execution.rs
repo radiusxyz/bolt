@@ -1,11 +1,10 @@
 use alloy::{
+    consensus::BlobTransactionValidationError,
     eips::eip4844::MAX_BLOBS_PER_BLOCK,
     primitives::{Address, U256},
     transports::TransportError,
 };
-use reth_primitives::{
-    revm_primitives::EnvKzgSettings, BlobTransactionValidationError, PooledTransactionsElement,
-};
+use reth_primitives::{revm_primitives::EnvKzgSettings, PooledTransactionsElement};
 use std::{collections::HashMap, ops::Deref};
 use thiserror::Error;
 use tracing::{debug, trace, warn};
@@ -413,13 +412,16 @@ impl<C: StateFetcher> ExecutionState<C> {
                 let max_blob_basefee = calculate_max_basefee(self.blob_basefee, slot_diff)
                     .ok_or(ValidationError::MaxBaseFeeCalcOverflow)?;
 
-                debug!(%max_blob_basefee, blob_basefee = blob_transaction.transaction.max_fee_per_blob_gas, "Validating blob basefee");
-                if blob_transaction.transaction.max_fee_per_blob_gas < max_blob_basefee {
+                debug!(%max_blob_basefee, blob_basefee = blob_transaction.transaction.tx.max_fee_per_blob_gas, "Validating blob basefee");
+                if blob_transaction.transaction.tx.max_fee_per_blob_gas < max_blob_basefee {
                     return Err(ValidationError::BlobBaseFeeTooLow(max_blob_basefee));
                 }
 
                 // Validate blob against KZG settings
-                transaction.validate_blob(&blob_transaction.sidecar, self.kzg_settings.get())?;
+                transaction.validate_blob(
+                    &blob_transaction.transaction.sidecar,
+                    self.kzg_settings.get(),
+                )?;
             }
 
             // Increase the bundle nonce and balance diffs for this sender for the next iteration
@@ -462,7 +464,7 @@ impl<C: StateFetcher> ExecutionState<C> {
         for template in self.remove_block_templates_until(slot) {
             debug!(%slot, "Removed block template for slot");
             let hashes = template.transaction_hashes();
-            let receipts = self.client.get_receipts_unordered(&hashes).await?;
+            let receipts = self.client.get_receipts_unordered(hashes.as_ref()).await?;
 
             let mut receipts_len = 0;
             for receipt in receipts.iter().flatten() {
@@ -580,7 +582,7 @@ mod tests {
     use std::{num::NonZero, str::FromStr, time::Duration};
 
     use alloy::{
-        consensus::constants::ETH_TO_WEI,
+        consensus::constants::{ETH_TO_WEI, GWEI_TO_WEI},
         eips::eip2718::Encodable2718,
         network::EthereumWallet,
         primitives::{uint, Uint},
@@ -588,7 +590,6 @@ mod tests {
         signers::local::PrivateKeySigner,
     };
     use fetcher::{StateClient, StateFetcher};
-    use reth_primitives::constants::GWEI_TO_WEI;
 
     use crate::{
         crypto::SignableBLS,
@@ -766,9 +767,8 @@ mod tests {
         // burn the balance
         let tx = default_test_transaction(*sender, Some(0)).with_value(uint!(balance_to_burn));
         let request = create_signed_commitment_request(&[tx], sender_pk, 10).await?;
-        let tx_bytes =
-            request.as_inclusion_request().unwrap().txs.first().unwrap().envelope_encoded();
-        let _ = client.inner().send_raw_transaction(tx_bytes).await?;
+        let tx_bytes = request.as_inclusion_request().unwrap().txs.first().unwrap().encoded_2718();
+        let _ = client.inner().send_raw_transaction(tx_bytes.into()).await?;
 
         // wait for the transaction to be included to update the sender balance
         tokio::time::sleep(Duration::from_secs(2)).await;

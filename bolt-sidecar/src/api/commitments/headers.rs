@@ -21,7 +21,8 @@ pub fn auth_from_headers(headers: &HeaderMap) -> Result<(Address, Signature), Co
     let address = Address::from_str(address).map_err(|_| CommitmentError::MalformedHeader)?;
 
     let sig = split.next().ok_or(CommitmentError::MalformedHeader)?;
-    let sig = Signature::from_str(sig).map_err(|_| CommitmentError::InvalidSignature(SignatureError))?;
+    let sig =
+        Signature::from_str(sig).map_err(|_| CommitmentError::InvalidSignature(SignatureError))?;
 
     Ok((address, sig))
 }
@@ -29,11 +30,10 @@ pub fn auth_from_headers(headers: &HeaderMap) -> Result<(Address, Signature), Co
 #[cfg(test)]
 mod test {
     use alloy::{
+        hex::ToHexExt,
         primitives::TxHash,
         signers::{local::PrivateKeySigner, Signer},
     };
-
-    use crate::primitives::commitment::ECDSASignatureExt;
 
     use super::*;
 
@@ -45,11 +45,13 @@ mod test {
         let addr = signer.address();
 
         let expected_sig = signer.sign_hash(&hash).await.unwrap();
-        headers
-            .insert(SIGNATURE_HEADER, format!("{addr}:{}", expected_sig.to_hex()).parse().unwrap());
+        headers.insert(
+            SIGNATURE_HEADER,
+            format!("{addr}:{}", expected_sig.as_bytes().encode_hex()).parse().unwrap(),
+        );
 
         let (address, signature) = auth_from_headers(&headers).unwrap();
-        assert_eq!(signature, expected_sig);
+        assert_eq!(signature, Signature::try_from(expected_sig.as_bytes().as_ref()).unwrap());
         assert_eq!(address, addr);
     }
 }

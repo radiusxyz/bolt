@@ -3,7 +3,7 @@ use std::env;
 use alloy::{
     eips::eip2718::Encodable2718,
     network::{EthereumWallet, TransactionBuilder},
-    primitives::{Address, U256},
+    primitives::{Address, Signature, U256},
     rpc::types::TransactionRequest,
     signers::{
         k256::{ecdsa::SigningKey as K256SigningKey, SecretKey as K256SecretKey},
@@ -14,7 +14,7 @@ use alloy::{
 use alloy_node_bindings::{Anvil, AnvilInstance};
 use blst::min_pk::SecretKey;
 use clap::Parser;
-use ethereum_consensus::crypto::{PublicKey, Signature};
+use ethereum_consensus::crypto::bls::{PublicKey as BlsPublicKey, Signature as BlsSignature};
 use rand::Rng;
 use secp256k1::Message;
 use tracing::warn;
@@ -182,7 +182,7 @@ pub(crate) async fn create_signed_commitment_request(
     request.recover_signers()?;
 
     let signature = signer.sign_hash(&request.digest()).await?;
-    request.set_signature(signature);
+    request.set_signature(Signature::try_from(signature.as_bytes().as_ref()).unwrap());
     request.set_signer(signer.address());
 
     Ok(CommitmentRequest::Inclusion(request))
@@ -220,7 +220,7 @@ async fn generate_test_data_kurtosis() {
     // Prepare a Delegation message
     let delegation_msg = DelegationMessage::new(
         pk.clone(),
-        PublicKey::try_from(delegatee_pk.to_bytes().as_slice())
+        BlsPublicKey::try_from(delegatee_pk.to_bytes().as_slice())
             .expect("Failed to convert delegatee public key"),
     );
 
@@ -230,7 +230,7 @@ async fn generate_test_data_kurtosis() {
     let delegation_signature = signer.sign_commit_boost_root(digest).unwrap();
     let blst_sig = blst::min_pk::Signature::from_bytes(delegation_signature.as_ref())
         .expect("Failed to convert delegation signature");
-    let consensus_sig = Signature::try_from(delegation_signature.as_ref())
+    let consensus_sig = BlsSignature::try_from(delegation_signature.as_ref())
         .expect("Failed to convert delegation signature");
 
     // Sanity check: verify the signature
@@ -245,7 +245,7 @@ async fn generate_test_data_kurtosis() {
     // Prepare a revocation message
     let revocation_msg = RevocationMessage::new(
         pk.clone(),
-        PublicKey::try_from(delegatee_pk.to_bytes().as_slice())
+        BlsPublicKey::try_from(delegatee_pk.to_bytes().as_slice())
             .expect("Failed to convert delegatee public key"),
     );
 
@@ -257,7 +257,7 @@ async fn generate_test_data_kurtosis() {
     // Create SignedRevocation
     let signed_revocation = SignedRevocation {
         message: revocation_msg,
-        signature: Signature::try_from(revocation_signature.as_ref())
+        signature: BlsSignature::try_from(revocation_signature.as_ref())
             .expect("Failed to convert revocation signature"),
     };
 

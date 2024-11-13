@@ -1,24 +1,22 @@
 use std::fmt;
 
 use alloy::{
+    consensus::{Header, EMPTY_OMMER_ROOT_HASH},
     eips::{calc_excess_blob_gas, calc_next_block_base_fee, eip1559::BaseFeeParams},
-    primitives::{Address, Bytes, B256, U256},
-    rpc::types::{engine::ExecutionPayload as AlloyExecutionPayload, Block},
+    primitives::{Address, Bloom, Bytes, B256, B64, U256},
+    rpc::types::{engine::ExecutionPayload, Block, Withdrawal, Withdrawals},
 };
 use beacon_api_client::{BlockId, StateId};
 use hex::FromHex;
 use regex::Regex;
 use reqwest::Url;
-use reth_primitives::{
-    constants::BEACON_NONCE, proofs, BlockBody, Bloom, Header, SealedBlock, TransactionSigned,
-    Withdrawal, Withdrawals, EMPTY_OMMER_ROOT_HASH,
-};
+use reth_primitives::{proofs, BlockBody, SealedBlock, SealedHeader, TransactionSigned};
 use reth_rpc_layer::{secret_to_bearer_header, JwtSecret};
 use serde_json::Value;
 use tracing::trace;
 
 use super::{
-    compat::{to_alloy_execution_payload, to_reth_withdrawal},
+    compat::{to_alloy_execution_payload, to_alloy_withdrawal},
     BuilderError,
 };
 
@@ -124,8 +122,11 @@ impl FallbackPayloadBuilder {
         let prev_randao = self.get_prev_randao().await?;
         trace!(randao = ?prev_randao, "got prev_randao");
 
-        let parent_beacon_block_root =
-            self.beacon_api_client.get_beacon_block_root(BlockId::Head).await?;
+        let parent_beacon_block_root = B256::from_slice(
+            // TODO: compat: as_slice() from_slice() is necessary until we bump ethereum-consensus
+            // version to match alloy's.
+            self.beacon_api_client.get_beacon_block_root(BlockId::Head).await?.as_slice(),
+        );
         trace!(parent = ?parent_beacon_block_root, "got parent_beacon_block_root");
 
         let versioned_hashes = transactions
@@ -172,7 +173,6 @@ impl FallbackPayloadBuilder {
             ommers: Vec::new(),
             transactions: transactions.to_vec(),
             withdrawals: Some(Withdrawals::new(withdrawals)),
-            requests: None,
         };
 
         let mut hints = Hints::default();
@@ -181,7 +181,8 @@ impl FallbackPayloadBuilder {
         loop {
             let header = build_header_with_hints_and_context(&latest_block, &hints, &ctx);
 
-            let sealed_header = header.seal_slow();
+            let sealed_hash = header.hash_slow();
+            let sealed_header = SealedHeader::new(header, sealed_hash);
             let sealed_block = SealedBlock::new(sealed_header, body.clone());
 
             let block_hash = hints.block_hash.unwrap_or(sealed_block.hash());
@@ -262,7 +263,7 @@ impl FallbackPayloadBuilder {
             .get_expected_withdrawals(StateId::Head, None)
             .await?
             .into_iter()
-            .map(to_reth_withdrawal)
+            .map(to_alloy_withdrawal)
             .collect::<Vec<_>>())
     }
 }
@@ -295,7 +296,7 @@ impl EngineHinter {
     /// Fetch the next payload hint from the engine API to complete the sealed block.
     pub async fn fetch_next_payload_hint(
         &self,
-        exec_payload: &AlloyExecutionPayload,
+        exec_payload: &ExecutionPayload,
         versioned_hashes: &[B256],
         parent_beacon_root: B256,
     ) -> Result<EngineApiHint, BuilderError> {
@@ -380,7 +381,7 @@ fn build_header_with_hints_and_context(
     let state_root = hints.state_root.unwrap_or_default();
 
     Header {
-        parent_hash: latest_block.header.hash.unwrap_or_default(),
+        parent_hash: latest_block.header.hash,
         ommers_hash: EMPTY_OMMER_ROOT_HASH,
         beneficiary: context.fee_recipient,
         state_root,
@@ -389,17 +390,17 @@ fn build_header_with_hints_and_context(
         withdrawals_root: Some(context.withdrawals_root),
         logs_bloom,
         difficulty: U256::ZERO,
-        number: latest_block.header.number.unwrap_or_default() + 1,
-        gas_limit: latest_block.header.gas_limit as u64,
+        number: latest_block.header.number + 1,
+        gas_limit: latest_block.header.gas_limit,
         gas_used,
         timestamp: context.block_timestamp,
         mix_hash: context.prev_randao,
-        nonce: BEACON_NONCE,
+        nonce: B64::ZERO,
         base_fee_per_gas: Some(context.base_fee),
         blob_gas_used: Some(context.blob_gas_used),
         excess_blob_gas: Some(context.excess_blob_gas),
         parent_beacon_block_root: Some(context.parent_beacon_block_root),
-        requests_root: None,
+        requests_hash: None,
         extra_data: context.extra_data.clone(),
     }
 }
@@ -419,7 +420,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use alloy::{
-        eips::eip2718::Encodable2718,
+        eips::eip2718::{Decodable2718, Encodable2718},
         network::{EthereumWallet, TransactionBuilder},
         primitives::{hex, Address},
         signers::{k256::ecdsa::SigningKey, local::PrivateKeySigner},
@@ -456,14 +457,14 @@ mod tests {
         let tx = default_test_transaction(addy, Some(3)).with_chain_id(1);
         let tx_signed = tx.build(&wallet).await?;
         let raw_encoded = tx_signed.encoded_2718();
-        let tx_signed_reth = TransactionSigned::decode_enveloped(&mut raw_encoded.as_slice())?;
+        let tx_signed_reth = TransactionSigned::decode_2718(&mut raw_encoded.as_slice())?;
 
         let slot = genesis_time +
             (SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() / cfg.chain.slot_time()) +
             1;
 
         let block = builder.build_fallback_payload(slot, &[tx_signed_reth]).await?;
-        assert_eq!(block.body.len(), 1);
+        assert_eq!(block.body.transactions.len(), 1);
 
         Ok(())
     }
@@ -473,7 +474,7 @@ mod tests {
         // Withdrawal root in the execution layer header is MPT.
         assert_eq!(
             reth_primitives::proofs::calculate_withdrawals_root(&Vec::new()),
-            reth_primitives::constants::EMPTY_WITHDRAWALS
+            alloy::consensus::constants::EMPTY_WITHDRAWALS
         );
     }
 }

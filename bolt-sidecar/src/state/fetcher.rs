@@ -2,13 +2,12 @@ use std::{collections::HashMap, time::Duration};
 
 use alloy::{
     eips::BlockNumberOrTag,
-    primitives::{Address, Bytes, U256, U64},
+    primitives::{Address, Bytes, TxHash, U256, U64},
     rpc::types::TransactionReceipt,
     transports::TransportError,
 };
 use futures::{stream::FuturesOrdered, StreamExt};
 use reqwest::Url;
-use reth_primitives::TxHash;
 use tracing::error;
 
 use crate::{client::RpcClient, primitives::AccountState};
