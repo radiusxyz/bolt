@@ -48,7 +48,7 @@ late_in_slot_time_ms = 1000
 # OPTIONAL, DEFAULT: URL hostname
 id = "bolt-sidecar"
 # Relay URL in the format scheme://pubkey@host
-url = "http://0xa1cec75a3f0661e99299274182938151e8433c61a19222347ea1313d839229cb4ce4e3e5aa2bdeb71c8fcf1b084963c2@cb_bolt:18550"
+url = "http://0xa55c1285d84ba83a5ad26420cd5ad3091e49c55a813eee651cd467db38a8c8e63192f47955e9376f6b42f6d190571cb5@cb_bolt:18550"
 # Headers to send with each request for this relay
 # OPTIONAL
 # headers = { X-MyCustomHeader = "MyCustomValue" }
