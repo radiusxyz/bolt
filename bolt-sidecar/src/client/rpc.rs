@@ -50,7 +50,11 @@ impl RpcClient {
         let fee_history: FeeHistory =
             self.0.request("eth_feeHistory", (U64::from(1), tag, &[] as &[f64])).await?;
 
-        Ok(fee_history.latest_block_base_fee().unwrap())
+        let Some(base_fee) = fee_history.latest_block_base_fee() else {
+            return Err(TransportErrorKind::Custom("Base fee not found".into()).into());
+        };
+
+        Ok(base_fee)
     }
 
     /// Get the blob basefee of the latest block.
