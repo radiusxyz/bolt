@@ -284,4 +284,41 @@ mod test {
 
         rx.await.unwrap();
     }
+
+    #[tokio::test]
+    async fn test_request_metadata() {
+        let _ = tracing_subscriber::fmt::try_init();
+
+        let mut server = CommitmentsApiServer::new("0.0.0.0:0");
+
+        let (events_tx, _) = mpsc::channel(1);
+
+        server.run(events_tx, LimitsOpts::default()).await;
+        let addr = server.local_addr();
+
+        let payload = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "bolt_metadata",
+            "params": []
+        });
+
+        let url = format!("http://{addr}");
+
+        let client = reqwest::Client::new();
+
+        let response = client
+            .post(url)
+            .json(&payload)
+            .send()
+            .await
+            .unwrap()
+            .json::<JsonResponse>()
+            .await
+            .unwrap();
+
+        let limits: LimitsOpts = serde_json::from_value(response.result).unwrap();
+
+        assert_eq!(limits, LimitsOpts::default());
+    }
 }
