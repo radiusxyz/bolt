@@ -1,6 +1,6 @@
 network_params:
   seconds_per_slot: 2 # 2 seconds are the minimum for testing
-  genesis_delay: 0 # Apparently it seems needed to avoid timestamp issues on Helix
+  genesis_delay: 0 # This is needed to avoid timestamp issues on Helix
 tx_spammer_params:
   tx_spammer_extra_args: ["--slot-time=1", "--accounts=10", "--txcount=1"]
 
@@ -9,6 +9,7 @@ additional_services:
   - tx_spammer
   - blockscout
   - dora
+  - prometheus_grafana
   # - assertoor
   # - blob_spammer
   # - custom_flood
@@ -16,7 +17,6 @@ additional_services:
   # - el_forkmon
   # - beacon_metrics_gazer
   # - full_beaconchain_explorer
-  - prometheus_grafana
   # - blobscan
 
 mev_type: full

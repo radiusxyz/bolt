@@ -1,18 +1,6 @@
-# default recipe to display help information
+# display a help message about available commands
 default:
   @just --list --unsorted
-
-# 1. Make sure the nightly-2024-10-03 toolchain is installed
-# 2. cd to git root and cd into crate
-fmt crate:
-  rustup toolchain install nightly-2024-10-03 > /dev/null 2>&1 && \
-  cd $(git rev-parse --show-toplevel)/{{crate}} && \
-  cargo +nightly-2024-10-03 fmt
-
-# run the web demo locally
-demo:
-	chmod +x ./scripts/start-demo.sh
-	./scripts/start-demo.sh
 
 # spin up the bolt devnet
 up:
@@ -34,26 +22,30 @@ restart:
 	@just build-images
 	@just up
 
-_restart-sidecar:
-    @just down
-    @just _build-sidecar
-    @just up
-
 # show the running containers and port mappings for the bolt devnet
 inspect:
 	kurtosis enclave inspect bolt-devnet
 
+# format a rust crate. Must be run from the root of the crate's cargo directory
+fmt crate:
+  rustup toolchain install nightly-2024-10-03 > /dev/null 2>&1 && \
+  cd $(git rev-parse --show-toplevel)/{{crate}} && \
+  cargo +nightly-2024-10-03 fmt
+
+[private]
 bash service:
     @id=$(docker ps -n 100 | grep {{ service }} | awk -F' ' '{print $1}') && \
     docker exec -it $id bash
 
+[private]
 log service:
     @id=$(docker ps -n 100 | grep {{ service }} | awk -F' ' '{print $1}') && \
     docker logs -f $id
 
+[private]
 dump service:
   @id=$(docker ps -n 100 | grep {{ service }} | awk -F' ' '{print $1}') && \
-  docker logs $id 2>&1 | tee {{ service }}_dump.log
+  docker logs $id 2>&1 | tee {{ service }}_dump.log 
 
 # show the logs for the bolt devnet relay
 relay-logs:
@@ -79,32 +71,32 @@ sidecar-logs:
 beacon-logs:
     @just log 'cl-1-lighthouse-geth'
 
-# show the logs for the bolt devnet for beacon node
+# dump the logs for the bolt devnet for beacon node to a _dump.log file
 beacon-dump:
     @just dump 'cl-1-lighthouse-geth'
 
-# show the logs for the bolt devnet relay
+# dump the logs for the bolt devnet relay to a _dump.log file
 relay-dump:
     @just dump mev-relay-api
 
-# show the logs for the bolt devnet builder
+# dump the logs for the bolt devnet builder to a _dump.log file
 builder-dump:
     @just dump bolt-builder
 
-# show the logs for the bolt devnet mev-boost sidecar
+# dump the logs for the bolt devnet mev-boost sidecar to a _dump.log file
 boost-dump:
     @just dump bolt-mev-boost
 
-# show the logs for the bolt devnet bolt-sidecar
+# dump the logs for the bolt devnet bolt-sidecar to a _dump.log file
 sidecar-dump:
     @just dump sidecar
 
-# show the logs for the bolt devnet builder
+# stop the bolt devnet builder container, useful for testing reliability
 kill-builder:
     @id=$(docker ps -n 100 | grep bolt-builder | awk -F' ' '{print $1}') && \
     docker stop $id
 
-# show the dora explorer in the browser. NOTE: works only for Linux and MacOS at the moment
+# show the dora explorer in the browser. NOTE: works only for Linux and MacOS
 dora:
   @url=$(just inspect | grep 'dora\s*http' | awk -F'-> ' '{print $2}' | awk '{print $1}') && \
   if [ "$(uname)" = "Darwin" ]; then \
@@ -113,7 +105,7 @@ dora:
     xdg-open "$url"; \
   fi
 
-# show the grafana dashboard in the browser. NOTE: works only for Linux and MacOS at the moment
+# show the grafana dashboard in the browser. NOTE: works only for Linux and MacOS
 grafana:
   @url=$(just inspect | grep 'grafana\s*http' | awk -F'-> ' '{print $2}' | awk '{print $1}') && \
   if [ "$(uname)" = "Darwin" ]; then \
@@ -145,35 +137,20 @@ send-blob-preconf count='1':
 
 # build all the docker images locally
 build-images:
-	@just _build-sidecar
-	@just _build-bolt-boost
+	@just build-sidecar
+	@just build-bolt-boost
 
 # build the docker image for the bolt sidecar
-_build-sidecar:
+[private]
+build-sidecar:
 	cd bolt-sidecar && docker build -t ghcr.io/chainbound/bolt-sidecar:0.1.0 . --load
 
 # build the docker image for bolt-boost
-_build-bolt-boost:
+[private]
+build-bolt-boost:
 	cd bolt-boost && docker build -t ghcr.io/chainbound/bolt-boost:0.1.0 . --load
 
-# deploy the bolt sidecar to the dev server
-deploy-sidecar-dev chain:
-    chmod +x ./scripts/deploy_bolt_sidecar.sh && ./scripts/deploy_bolt_sidecar.sh {{chain}}
-
-# Check the status of the sidecar service on the dev server
-status-sidecar-dev chain:
-    ssh shared@remotebeast "sudo systemctl status bolt_sidecar_{{chain}}" | less
-
-# Tail the logs of the service on the dev server
-logs-sidecar-dev chain:
-    ssh shared@remotebeast "journalctl -qu bolt_sidecar_{{chain}} -f"
-
-# Stop the service on the dev server
-stop-sidecar-dev chain:
-    ssh shared@remotebeast "sudo systemctl stop bolt_sidecar_{{chain}}"
-
-
-# build and push the docker images to the github container registry with the provided tag
+# build and push multi-platform docker images to GHCR with the provided tag
 [confirm("are you sure? this will build and push new images on ghcr.io")]
 release tag:
     chmod +x ./scripts/check_version_bumps.sh && ./scripts/check_version_bumps.sh {{tag}}
