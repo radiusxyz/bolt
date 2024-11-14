@@ -22,11 +22,6 @@ restart:
 	@just build-images
 	@just up
 
-_restart-sidecar:
-    @just down
-    @just _build-sidecar
-    @just up
-
 # show the running containers and port mappings for the bolt devnet
 inspect:
 	kurtosis enclave inspect bolt-devnet
@@ -142,17 +137,17 @@ send-blob-preconf count='1':
 
 # build all the docker images locally
 build-images:
-	@just _build-sidecar
-	@just _build-bolt-boost
+	@just build-sidecar
+	@just build-bolt-boost
 
 # build the docker image for the bolt sidecar
 [private]
-_build-sidecar:
+build-sidecar:
 	cd bolt-sidecar && docker build -t ghcr.io/chainbound/bolt-sidecar:0.1.0 . --load
 
 # build the docker image for bolt-boost
 [private]
-_build-bolt-boost:
+build-bolt-boost:
 	cd bolt-boost && docker build -t ghcr.io/chainbound/bolt-boost:0.1.0 . --load
 
 # build and push multi-platform docker images to GHCR with the provided tag
