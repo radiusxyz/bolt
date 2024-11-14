@@ -1,7 +1,6 @@
 use std::num::NonZero;
 
 use clap::Parser;
-use serde::Deserialize;
 
 /// Default max commitments to accept per block.
 pub const DEFAULT_MAX_COMMITMENTS: usize = 128;
@@ -13,7 +12,8 @@ pub const DEFAULT_MAX_COMMITTED_GAS: u64 = 10_000_000;
 pub const DEFAULT_MIN_PRIORITY_FEE: u128 = 1_000_000_000; // 1 Gwei
 
 /// Limits for the sidecar.
-#[derive(Debug, Parser, Clone, Copy, Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug, Parser, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct LimitsOpts {
     /// Max number of commitments to accept per block
     #[clap(
