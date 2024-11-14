@@ -22,7 +22,7 @@ use tracing::info;
 use crate::cli::SendCommand;
 
 /// Path to the lookahead endpoint on the Bolt RPC server.
-const BOLT_LOOKAHEAD_PATH: &str = "proposers/lookahead";
+const BOLT_LOOKAHEAD_PATH: &str = "/api/v1/proposers/lookahead";
 
 impl SendCommand {
     /// Run the `send` command.
