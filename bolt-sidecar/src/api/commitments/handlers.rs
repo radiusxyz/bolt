@@ -21,7 +21,7 @@ use super::{
     jsonrpc::{JsonPayload, JsonResponse},
     server::CommitmentsApiInner,
     spec::{
-        CommitmentError, CommitmentsApi, RejectionError, GET_VERSION_METHOD,
+        CommitmentError, CommitmentsApi, RejectionError, GET_METADATA_METHOD, GET_VERSION_METHOD,
         REQUEST_INCLUSION_METHOD,
     },
 };
@@ -43,6 +43,15 @@ pub async fn rpc_entrypoint(
                 result: Value::String(version_string),
                 ..Default::default()
             }))
+        }
+
+        GET_METADATA_METHOD => {
+            let response = JsonResponse {
+                id: payload.id,
+                result: serde_json::to_value(api.limits()).expect("infallible"),
+                ..Default::default()
+            };
+            Ok(Json(response))
         }
 
         REQUEST_INCLUSION_METHOD => {

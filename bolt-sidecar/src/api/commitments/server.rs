@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     fmt,
     future::Future,
     net::{SocketAddr, ToSocketAddrs},
@@ -7,7 +6,6 @@ use std::{
     sync::Arc,
 };
 
-use alloy::primitives::Address;
 use axum::{
     middleware,
     routing::{get, post},
@@ -22,6 +20,7 @@ use tracing::{error, info};
 
 use crate::{
     api::commitments::handlers,
+    config::limits::LimitsOpts,
     primitives::{
         commitment::{InclusionCommitment, SignedCommitment},
         CommitmentRequest, InclusionRequest,
@@ -49,15 +48,19 @@ pub struct CommitmentEvent {
 pub struct CommitmentsApiInner {
     /// Event notification channel
     events: mpsc::Sender<CommitmentEvent>,
-    /// Optional whitelist of ECDSA public keys
-    #[allow(unused)]
-    whitelist: Option<HashSet<Address>>,
+    /// The sidecar's operating limits that should be exposed in a metadata endpoint
+    limits: LimitsOpts,
 }
 
 impl CommitmentsApiInner {
-    /// Create a new API server with an optional whitelist of ECDSA public keys.
-    pub fn new(events: mpsc::Sender<CommitmentEvent>) -> Self {
-        Self { events, whitelist: None }
+    /// Creates a new instance of the commitments API handler.
+    pub fn new(events: mpsc::Sender<CommitmentEvent>, limits: LimitsOpts) -> Self {
+        Self { events, limits }
+    }
+
+    /// Returns the operating limits for the sidecar.
+    pub fn limits(&self) -> LimitsOpts {
+        self.limits
     }
 }
 
@@ -119,8 +122,8 @@ impl CommitmentsApiServer {
     }
 
     /// Runs the JSON-RPC server, sending events to the provided channel.
-    pub async fn run(&mut self, events_tx: mpsc::Sender<CommitmentEvent>) {
-        let api = Arc::new(CommitmentsApiInner::new(events_tx));
+    pub async fn run(&mut self, events_tx: mpsc::Sender<CommitmentEvent>, limits: LimitsOpts) {
+        let api = Arc::new(CommitmentsApiInner::new(events_tx, limits));
 
         let router = make_router(api);
 
@@ -188,7 +191,7 @@ mod test {
 
         let (events_tx, _) = mpsc::channel(1);
 
-        server.run(events_tx).await;
+        server.run(events_tx, LimitsOpts::default()).await;
         let addr = server.local_addr();
 
         let sk = SecretKey::random(&mut rand::thread_rng());
@@ -230,7 +233,7 @@ mod test {
 
         let (events_tx, mut events) = mpsc::channel(1);
 
-        server.run(events_tx).await;
+        server.run(events_tx, LimitsOpts::default()).await;
         let addr = server.local_addr();
 
         let sk = SecretKey::random(&mut rand::thread_rng());

@@ -227,7 +227,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         // start the commitments api server
         let api_addr = format!("0.0.0.0:{}", opts.port);
         let (api_events_tx, api_events_rx) = mpsc::channel(1024);
-        CommitmentsApiServer::new(api_addr).run(api_events_tx).await;
+        CommitmentsApiServer::new(api_addr).run(api_events_tx, opts.limits).await;
 
         let unsafe_skip_consensus_checks = opts.unsafe_disable_consensus_checks;
 
