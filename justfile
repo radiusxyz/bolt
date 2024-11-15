@@ -166,6 +166,8 @@ build-local-bolt-boost:
 # build the cross platform binaries for a package by name. available: "bolt-sidecar", "bolt-boost".
 [private]
 cross-build-binary package target_arch release_dir:
+    rustup target add {{target_arch}}
+
     cd {{package}} && \
     cargo zigbuild --target {{target_arch}} --profile release && \
     mkdir -p target/{{release_dir}} && \
@@ -173,27 +175,17 @@ cross-build-binary package target_arch release_dir:
 
 # build and push multi-platform docker images to GHCR for a package. available: "bolt-sidecar", "bolt-boost".
 build-and-push-image package tag:
-    rustup target add x86_64-unknown-linux-gnu
-    rustup target add aarch64-unknown-linux-gnu
-
     @just cross-build-binary {{package}} x86_64-unknown-linux-gnu amd64
     @just cross-build-binary {{package}} aarch64-unknown-linux-gnu arm64
 
-    docker buildx build \
+    cd {{package }} && docker buildx build \
       --build-arg BINARY={{package}} \
-      --file scripts/cross.Dockerfile \
+      --file ../scripts/cross.Dockerfile \
       --platform linux/amd64,linux/arm64 \
       --tag ghcr.io/chainbound/{{package}}:{{tag}} \
-      --push {{package}}
+      --push .
 
 # build and push all the available packages to GHCR with the provided tag
 build-and-push-all-images tag:
     @just build-and-push-image bolt-sidecar {{tag}}
     @just build-and-push-image bolt-boost {{tag}}
-
-# build and push multi-platform docker images to GHCR with the provided tag
-[confirm("are you sure? this will build and push new images on ghcr.io")]
-release tag:
-    chmod +x ./scripts/check_version_bumps.sh && ./scripts/check_version_bumps.sh {{tag}}
-    cd bolt-sidecar && docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/chainbound/bolt-sidecar:{{tag}} --push .
-    cd bolt-boost && docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/chainbound/bolt-boost:{{tag}} --push .
