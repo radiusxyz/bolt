@@ -179,7 +179,8 @@ build-and-push-image package tag:
     @just cross-build-binary {{package}} x86_64-unknown-linux-gnu amd64
     @just cross-build-binary {{package}} aarch64-unknown-linux-gnu arm64
 
-    BINARY={{package}} docker buildx build \
+    docker buildx build \
+      --build-arg BINARY={{package}} \
       --file scripts/cross.Dockerfile \
       --platform linux/amd64,linux/arm64 \
       --tag ghcr.io/chainbound/{{package}}:{{tag}} \
