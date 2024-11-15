@@ -1,5 +1,3 @@
-set shell := ["zsh", "-cu"]
-
 # display a help message about available commands
 default:
   @just --list --unsorted
