@@ -23,14 +23,17 @@ NATIVE_ARCH=$(uname -m)
 if [[ "$(uname)" == "Darwin" && "$NATIVE_ARCH" == "arm64" ]]; then
     NATIVE_ARCH="aarch64"
 fi
+echo "Native architecture: $NATIVE_ARCH"
 
 # 3. build the binary:
 # - if the target is the same as the native architecture, build with cargo
 # - otherwise, build with cargo-zigbuild
 if [[ "$TARGE_ARCH" == "$NATIVE_ARCH-unknown-linux-gnu" ]]; then
-    cd $PACKAGE && cargo build --target $TARGE_ARCH --release 
+    echo "Building binary with cargo"
+    (cd $PACKAGE && cargo build --target $TARGE_ARCH --release)
 else
-    cd $PACKAGE && cargo zigbuild --target $TARGET_ARCH --profile release
+    echo "Building binary with cargo-zigbuild"
+    (cd $PACKAGE && cargo zigbuild --target $TARGET_ARCH --profile release)
 fi
 
 # 4. copy the binary to the output directory
