@@ -24,7 +24,7 @@ fi
 # targeting x86_64-unknown-linux-gnu. As this is still unresolved, we handle
 # this case separately by building the binary with cargo instead. This is less 
 # than ideal, but it works and it's simple
-if [ $PACKAGE == "bolt-boost" && $TARGET_ARCH == "x86_64-unknown-linux-gnu" ]; then
+if [[ $PACKAGE == "bolt-boost" && $TARGET_ARCH == "x86_64-unknown-linux-gnu" ]]; then
     echo "Building binary with cargo"
     (cd $PACKAGE && cargo build --target $TARGE_ARCH --release)
 else
