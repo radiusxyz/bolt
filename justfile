@@ -153,21 +153,29 @@ build-local-bolt-boost:
 
 # Cross platform builds
 # 
-# 1. install cross: cargo install cross --git https://github.com/cross-rs/cross
-# 2. make sure you are using a buildx builder with emulator supoprt, e.g:
-#      `docker run --privileged --rm tonistiigi/binfmt --install amd64,arm64`
-#      `docker buildx create --use --driver docker-container --name cross-builder`
-
+# We use cargo-zigbuild to build cross-platform binaries faster and to get around
+# weird linking bugs that often happen with cross or similar tools.
+# 
+# Steps:
+# 1. install zig: 
+#       ubuntu: snap install zig --classic --beta
+#       macOS: brew install zig
+#       others: https://github.com/ziglang/zig/wiki/Install-Zig-from-a-Package-Manager
+# 2. install zigbuild: cargo install cargo-zigbuild
+# 
 # build the cross platform binaries for a package by name. available: "bolt-sidecar", "bolt-boost".
 [private]
 cross-build-binary package target_arch release_dir:
     cd {{package}} && \
-    cross build --target {{target_arch}} --profile release && \
+    cargo zigbuild --target {{target_arch}} --profile release && \
     mkdir -p target/{{release_dir}} && \
     cp target/{{target_arch}}/release/{{package}} target/{{release_dir}}/{{package}}
 
 # build and push multi-platform docker images to GHCR for a package. available: "bolt-sidecar", "bolt-boost".
 build-and-push-image package tag:
+    rustup target add x86_64-unknown-linux-gnu
+    rustup target add aarch64-unknown-linux-gnu
+
     @just cross-build-binary {{package}} x86_64-unknown-linux-gnu amd64
     @just cross-build-binary {{package}} aarch64-unknown-linux-gnu arm64
 
@@ -176,6 +184,11 @@ build-and-push-image package tag:
       --platform linux/amd64,linux/arm64 \
       --tag ghcr.io/chainbound/{{package}}:{{tag}} \
       --push {{package}}
+
+# build and push all the available packages to GHCR with the provided tag
+build-and-push-all-images tag:
+    @just build-and-push-image bolt-sidecar {{tag}}
+    @just build-and-push-image bolt-boost {{tag}}
 
 # build and push multi-platform docker images to GHCR with the provided tag
 [confirm("are you sure? this will build and push new images on ghcr.io")]
