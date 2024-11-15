@@ -1,3 +1,5 @@
+set shell := ["zsh", "-cu"]
+
 # display a help message about available commands
 default:
   @just --list --unsorted
@@ -151,7 +153,7 @@ build-local-bolt-boost:
 	cd bolt-boost && docker build -t ghcr.io/chainbound/bolt-boost:0.1.0 . --load
 
 
-# Cross platform builds
+# Cross platform compilation
 # 
 # We use cargo-zigbuild to build cross-platform binaries faster and to get around
 # weird linking bugs that often happen with cross or similar tools.
@@ -165,19 +167,14 @@ build-local-bolt-boost:
 # 
 # build the cross platform binaries for a package by name. available: "bolt-sidecar", "bolt-boost".
 [private]
-cross-build-binary package target_arch release_dir:
-    rustup target add {{target_arch}}
-
-
-    cd {{package}} && cargo zigbuild --target {{target_arch}} --profile release
-
-    mkdir -p dist/bin/{{release_dir}}
-    cp {{package}}/target/{{target_arch}}/release/{{package}} dist/bin/{{release_dir}}/{{package}}
+cross-compile package target_arch release_dir:
+    chmod +x ./scripts/cross-compile.sh && \
+      ./scripts/cross-compile.sh {{package}} {{target_arch}} {{release_dir}}
 
 # build and push multi-platform docker images to GHCR for a package. available: "bolt-sidecar", "bolt-boost".
 build-and-push-image package tag:
-    @just cross-build-binary {{package}} x86_64-unknown-linux-gnu amd64
-    @just cross-build-binary {{package}} aarch64-unknown-linux-gnu arm64
+    @just cross-compile {{package}} x86_64-unknown-linux-gnu amd64
+    @just cross-compile {{package}} aarch64-unknown-linux-gnu arm64
 
     docker buildx build \
       --build-arg BINARY={{package}} \
@@ -187,6 +184,6 @@ build-and-push-image package tag:
       --push .
 
 # build and push all the available packages to GHCR with the provided tag
-build-and-push-all-images tag:
+build-and-push-all-images tag='latest':
     @just build-and-push-image bolt-sidecar {{tag}}
     @just build-and-push-image bolt-boost {{tag}}
