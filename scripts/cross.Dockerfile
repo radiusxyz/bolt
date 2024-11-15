@@ -10,9 +10,9 @@ LABEL org.opencontainers.image.licenses="MIT"
 # Filled by docker buildx
 ARG TARGETARCH
 
-# Should be set by the caller 
+# Should be set by the caller when building the image
 ARG BINARY
 
-COPY ./dist/bin/$TARGETARCH/$BINARY /usr/local/bin/$BINARY
+COPY ./dist/bin/$TARGETARCH/$BINARY /usr/local/bin/bolt
 
-ENTRYPOINT ["/usr/local/bin/$BINARY"]
+ENTRYPOINT ["/usr/local/bin/bolt"]
