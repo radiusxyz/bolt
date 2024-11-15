@@ -168,19 +168,20 @@ build-local-bolt-boost:
 cross-build-binary package target_arch release_dir:
     rustup target add {{target_arch}}
 
-    cd {{package}} && \
-    cargo zigbuild --target {{target_arch}} --profile release && \
-    mkdir -p target/{{release_dir}} && \
-    cp target/{{target_arch}}/release/{{package}} target/{{release_dir}}/{{package}}
+
+    cd {{package}} && cargo zigbuild --target {{target_arch}} --profile release
+
+    mkdir -p dist/bin/{{release_dir}}
+    cp {{package}}/target/{{target_arch}}/release/{{package}} dist/bin/{{release_dir}}/{{package}}
 
 # build and push multi-platform docker images to GHCR for a package. available: "bolt-sidecar", "bolt-boost".
 build-and-push-image package tag:
     @just cross-build-binary {{package}} x86_64-unknown-linux-gnu amd64
     @just cross-build-binary {{package}} aarch64-unknown-linux-gnu arm64
 
-    cd {{package }} && docker buildx build \
+    docker buildx build \
       --build-arg BINARY={{package}} \
-      --file ../scripts/cross.Dockerfile \
+      --file ./scripts/cross.Dockerfile \
       --platform linux/amd64,linux/arm64 \
       --tag ghcr.io/chainbound/{{package}}:{{tag}} \
       --push .
