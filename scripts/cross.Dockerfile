@@ -13,6 +13,6 @@ ARG TARGETARCH
 # Should be set by the caller 
 ARG BINARY
 
-COPY ./target/$TARGETARCH/$BINARY /usr/local/bin/$BINARY
+COPY ./$BINARY/target/$TARGETARCH/$BINARY /usr/local/bin/$BINARY
 
 ENTRYPOINT ["/usr/local/bin/$BINARY"]
