@@ -136,19 +136,46 @@ send-blob-preconf count='1':
         --count {{count}}
 
 # build all the docker images locally
-build-images:
-	@just build-sidecar
-	@just build-bolt-boost
+build-local-images:
+	@just build-local-sidecar
+	@just build-local-bolt-boost
 
 # build the docker image for the bolt sidecar
 [private]
-build-sidecar:
+build-local-sidecar:
 	cd bolt-sidecar && docker build -t ghcr.io/chainbound/bolt-sidecar:0.1.0 . --load
 
 # build the docker image for bolt-boost
 [private]
-build-bolt-boost:
+build-local-bolt-boost:
 	cd bolt-boost && docker build -t ghcr.io/chainbound/bolt-boost:0.1.0 . --load
+
+
+# Cross platform builds
+# 
+# 1. install cross: cargo install cross --git https://github.com/cross-rs/cross
+# 2. make sure you are using a buildx builder with emulator supoprt, e.g:
+#      `docker run --privileged --rm tonistiigi/binfmt --install amd64,arm64`
+#      `docker buildx create --use --driver docker-container --name cross-builder`
+
+# build the cross platform binaries for a package by name. available: "bolt-sidecar", "bolt-boost".
+[private]
+cross-build-binary package target_arch release_dir:
+    cd {{package}} && \
+    cross build --target {{target_arch}} --profile release && \
+    mkdir -p target/{{release_dir}} && \
+    cp target/{{target_arch}}/release/{{package}} target/{{release_dir}}/{{package}}
+
+# build and push multi-platform docker images to GHCR for a package. available: "bolt-sidecar", "bolt-boost".
+build-and-push-image package tag:
+    @just cross-build-binary {{package}} x86_64-unknown-linux-gnu amd64
+    @just cross-build-binary {{package}} aarch64-unknown-linux-gnu arm64
+
+    BINARY={{package}} docker buildx build \
+      --file scripts/cross.Dockerfile \
+      --platform linux/amd64,linux/arm64 \
+      --tag ghcr.io/chainbound/{{package}}:{{tag}} \
+      --push {{package}}
 
 # build and push multi-platform docker images to GHCR with the provided tag
 [confirm("are you sure? this will build and push new images on ghcr.io")]
