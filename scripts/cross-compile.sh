@@ -41,7 +41,10 @@ fi
 # build "bolt-sidecar" with "cross" as it's the only working method for now.
 if [[ "$PACKAGE" == "bolt-sidecar" ]]; then
     echo "Building $PACKAGE with cross"
-    cross build --release --target $TARGET_ARCH
+    (
+        cd $PACKAGE
+        cross build --release --target $TARGET_ARCH
+    )
 fi
 
 # build other packages with cargo directly
