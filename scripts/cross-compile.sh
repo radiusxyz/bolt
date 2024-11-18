@@ -3,10 +3,12 @@
 # Support script to build cross-platform binaries
 # 
 # Usage: ./build-cross-binary.sh <package> <target_arch> <out_dir>
-# Example: ./build-cross-binary.sh bolt-sidecar x86_64-unknown-linux-gnu /dist/bin
+# Example: ./build-cross-binary.sh bolt-sidecar x86_64-unknown-linux-gnu amd64
 
 # Exit immediately if a command fails
 set -e
+
+# --- Variables ---
 
 # Name of the package to build
 PACKAGE=$1
@@ -14,6 +16,13 @@ PACKAGE=$1
 TARGET_ARCH=$2
 # Output directory for the binary
 OUT_DIR=$3
+
+# Building cross compiled binaries requires the OpenSSL headers for the target architecture.
+# If not present, they must be installed manually and their paths set here.
+X86_OPENSSL_PATH="/usr/include/x86_64-linux-gnu/openssl"
+AARCH64_OPENSSL_PATH="/usr/include/aarch64-linux-gnu/openssl"
+
+# --- Main script ---
 
 # Check for required arguments
 if [[ -z "$PACKAGE" || -z "$TARGET_ARCH" || -z "$OUT_DIR" ]]; then
@@ -29,33 +38,29 @@ fi
 
 # 2. Build the binary
 if [[ "$TARGET_ARCH" == "aarch64-unknown-linux-gnu" ]]; then
-    # Use the cross-compiled version of OpenSSL.
-    # NOTE: Adjust the paths for your setup if necessary.
-    if [ ! -d /usr/include/aarch64-linux-gnu/openssl ]; then
-        echo "Error: Cross-compiled OpenSSL libraries not found at /usr/include/aarch64-linux-gnu/openssl."
+    if [ ! -d $AARCH64_OPENSSL_PATH ]; then
+        echo "Error: Cross-compiled OpenSSL libraries not found at $X86_OPENSSL_PATH"
         exit 1
     fi
 
     echo "Building $PACKAGE for $TARGET_ARCH"
     (
         cd $PACKAGE
-        export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_DIR="/usr/include/aarch64-linux-gnu/openssl"
+        export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_DIR="$AARCH64_OPENSSL_PATH"
         export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_INCLUDE_DIR="$AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_DIR/include"
         export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_LIB_DIR="$AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_DIR/lib"
         cargo build --release --target $TARGET_ARCH
     )
-else if [[ "$TARGET_ARCH" == "x86_64-unknown-linux-gnu" ]]; then
-    # Use the cross-compiled version of OpenSSL.
-    # NOTE: Adjust the paths for your setup if necessary.
-    if [ ! -d /usr/include/x86_64-linux-gnu/openssl ]; then
-        echo "Error: Cross-compiled OpenSSL libraries not found at /usr/include/x86_64-linux-gnu/openssl."
+elif [[ "$TARGET_ARCH" == "x86_64-unknown-linux-gnu" ]]; then
+    if [ ! -d $X86_OPENSSL_PATH ]; then
+        echo "Error: Cross-compiled OpenSSL libraries not found at $X86_OPENSSL_PATH"
         exit 1
     fi
 
     echo "Building $PACKAGE for $TARGET_ARCH"
     (
         cd $PACKAGE
-        export X86_64_UNKNOWN_LINUX_GNU_OPENSSL_DIR="/usr/include/x86_64-linux-gnu/openssl"
+        export X86_64_UNKNOWN_LINUX_GNU_OPENSSL_DIR="$X86_OPENSSL_PATH"
         export X86_64_UNKNOWN_LINUX_GNU_OPENSSL_INCLUDE_DIR="$X86_64_UNKNOWN_LINUX_GNU_OPENSSL_DIR/include"
         export X86_64_UNKNOWN_LINUX_GNU_OPENSSL_LIB_DIR="$X86_64_UNKNOWN_LINUX_GNU_OPENSSL_DIR/lib"
         cargo build --release --target $TARGET_ARCH
@@ -69,4 +74,5 @@ fi
 mkdir -p dist/bin/$OUT_DIR
 cp $PACKAGE/target/$TARGET_ARCH/release/$PACKAGE dist/bin/$OUT_DIR/$PACKAGE
 
-echo "Successfully built $PACKAGE for $TARGET_ARCH and placed it in $DIST_DIR"
+echo "Successfully built $PACKAGE for $TARGET_ARCH and placed it in dist/bin/$OUT_DIR/$PACKAGE"
+
