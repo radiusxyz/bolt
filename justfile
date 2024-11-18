@@ -151,13 +151,13 @@ build-local-bolt-boost:
 	cd bolt-boost && docker build -t ghcr.io/chainbound/bolt-boost:0.1.0 . --load
 
 
-# Cross platform compilation
+# Cross platform compilation with cross-rs.
 # 
 # build the cross platform binaries for a package by name. available: "bolt-sidecar", "bolt-boost".
 [private]
 cross-compile package target_arch release_dir:
-    chmod +x ./scripts/cross-compile.sh && \
-      ./scripts/cross-compile.sh {{package}} {{target_arch}} {{release_dir}}
+    cd {{package}} && cross build --release --target {{target_arch}}
+    mkdir -p {{release_dir}} && cp {{package}}/target/{{target_arch}}/release/{{package}} {{release_dir}}
 
 # build and push multi-platform docker images to GHCR for a package. available: "bolt-sidecar", "bolt-boost".
 build-and-push-image package tag:

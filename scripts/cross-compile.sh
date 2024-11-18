@@ -43,6 +43,10 @@ if [[ "$PACKAGE" == "bolt-sidecar" && "$TARGET_ARCH" == "aarch64-unknown-linux-g
     echo "Building $PACKAGE for aarch64 with cross"
     (
         cd $PACKAGE
+        # This is necessary due to a spurious rust incremental compilation bug.
+        # more info at: https://github.com/cross-rs/cross/issues/724#issuecomment-1484065725
+        cargo clean
+
         cross build --release --target $TARGET_ARCH
     )
 fi
