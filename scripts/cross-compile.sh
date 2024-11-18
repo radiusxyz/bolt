@@ -49,7 +49,6 @@ if [[ "$TARGET_ARCH" == "aarch64-unknown-linux-gnu" ]]; then
         export CC="aarch64-linux-gnu-gcc"
         export CC_aarch64_unknown_linux_gnu="aarch64-linux-gnu-gcc"
         export CFLAGS_aarch64_unknown_linux_gnu=""
-        export RUSTFLAGS="-C link-arg=-L/usr/aarch64-linux-gnu/lib"
 
         export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_DIR="$AARCH64_OPENSSL_PATH"
         export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_INCLUDE_DIR="$AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_DIR/include"
@@ -66,7 +65,6 @@ elif [[ "$TARGET_ARCH" == "x86_64-unknown-linux-gnu" ]]; then
     (
         cd $PACKAGE
         export CC="x86_64-linux-gnu-gcc"
-        export RUSTFLAGS="-C link-arg=-L/usr/x86_64-linux-gnu/lib"
 
         export X86_64_UNKNOWN_LINUX_GNU_OPENSSL_DIR="$X86_OPENSSL_PATH"
         export X86_64_UNKNOWN_LINUX_GNU_OPENSSL_INCLUDE_DIR="$X86_64_UNKNOWN_LINUX_GNU_OPENSSL_DIR/include"
