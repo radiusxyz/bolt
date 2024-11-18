@@ -38,16 +38,16 @@ fi
 
 # 2. Build the binary
 
-# build "bolt-sidecar" with "cross" as it's the only working method for now.
-if [[ "$PACKAGE" == "bolt-sidecar" ]]; then
-    echo "Building $PACKAGE with cross"
+# build "bolt-sidecar" on aarch64 with "cross" as it's the only working method for now.
+if [[ "$PACKAGE" == "bolt-sidecar" && "$TARGET_ARCH" == "aarch64-unknown-linux-gnu" ]]; then
+    echo "Building $PACKAGE for aarch64 with cross"
     (
         cd $PACKAGE
         cross build --release --target $TARGET_ARCH
     )
 fi
 
-# build other packages with cargo directly
+# build all other packages with cargo directly instead
 if [[ "$TARGET_ARCH" == "aarch64-unknown-linux-gnu" ]]; then
     if [ ! -d $AARCH64_OPENSSL_PATH ]; then
         echo "Error: Cross-compiled OpenSSL libraries not found at $X86_OPENSSL_PATH"
