@@ -37,6 +37,13 @@ if ! rustup target list | grep -q "^$TARGET_ARCH (installed)$"; then
 fi
 
 # 2. Build the binary
+
+# build "bolt-sidecar" with "cross" as it's the only working method for now.
+if [[ "$PACKAGE" == "bolt-sidecar" ]]; then
+    echo "Building $PACKAGE with cross"
+    cross build --release --target $TARGET_ARCH
+
+# build other packages with cargo directly
 if [[ "$TARGET_ARCH" == "aarch64-unknown-linux-gnu" ]]; then
     if [ ! -d $AARCH64_OPENSSL_PATH ]; then
         echo "Error: Cross-compiled OpenSSL libraries not found at $X86_OPENSSL_PATH"
@@ -49,6 +56,7 @@ if [[ "$TARGET_ARCH" == "aarch64-unknown-linux-gnu" ]]; then
         export CC="aarch64-linux-gnu-gcc"
         export CC_aarch64_unknown_linux_gnu="aarch64-linux-gnu-gcc"
         export CFLAGS_aarch64_unknown_linux_gnu=""
+        export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="aarch64-linux-gnu-gcc"
 
         export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_DIR="$AARCH64_OPENSSL_PATH"
         export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_INCLUDE_DIR="$AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_DIR/include"
