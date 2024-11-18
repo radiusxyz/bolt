@@ -153,16 +153,6 @@ build-local-bolt-boost:
 
 # Cross platform compilation
 # 
-# We use cargo-zigbuild to build cross-platform binaries faster and to get around
-# weird linking bugs that often happen with cross or similar tools.
-# 
-# Steps:
-# 1. install zig: 
-#       ubuntu: snap install zig --classic --beta
-#       macOS: brew install zig
-#       others: https://github.com/ziglang/zig/wiki/Install-Zig-from-a-Package-Manager
-# 2. install zigbuild: cargo install cargo-zigbuild
-# 
 # build the cross platform binaries for a package by name. available: "bolt-sidecar", "bolt-boost".
 [private]
 cross-compile package target_arch release_dir:

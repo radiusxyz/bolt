@@ -46,7 +46,11 @@ if [[ "$TARGET_ARCH" == "aarch64-unknown-linux-gnu" ]]; then
     echo "Building $PACKAGE for $TARGET_ARCH"
     (
         cd $PACKAGE
-        export CC=aarch64-linux-gnu-gcc
+        export CC="aarch64-linux-gnu-gcc"
+        export CC_aarch64_unknown_linux_gnu="aarch64-linux-gnu-gcc"
+        export CFLAGS_aarch64_unknown_linux_gnu=""
+        export RUSTFLAGS="-C link-arg=-L/usr/aarch64-linux-gnu/lib"
+
         export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_DIR="$AARCH64_OPENSSL_PATH"
         export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_INCLUDE_DIR="$AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_DIR/include"
         export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_LIB_DIR="$AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_DIR/lib"
@@ -61,7 +65,9 @@ elif [[ "$TARGET_ARCH" == "x86_64-unknown-linux-gnu" ]]; then
     echo "Building $PACKAGE for $TARGET_ARCH"
     (
         cd $PACKAGE
-        export CC=x86_64-linux-gnu-gcc
+        export CC="x86_64-linux-gnu-gcc"
+        export RUSTFLAGS="-C link-arg=-L/usr/x86_64-linux-gnu/lib"
+
         export X86_64_UNKNOWN_LINUX_GNU_OPENSSL_DIR="$X86_OPENSSL_PATH"
         export X86_64_UNKNOWN_LINUX_GNU_OPENSSL_INCLUDE_DIR="$X86_64_UNKNOWN_LINUX_GNU_OPENSSL_DIR/include"
         export X86_64_UNKNOWN_LINUX_GNU_OPENSSL_LIB_DIR="$X86_64_UNKNOWN_LINUX_GNU_OPENSSL_DIR/lib"
@@ -77,4 +83,3 @@ mkdir -p dist/bin/$OUT_DIR
 cp $PACKAGE/target/$TARGET_ARCH/release/$PACKAGE dist/bin/$OUT_DIR/$PACKAGE
 
 echo "Successfully built $PACKAGE for $TARGET_ARCH and placed it in dist/bin/$OUT_DIR/$PACKAGE"
-
