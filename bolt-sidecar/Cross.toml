@@ -3,5 +3,9 @@ pre-build = [
     # We depend on openssl for the build, so we need to install its cross-compiled version
     # more info at: https://github.com/cross-rs/cross/wiki/Configuration#build
     "dpkg --add-architecture $CROSS_DEB_ARCH",
-    "apt-get update && apt-get --assume-yes install libssl-dev:$CROSS_DEB_ARCH"
+    "apt-get update && apt-get --assume-yes --no-install-recommends install libssl-dev:$CROSS_DEB_ARCH",
+
+    # Update the default gcc and g++ to 10 to avoid a bug in gcc 9 that causes a build failure
+    # more info at: https://github.com/cross-rs/cross/issues/1565#issuecomment-2483968180
+    "apt-get --assume-yes --no-install-recommends install gcc-10 g++-10 && ln -sf /usr/bin/gcc-10 /usr/bin/gcc && ln -sf /usr/bin/g++-10 /usr/bin/g++"
 ]
