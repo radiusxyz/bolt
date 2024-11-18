@@ -46,6 +46,7 @@ if [[ "$TARGET_ARCH" == "aarch64-unknown-linux-gnu" ]]; then
     echo "Building $PACKAGE for $TARGET_ARCH"
     (
         cd $PACKAGE
+        export CC=aarch64-linux-gnu-gcc
         export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_DIR="$AARCH64_OPENSSL_PATH"
         export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_INCLUDE_DIR="$AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_DIR/include"
         export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_LIB_DIR="$AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_DIR/lib"
@@ -60,6 +61,7 @@ elif [[ "$TARGET_ARCH" == "x86_64-unknown-linux-gnu" ]]; then
     echo "Building $PACKAGE for $TARGET_ARCH"
     (
         cd $PACKAGE
+        export CC=x86_64-linux-gnu-gcc
         export X86_64_UNKNOWN_LINUX_GNU_OPENSSL_DIR="$X86_OPENSSL_PATH"
         export X86_64_UNKNOWN_LINUX_GNU_OPENSSL_INCLUDE_DIR="$X86_64_UNKNOWN_LINUX_GNU_OPENSSL_DIR/include"
         export X86_64_UNKNOWN_LINUX_GNU_OPENSSL_LIB_DIR="$X86_64_UNKNOWN_LINUX_GNU_OPENSSL_DIR/lib"
