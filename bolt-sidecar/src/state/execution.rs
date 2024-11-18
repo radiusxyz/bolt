@@ -4,8 +4,9 @@ use alloy::{
     primitives::{Address, U256},
     transports::TransportError,
 };
+use lru::LruCache;
 use reth_primitives::{revm_primitives::EnvKzgSettings, PooledTransactionsElement};
-use std::{collections::HashMap, ops::Deref};
+use std::{collections::HashMap, num::NonZero, ops::Deref};
 use thiserror::Error;
 use tracing::{debug, trace, warn};
 
@@ -146,10 +147,14 @@ pub struct ExecutionState<C> {
     /// The cached account states. This should never be read directly.
     /// These only contain the canonical account states at the head block,
     /// not the intermediate states.
-    account_states: HashMap<Address, AccountState>,
+    account_states: LruCache<Address, AccountState>,
     /// The block templates by target SLOT NUMBER.
     /// We have multiple block templates because in rare cases we might have multiple
     /// proposal duties for a single lookahead.
+    ///
+    /// INVARIANT: contains only entries for slots greater than or equal to the latest known beacon
+    /// chain head.
+    /// See [ExecutionState::remove_block_templates_until].
     block_templates: HashMap<Slot, BlockTemplate>,
     /// The chain ID of the chain (constant).
     chain_id: u64,
@@ -192,6 +197,12 @@ impl<C: StateFetcher> ExecutionState<C> {
             client.get_chain_id()
         )?;
 
+        // Calculate the number of account states that can be cached by diving the configured max
+        // size by the size of an account state.
+        let num_accounts =
+            NonZero::new(limits.max_account_states_size.get().div_ceil(size_of::<AccountState>()))
+                .expect("valid non-zero");
+
         Ok(Self {
             basefee,
             blob_basefee,
@@ -200,7 +211,7 @@ impl<C: StateFetcher> ExecutionState<C> {
             limits,
             client,
             slot: 0,
-            account_states: HashMap::new(),
+            account_states: LruCache::new(num_accounts),
             block_templates: HashMap::new(),
             // Load the default KZG settings
             kzg_settings: EnvKzgSettings::default(),
@@ -364,7 +375,7 @@ impl<C: StateFetcher> ExecutionState<C> {
                         }
                     };
 
-                    self.account_states.insert(*sender, account);
+                    self.account_states.put(*sender, account);
                     account
                 }
             };
@@ -452,7 +463,7 @@ impl<C: StateFetcher> ExecutionState<C> {
     ) -> Result<(), TransportError> {
         self.slot = slot;
 
-        let accounts = self.account_states.keys().collect::<Vec<_>>();
+        let accounts = self.account_states.iter().map(|(k, _v)| k).collect::<Vec<_>>();
         let update = self.client.get_state_update(accounts, block_number).await?;
         trace!(%slot, ?update, "Applying execution state update");
 
@@ -503,8 +514,9 @@ impl<C: StateFetcher> ExecutionState<C> {
         self.block_number = update.block_number;
         self.basefee = update.min_basefee;
 
-        // `extend` will overwrite existing values. This is what we want.
-        self.account_states.extend(update.account_states);
+        for (address, state) in update.account_states {
+            self.account_states.put(address, state);
+        }
 
         self.refresh_templates();
     }
@@ -532,8 +544,10 @@ impl<C: StateFetcher> ExecutionState<C> {
         }
     }
 
-    /// Returns the cached account state for the given address
-    fn account_state(&self, address: &Address) -> Option<&AccountState> {
+    /// Returns the cached account state for the given address.
+    ///
+    /// NOTE: requires `mut` because of the underlying LRU cache.
+    fn account_state(&mut self, address: &Address) -> Option<&AccountState> {
         self.account_states.get(address)
     }
 
@@ -805,12 +819,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let limits = LimitsOpts {
-            max_commitments_per_slot: NonZero::new(10).unwrap(),
-            max_committed_gas_per_slot: NonZero::new(5_000_000).unwrap(),
-            min_priority_fee: 200000000, // 0.2 gwei
-        };
-
+        let limits = LimitsOpts::default();
         let mut state = ExecutionState::new(client.clone(), limits).await?;
 
         let basefee = state.basefee();
@@ -845,9 +854,8 @@ mod tests {
         let client = StateClient::new(anvil.endpoint_url());
 
         let limits = LimitsOpts {
-            max_commitments_per_slot: NonZero::new(10).unwrap(),
             max_committed_gas_per_slot: NonZero::new(5_000_000).unwrap(),
-            min_priority_fee: 2000000000,
+            ..Default::default()
         };
         let mut state = ExecutionState::new(client.clone(), limits).await?;
 
@@ -875,11 +883,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let limits = LimitsOpts {
-            max_commitments_per_slot: NonZero::new(10).unwrap(),
-            max_committed_gas_per_slot: NonZero::new(5_000_000).unwrap(),
-            min_priority_fee: 2 * GWEI_TO_WEI as u128,
-        };
+        let limits = LimitsOpts { min_priority_fee: 2 * GWEI_TO_WEI as u128, ..Default::default() };
 
         let mut state = ExecutionState::new(client.clone(), limits).await?;
 
@@ -917,11 +921,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let limits = LimitsOpts {
-            max_commitments_per_slot: NonZero::new(10).unwrap(),
-            max_committed_gas_per_slot: NonZero::new(5_000_000).unwrap(),
-            min_priority_fee: 2 * GWEI_TO_WEI as u128,
-        };
+        let limits = LimitsOpts { min_priority_fee: 2 * GWEI_TO_WEI as u128, ..Default::default() };
 
         let mut state = ExecutionState::new(client.clone(), limits).await?;
 
@@ -964,11 +964,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let limits = LimitsOpts {
-            max_commitments_per_slot: NonZero::new(10).unwrap(),
-            max_committed_gas_per_slot: NonZero::new(5_000_000).unwrap(),
-            min_priority_fee: 2 * GWEI_TO_WEI as u128,
-        };
+        let limits = LimitsOpts { min_priority_fee: 2 * GWEI_TO_WEI as u128, ..Default::default() };
 
         let mut state = ExecutionState::new(client.clone(), limits).await?;
 
@@ -1101,11 +1097,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let limits: LimitsOpts = LimitsOpts {
-            max_commitments_per_slot: NonZero::new(10).unwrap(),
-            max_committed_gas_per_slot: NonZero::new(5_000_000).unwrap(),
-            min_priority_fee: 1000000000,
-        };
+        let limits: LimitsOpts = LimitsOpts { min_priority_fee: 1000000000, ..Default::default() };
         let mut state = ExecutionState::new(client.clone(), limits).await?;
 
         let sender = anvil.addresses().first().unwrap();
