@@ -42,6 +42,7 @@ fi
 if [[ "$PACKAGE" == "bolt-sidecar" ]]; then
     echo "Building $PACKAGE with cross"
     cross build --release --target $TARGET_ARCH
+fi
 
 # build other packages with cargo directly
 if [[ "$TARGET_ARCH" == "aarch64-unknown-linux-gnu" ]]; then
