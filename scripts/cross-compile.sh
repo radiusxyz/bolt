@@ -29,26 +29,40 @@ fi
 
 # 2. Build the binary
 if [[ "$TARGET_ARCH" == "aarch64-unknown-linux-gnu" ]]; then
-    # For Arm64, use the cross-compiled version of OpenSSL.
+    # Use the cross-compiled version of OpenSSL.
     # NOTE: Adjust the paths for your setup if necessary.
     if [ ! -d /usr/include/aarch64-linux-gnu/openssl ]; then
         echo "Error: Cross-compiled OpenSSL libraries not found at /usr/include/aarch64-linux-gnu/openssl."
         exit 1
     fi
 
-    echo "Building $PACKAGE for $TARGET_ARCH with cross-compiled OpenSSL"
-    (
-        cd $PACKAGE
-        export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_INCLUDE_DIR=/usr/include/aarch64-linux-gnu/openssl
-        export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_LIB_DIR=/usr/lib/aarch64-linux-gnu
-        cargo build --release --target $TARGET_ARCH
-    )
-else
     echo "Building $PACKAGE for $TARGET_ARCH"
     (
         cd $PACKAGE
+        export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_DIR="/usr/include/aarch64-linux-gnu/openssl"
+        export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_INCLUDE_DIR="$AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_DIR/include"
+        export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_LIB_DIR="$AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_DIR/lib"
         cargo build --release --target $TARGET_ARCH
     )
+else if [[ "$TARGET_ARCH" == "x86_64-unknown-linux-gnu" ]]; then
+    # Use the cross-compiled version of OpenSSL.
+    # NOTE: Adjust the paths for your setup if necessary.
+    if [ ! -d /usr/include/x86_64-linux-gnu/openssl ]; then
+        echo "Error: Cross-compiled OpenSSL libraries not found at /usr/include/x86_64-linux-gnu/openssl."
+        exit 1
+    fi
+
+    echo "Building $PACKAGE for $TARGET_ARCH"
+    (
+        cd $PACKAGE
+        export X86_64_UNKNOWN_LINUX_GNU_OPENSSL_DIR="/usr/include/x86_64-linux-gnu/openssl"
+        export X86_64_UNKNOWN_LINUX_GNU_OPENSSL_INCLUDE_DIR="$X86_64_UNKNOWN_LINUX_GNU_OPENSSL_DIR/include"
+        export X86_64_UNKNOWN_LINUX_GNU_OPENSSL_LIB_DIR="$X86_64_UNKNOWN_LINUX_GNU_OPENSSL_DIR/lib"
+        cargo build --release --target $TARGET_ARCH
+    )
+else
+    echo "Unsupported target architecture: $TARGET_ARCH"
+    exit 1
 fi
 
 # 3. copy the binary to the output directory
