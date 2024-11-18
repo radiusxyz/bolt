@@ -15,9 +15,7 @@ thiserror = "1.0.63"
 reqwest = "0.12.7"
 
 # crypto
-ssz_rs = { git = "https://github.com/ralexstokes/ssz-rs", rev = "ec3073e", features = [
-    "sha2-asm",
-] }
+ssz_rs = { git = "https://github.com/ralexstokes/ssz-rs", rev = "ec3073e" }
 tree_hash = "0.8"
 
 # tracing & metrics

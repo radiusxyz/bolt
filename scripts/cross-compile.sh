@@ -12,24 +12,34 @@ TARGET_ARCH=$2
 # Output directory for the binary
 OUT_DIR=$3
 
-
 # 1. install the toolchain if it's not already installed
 if ! rustup target list | grep -q $TARGET_ARCH; then
     rustup target add $TARGET_ARCH
 fi
 
 # 2. build the binary.
-#
-# Note: everything so far can be built with zigbuild, except for bolt-boost 
-# targeting x86_64-unknown-linux-gnu. As this is still unresolved, we handle
-# this case separately by building the binary with cargo instead. This is less 
-# than ideal, but it works and it's simple
-if [[ $PACKAGE == "bolt-boost" && $TARGET_ARCH == "x86_64-unknown-linux-gnu" ]]; then
-    echo "Building binary with cargo"
-    (cd $PACKAGE && cargo build --target $TARGE_ARCH --release)
+if [[ $TARGET_ARCH == "aarch64-unknown-linux-gnu"]]; then
+    # For Arm64, we need to use the cross-compiled version of openssl.
+    # NOTE: we have hard-coded the installation path for these cross-compiled libraries for our dev box.
+    (
+        # Check if the cross-compiled openssl libraries are installed
+        if [ ! -d /usr/include/aarch64-linux-gnu/openssl ]; then
+            echo "Cross-compiled openssl libraries not found. Please install them."
+            exit 1
+        fi
+    )
+    (
+        cd $PACKAGE
+        export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_INCLUDE_DIR=/usr/include/aarch64-linux-gnu/openssl/include
+        export AARCH64_UNKNOWN_LINUX_GNU_OPENSSL_LIB_DIR=/usr/include/aarch64-linux-gnu/openssl/lib
+        cargo build --release --target $TARGET_ARCH
+    )
 else
-    echo "Building binary with cargo-zigbuild"
-    (cd $PACKAGE && cargo zigbuild --target $TARGET_ARCH --profile release)
+    (
+        # For x86 we don't need to do anything special
+        cd $PACKAGE
+        cargo build --release --target $TARGET_ARCH
+    )
 fi
 
 # 3. copy the binary to the output directory
