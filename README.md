@@ -168,7 +168,7 @@ installed. Just run the following commands in your terminal:
 
 ```shell
 # build all necessary docker images locally first
-just build-images
+just build-local-images
 
 # spin up the kurtosis devnet on your machine
 just up
