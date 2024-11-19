@@ -152,7 +152,15 @@ build-local-bolt-boost:
 
 
 # Cross platform compilation with cargo cross.
-# Install cross with: `cargo install cross --git https://github.com/cross-rs/cross`
+# Install cross with: `cargo install cross --git https://github.com/cross-rs/cross`.
+# 
+# Troubleshooting tips:
+# * We have to clean the target directory before building for different targets because
+#   of a rustc incremental compilation bug. See: https://github.com/cross-rs/cross/issues/724#issuecomment-1484065725
+# * If incurring into issues related to building `aws-lc-rs`, check this out:
+#   https://github.com/cross-rs/cross/issues/1565#issuecomment-2483968180
+# * If incurring into issues related to building `sha2-asm`, make sure the "sha2-asm" feature
+#   is disabled in the `Cargo.toml` file you are trying to build.
 # 
 # build the cross platform binaries for a package by name. available: "bolt-sidecar", "bolt-boost".
 [private]
