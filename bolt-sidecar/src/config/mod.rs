@@ -23,7 +23,7 @@ pub mod limits;
 use limits::LimitsOpts;
 use tracing::debug;
 
-use crate::common::{BlsSecretKeyWrapper, EcdsaSecretKeyWrapper, JwtSecretConfig};
+use crate::common::secrets::{BlsSecretKeyWrapper, EcdsaSecretKeyWrapper, JwtSecretConfig};
 
 /// Default port for the JSON-RPC server exposed by the sidecar supporting the Commitments API.
 ///

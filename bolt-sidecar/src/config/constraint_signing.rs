@@ -5,7 +5,7 @@ use lighthouse_account_utils::ZeroizeString;
 use reqwest::Url;
 use serde::Deserialize;
 
-use crate::common::{BlsSecretKeyWrapper, JwtSecretConfig};
+use crate::common::secrets::{BlsSecretKeyWrapper, JwtSecretConfig};
 
 /// Command-line options for signing constraint messages
 #[derive(Args, Deserialize)]

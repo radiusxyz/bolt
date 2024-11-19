@@ -13,7 +13,7 @@ mod client;
 pub mod telemetry;
 
 /// Common types and compatibility utilities
-mod common;
+pub mod common;
 
 /// Driver for the sidecar, which manages the main event loop
 pub mod driver;
