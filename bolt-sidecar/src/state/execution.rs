@@ -4,11 +4,13 @@ use alloy::{
     primitives::{Address, U256},
     transports::TransportError,
 };
-use lru::LruCache;
 use reth_primitives::{revm_primitives::EnvKzgSettings, PooledTransactionsElement};
-use std::{collections::HashMap, num::NonZero, ops::Deref};
+use std::{
+    collections::HashMap,
+    ops::{Deref, DerefMut},
+};
 use thiserror::Error;
-use tracing::{debug, trace, warn};
+use tracing::{debug, error, trace, warn};
 
 use crate::{
     builder::BlockTemplate,
@@ -110,17 +112,81 @@ impl ValidationError {
             Self::InsufficientBalance => "insufficient_balance",
             Self::Eip4844Limit => "eip4844_limit",
             Self::SlotTooLow(_) => "slot_too_low",
-            Self::MaxCommitmentsReachedForSlot(_, _) => {
-                "max_commitments_reached_for_slot"
-            }
-            Self::MaxCommittedGasReachedForSlot(_, _) => {
-                "max_committed_gas_reached_for_slot"
-            }
+            Self::MaxCommitmentsReachedForSlot(_, _) => "max_commitments_reached_for_slot",
+            Self::MaxCommittedGasReachedForSlot(_, _) => "max_committed_gas_reached_for_slot",
             Self::Signature(_) => "signature",
             Self::RecoverSigner => "recover_signer",
             Self::ChainIdMismatch => "chain_id_mismatch",
             Self::Internal(_) => "internal",
         }
+    }
+}
+
+pub const ACCOUNT_STATE_SCORE_BUMP: usize = 4;
+pub const ACCOUNT_STATE_UPDATE_PENALTY: usize = 1;
+
+#[derive(Clone, Debug)]
+pub struct MaxLenScoreMap<K, V> {
+    map: HashMap<K, (V, usize)>,
+    max_len: usize,
+    score_bonus: usize,
+    score_penalty: usize,
+}
+
+impl<K: std::hash::Hash + Eq, V> MaxLenScoreMap<K, V> {
+    pub fn new(max_len: usize, score_bump: usize, score_penalty: usize) -> Self {
+        Self {
+            map: HashMap::with_capacity(max_len),
+            max_len,
+            score_bonus: score_bump,
+            score_penalty,
+        }
+    }
+
+    pub fn get_with_score_bump(&mut self, k: &K) -> Option<&V> {
+        let bonus = self.score_bonus;
+        self.get_mut(k).map(|(account, score)| {
+            *score = score.saturating_add(bonus);
+            // Return an immutable reference
+            &*account
+        })
+    }
+
+    pub fn insert_with_score_bump(&mut self, k: K, v: V) {
+        self.clear_stales();
+        self.map.insert(k, (v, self.score_bonus));
+    }
+
+    pub fn update_with_penalty(&mut self, k: &K, v: V) -> bool {
+        let penalty = self.score_penalty;
+        let Some((to_update, score)) = self.get_mut(k) else {
+            return false;
+        };
+        *to_update = v;
+        *score = score.saturating_sub(penalty);
+        true
+    }
+
+    pub fn clear_stales(&mut self) {
+        let mut i = 0;
+        while self.len() >= self.max_len {
+            self.retain(|_, (_, score)| *score > i);
+            i += 1;
+        }
+    }
+}
+
+impl<K, V> Deref for MaxLenScoreMap<K, V> {
+    type Target = HashMap<K, (V, usize)>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.map
+    }
+}
+
+impl<K, V> DerefMut for MaxLenScoreMap<K, V> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.map
     }
 }
 
@@ -147,7 +213,14 @@ pub struct ExecutionState<C> {
     /// The cached account states. This should never be read directly.
     /// These only contain the canonical account states at the head block,
     /// not the intermediate states.
-    account_states: LruCache<Address, AccountState>,
+    ///
+    /// The value of the map is a tuple containing the account state and a score.
+    /// The score is needed to determine which accounts to evict when the cache is full with a
+    /// custom logic.
+    /// When a commitment request is made from an account its score is bumped of
+    /// [ACCOUNT_STATE_SCORE_BUMP], and when it updated it is decreased by
+    /// [ACCOUNT_STATE_UPDATE_PENALTY].
+    account_states: MaxLenScoreMap<Address, AccountState>,
     /// The block templates by target SLOT NUMBER.
     /// We have multiple block templates because in rare cases we might have multiple
     /// proposal duties for a single lookahead.
@@ -199,9 +272,7 @@ impl<C: StateFetcher> ExecutionState<C> {
 
         // Calculate the number of account states that can be cached by diving the configured max
         // size by the size of an account state.
-        let num_accounts =
-            NonZero::new(limits.max_account_states_size.get().div_ceil(size_of::<AccountState>()))
-                .expect("valid non-zero");
+        let num_accounts = limits.max_account_states_size.get().div_ceil(size_of::<AccountState>());
 
         Ok(Self {
             basefee,
@@ -211,7 +282,11 @@ impl<C: StateFetcher> ExecutionState<C> {
             limits,
             client,
             slot: 0,
-            account_states: LruCache::new(num_accounts),
+            account_states: MaxLenScoreMap::new(
+                num_accounts,
+                ACCOUNT_STATE_SCORE_BUMP,
+                ACCOUNT_STATE_UPDATE_PENALTY,
+            ),
             block_templates: HashMap::new(),
             // Load the default KZG settings
             kzg_settings: EnvKzgSettings::default(),
@@ -361,7 +436,7 @@ impl<C: StateFetcher> ExecutionState<C> {
 
             trace!(nonce_diff, %balance_diff, "Applying diffs to account state");
 
-            let account_state = match self.account_state(sender).copied() {
+            let account_state = match self.account_states.get_with_score_bump(sender).copied() {
                 Some(account) => account,
                 None => {
                     // Fetch the account state from the client if it does not exist
@@ -375,7 +450,7 @@ impl<C: StateFetcher> ExecutionState<C> {
                         }
                     };
 
-                    self.account_states.put(*sender, account);
+                    self.account_states.insert_with_score_bump(*sender, account);
                     account
                 }
             };
@@ -463,7 +538,7 @@ impl<C: StateFetcher> ExecutionState<C> {
     ) -> Result<(), TransportError> {
         self.slot = slot;
 
-        let accounts = self.account_states.iter().map(|(k, _v)| k).collect::<Vec<_>>();
+        let accounts = self.account_states.keys().collect::<Vec<_>>();
         let update = self.client.get_state_update(accounts, block_number).await?;
         trace!(%slot, ?update, "Applying execution state update");
 
@@ -515,7 +590,11 @@ impl<C: StateFetcher> ExecutionState<C> {
         self.basefee = update.min_basefee;
 
         for (address, state) in update.account_states {
-            self.account_states.put(address, state);
+            let found = self.account_states.update_with_penalty(&address, state);
+            if !found {
+                error!(%address, "Account state requested for update but not found in cache");
+                continue;
+            };
         }
 
         self.refresh_templates();
@@ -525,7 +604,7 @@ impl<C: StateFetcher> ExecutionState<C> {
     /// transactions by checking the nonce and balance of the account after applying the state
     /// diffs.
     fn refresh_templates(&mut self) {
-        for (address, account_state) in &mut self.account_states {
+        for (address, (account_state, _)) in self.account_states.iter_mut() {
             trace!(%address, ?account_state, "Refreshing template...");
             // Iterate over all block templates and apply the state diff
             for template in self.block_templates.values_mut() {
@@ -542,13 +621,6 @@ impl<C: StateFetcher> ExecutionState<C> {
                 }
             }
         }
-    }
-
-    /// Returns the cached account state for the given address.
-    ///
-    /// NOTE: requires `mut` because of the underlying LRU cache.
-    fn account_state(&mut self, address: &Address) -> Option<&AccountState> {
-        self.account_states.get(address)
     }
 
     /// Gets the block template for the given slot number.
@@ -709,7 +781,7 @@ mod tests {
             Err(ValidationError::NonceTooLow(1, 0))
         ));
 
-        assert!(state.account_states.get(sender).unwrap().transaction_count == 0);
+        assert!(state.account_states.get(sender).unwrap().0.transaction_count == 0);
 
         // Create a transaction with a nonce that is too high
         let tx = default_test_transaction(*sender, Some(2));
