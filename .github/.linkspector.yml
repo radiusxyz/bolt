@@ -8,5 +8,12 @@ excludedDirs:
 useGitIgnore: true
 
 ignorePatterns:
+  # some websites use anti-scraping that will block linkspector requests
   - pattern: "^https://.*etherscan.io/.*$"
   - pattern: "^https://.*docs.eigenlayer.xyz/.*$"
+
+  # relay endpoints don't need to be checked
+  - pattern: "^https://.*relay-holesky.bolt.chainbound.io"
+  - pattern: "^https://.*holesky-preconf.titanrelay.xyz"
+  - pattern: "^https://.*preconfs-holesky.aestus.live"
+  - pattern: "^https://.*bloxroute.holesky.blxrbdn.com"

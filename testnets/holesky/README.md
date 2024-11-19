@@ -6,30 +6,30 @@ This document provides instructions for running the Bolt sidecar on the Holesky 
 
 <!-- vim-markdown-toc GFM -->
 
-* [Prerequisites](#prerequisites)
-* [On-Chain Registration](#on-chain-registration)
-  * [Validator Registration](#validator-registration)
-    * [Registration Steps](#registration-steps)
-  * [Bolt Network Entrypoint](#bolt-network-entrypoint)
-  * [Operator Registration](#operator-registration)
-    * [Symbiotic Registration Steps](#symbiotic-registration-steps)
-    * [EigenLayer Registration Steps](#eigenlayer-registration-steps)
-* [Off-Chain Setup](#off-chain-setup)
-  * [Docker Mode (recommended)](#docker-mode-recommended)
-  * [Commit-Boost Mode](#commit-boost-mode)
-  * [Native Mode (advanced)](#native-mode-advanced)
-    * [Building and running the MEV-Boost fork binary](#building-and-running-the-mev-boost-fork-binary)
-    * [Building and running the Bolt sidecar binary](#building-and-running-the-bolt-sidecar-binary)
-      * [Configuration file](#configuration-file)
-    * [Observability](#observability)
-* [Reference](#reference)
-  * [Command-line options](#command-line-options)
-  * [Delegations and signing options for Native and Docker Compose Mode](#delegations-and-signing-options-for-native-and-docker-compose-mode)
-    * [`bolt` CLI](#bolt-cli)
-      * [Installation and usage](#installation-and-usage)
-    * [Using a private key directly](#using-a-private-key-directly)
-    * [Using a ERC-2335 Keystore](#using-a-erc-2335-keystore)
-  * [Avoid restarting the beacon node](#avoid-restarting-the-beacon-node)
+- [Prerequisites](#prerequisites)
+- [On-Chain Registration](#on-chain-registration)
+  - [Validator Registration](#validator-registration)
+    - [Registration Steps](#registration-steps)
+  - [Bolt Network Entrypoint](#bolt-network-entrypoint)
+  - [Operator Registration](#operator-registration)
+    - [Symbiotic Registration Steps](#symbiotic-registration-steps)
+    - [EigenLayer Registration Steps](#eigenlayer-registration-steps)
+- [Off-Chain Setup](#off-chain-setup)
+  - [Docker Mode (recommended)](#docker-mode-recommended)
+  - [Commit-Boost Mode](#commit-boost-mode)
+  - [Native Mode (advanced)](#native-mode-advanced)
+    - [Building and running the MEV-Boost fork binary](#building-and-running-the-mev-boost-fork-binary)
+    - [Building and running the Bolt sidecar binary](#building-and-running-the-bolt-sidecar-binary)
+      - [Configuration file](#configuration-file)
+    - [Observability](#observability)
+- [Reference](#reference)
+  - [Command-line options](#command-line-options)
+  - [Delegations and signing options for Native and Docker Compose Mode](#delegations-and-signing-options-for-native-and-docker-compose-mode)
+    - [`bolt` CLI](#bolt-cli)
+      - [Installation and usage](#installation-and-usage)
+    - [Using a private key directly](#using-a-private-key-directly)
+    - [Using a ERC-2335 Keystore](#using-a-erc-2335-keystore)
+  - [Avoid restarting the beacon node](#avoid-restarting-the-beacon-node)
 
 <!-- vim-markdown-toc -->
 
@@ -684,6 +684,18 @@ docker compose -f telemetry.compose.yml down
 ```
 
 # Reference
+
+## Supported Relays
+
+Here is a list of Relays that support the Bolt constraints API and can be used
+as PBS relays when running Bolt:
+
+| Relay Name | Chain   | URL                                                                                                                                         |
+| ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chainbound | Holesky | https://0xa55c1285d84ba83a5ad26420cd5ad3091e49c55a813eee651cd467db38a8c8e63192f47955e9376f6b42f6d190571cb5@relay-holesky.bolt.chainbound.io |
+| Titan      | Holesky | https://0xaa58208899c6105603b74396734a6263cc7d947f444f396a90f7b7d3e65d102aec7e5e5291b27e08d02c50a050825c2f@holesky-preconf.titanrelay.xyz   |
+| Aestus     | Holesky | https://0x8d6ff9fdf3b8c05293f6c240f57034c6c5244d7ecb2b9a6e597de575b373610d6345f5060c150012d1cc42d38b8383ac@preconfs-holesky.aestus.live     |
+| Bloxroute  | Holesky | https://0x821f2a65afb70e7f2e820a925a9b4c80a159620582c1766b1b09729fec178b11ea22abb3a51f07b288be815a1a2ff516@bloxroute.holesky.blxrbdn.com    |
 
 ## Command-line options
 
