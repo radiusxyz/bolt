@@ -195,7 +195,7 @@ where
         if let Some(local_payload) = server.local_payload.lock().take() {
             check_locally_built_payload_integrity(&signed_blinded_block, &local_payload)?;
 
-            info!("Valid local block found, returning: {local_payload:?}");
+            info!("Valid local block found, returning: {:?}", local_payload.block_hash());
             ApiMetrics::increment_local_blocks_proposed();
 
             return Ok(Json(local_payload));
