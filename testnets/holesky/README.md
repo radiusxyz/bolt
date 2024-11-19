@@ -688,7 +688,7 @@ docker compose -f telemetry.compose.yml down
 ## Supported Relays
 
 Here is a list of Relays that support the Bolt constraints API and can be used
-as PBS relays when running the Bolt sidecar:
+as PBS relays when running Bolt:
 
 | Relay Name | Chain   | URL                                                                                                                                         |
 | ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
