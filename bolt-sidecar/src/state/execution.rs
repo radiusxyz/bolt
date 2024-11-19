@@ -206,8 +206,11 @@ impl<C: StateFetcher> ExecutionState<C> {
         )?;
 
         // Calculate the number of account states that can be cached by diving the configured max
-        // size by the size of an account state.
-        let num_accounts = limits.max_account_states_size.get().div_ceil(size_of::<AccountState>());
+        // size by the size of an account state and its key.
+        let num_accounts = limits
+            .max_account_states_size
+            .get()
+            .div_ceil(size_of::<AccountState>() + size_of::<Address>());
 
         Ok(Self {
             basefee,
