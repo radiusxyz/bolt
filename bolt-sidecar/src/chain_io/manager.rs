@@ -80,14 +80,24 @@ impl BoltManager {
                 }
             };
 
+            // Check that all validators are active and have the correct operator
             for status in &returndata.statuses {
                 if !status.active {
-                    bail!(
-                        "validator with public key {:?} and public key hash {} is not active in Bolt",
-                        hashes_with_preimages.get(&status.pubkeyHash),
-                        status.pubkeyHash
-                    );
-                } else if status.operator != commitment_signer_pubkey {
+                    if let Some(pubkey) = hashes_with_preimages.get(&status.pubkeyHash) {
+                        bail!(
+                            "validator with public key {} and public key hash {} is not active in Bolt",
+                            pubkey,
+                            status.pubkeyHash
+                        );
+                    } else {
+                        bail!(
+                            "BoltManager returned an unexpected public key hash: {}",
+                            status.pubkeyHash
+                        );
+                    }
+                }
+
+                if status.operator != commitment_signer_pubkey {
                     bail!(generate_operator_keys_mismatch_error(
                         status.pubkeyHash,
                         commitment_signer_pubkey,
@@ -110,16 +120,20 @@ fn generate_bolt_manager_error(
     commitment_signer_pubkey: Address,
 ) -> String {
     match error {
-        BoltManagerContractErrors::ValidatorDoesNotExist(ValidatorDoesNotExist {
-            pubkeyHash: pubkey_hash,
-        }) => {
-            format!("BoltManager::ValidatorDoesNotExist: validator with public key hash {} is not registered in Bolt", pubkey_hash)
+        BoltManagerContractErrors::ValidatorDoesNotExist(ValidatorDoesNotExist { pubkeyHash }) => {
+            format!(
+                "BoltManager::ValidatorDoesNotExist: validator with public key hash {} is not registered in Bolt",
+                pubkeyHash
+            )
         }
         BoltManagerContractErrors::InvalidQuery(_) => {
             "BoltManager::InvalidQuery: invalid zero public key hash".to_string()
         }
         BoltManagerContractErrors::KeyNotFound(_) => {
-            format!("BoltManager::KeyNotFound: operator associated with commitment signer public key {} is not registered in Bolt", commitment_signer_pubkey)
+            format!(
+                "BoltManager::KeyNotFound: operator associated with commitment signer public key {} is not registered in Bolt", 
+                commitment_signer_pubkey
+            )
         }
     }
 }
