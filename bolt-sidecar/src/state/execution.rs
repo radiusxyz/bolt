@@ -5,16 +5,16 @@ use alloy::{
     transports::TransportError,
 };
 use reth_primitives::{revm_primitives::EnvKzgSettings, PooledTransactionsElement};
-use std::{
-    collections::HashMap,
-    ops::{Deref, DerefMut},
-};
+use std::{collections::HashMap, ops::Deref};
 use thiserror::Error;
 use tracing::{debug, error, trace, warn};
 
 use crate::{
     builder::BlockTemplate,
-    common::transactions::{calculate_max_basefee, max_transaction_cost, validate_transaction},
+    common::{
+        score_cache::LowestScoreCache,
+        transactions::{calculate_max_basefee, max_transaction_cost, validate_transaction},
+    },
     config::limits::LimitsOpts,
     primitives::{AccountState, InclusionRequest, SignedConstraints, Slot},
     telemetry::ApiMetrics,
@@ -125,71 +125,6 @@ impl ValidationError {
 pub const ACCOUNT_STATE_SCORE_BUMP: usize = 4;
 pub const ACCOUNT_STATE_UPDATE_PENALTY: usize = 1;
 
-#[derive(Clone, Debug)]
-pub struct MaxLenScoreMap<K, V> {
-    map: HashMap<K, (V, usize)>,
-    max_len: usize,
-    score_bonus: usize,
-    score_penalty: usize,
-}
-
-impl<K: std::hash::Hash + Eq, V> MaxLenScoreMap<K, V> {
-    pub fn new(max_len: usize, score_bump: usize, score_penalty: usize) -> Self {
-        Self {
-            map: HashMap::with_capacity(max_len),
-            max_len,
-            score_bonus: score_bump,
-            score_penalty,
-        }
-    }
-
-    pub fn get_with_score_bump(&mut self, k: &K) -> Option<&V> {
-        let bonus = self.score_bonus;
-        self.get_mut(k).map(|(account, score)| {
-            *score = score.saturating_add(bonus);
-            // Return an immutable reference
-            &*account
-        })
-    }
-
-    pub fn insert_with_score_bump(&mut self, k: K, v: V) {
-        self.clear_stales();
-        self.map.insert(k, (v, self.score_bonus));
-    }
-
-    pub fn update_with_penalty(&mut self, k: &K, v: V) -> bool {
-        let penalty = self.score_penalty;
-        let Some((to_update, score)) = self.get_mut(k) else {
-            return false;
-        };
-        *to_update = v;
-        *score = score.saturating_sub(penalty);
-        true
-    }
-
-    pub fn clear_stales(&mut self) {
-        let mut i = 0;
-        while self.len() >= self.max_len {
-            self.retain(|_, (_, score)| *score > i);
-            i += 1;
-        }
-    }
-}
-
-impl<K, V> Deref for MaxLenScoreMap<K, V> {
-    type Target = HashMap<K, (V, usize)>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.map
-    }
-}
-
-impl<K, V> DerefMut for MaxLenScoreMap<K, V> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.map
-    }
-}
-
 /// The minimal state of the execution layer at some block number (`head`).
 /// This is the state that is needed to simulate commitments.
 /// It contains per-address nonces and balances, as well as the minimum basefee.
@@ -220,7 +155,7 @@ pub struct ExecutionState<C> {
     /// When a commitment request is made from an account its score is bumped of
     /// [ACCOUNT_STATE_SCORE_BUMP], and when it updated it is decreased by
     /// [ACCOUNT_STATE_UPDATE_PENALTY].
-    account_states: MaxLenScoreMap<Address, AccountState>,
+    account_states: LowestScoreCache<Address, AccountState>,
     /// The block templates by target SLOT NUMBER.
     /// We have multiple block templates because in rare cases we might have multiple
     /// proposal duties for a single lookahead.
@@ -282,7 +217,7 @@ impl<C: StateFetcher> ExecutionState<C> {
             limits,
             client,
             slot: 0,
-            account_states: MaxLenScoreMap::new(
+            account_states: LowestScoreCache::new(
                 num_accounts,
                 ACCOUNT_STATE_SCORE_BUMP,
                 ACCOUNT_STATE_UPDATE_PENALTY,

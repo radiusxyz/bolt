@@ -1,4 +1,6 @@
+#![allow(missing_docs)]
 pub mod backoff;
+pub mod score_cache;
 pub mod secrets;
 pub mod transactions;
 
