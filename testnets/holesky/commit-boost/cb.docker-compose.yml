@@ -1,0 +1,74 @@
+services:
+  cb_bolt_sidecar:
+    image: ghcr.io/chainbound/bolt-sidecar:v0.3.0-alpha
+    container_name: cb_bolt_sidecar
+    env_file:
+      - bolt-sidecar.env
+    environment:
+      CB_MODULE_ID: BOLT
+      CB_CONFIG: /cb-bolt-config.toml
+    ports:
+      - 8017:8017
+      - 18550:18550
+      - monitoring_network
+  cb_pbs:
+    image: ghcr.io/chainbound/bolt-boost:v0.3.0-alpha
+    container_name: cb_pbs
+    ports:
+      - 18551:18551
+    environment:
+      CB_CONFIG: /cb-bolt-config.toml
+      CB_METRICS_PORT: 10000
+      CB_LOGS_DIR: /var/logs/commit-boost
+    volumes:
+      - ./cb-bolt-config.toml:/cb-bolt-config.toml:ro
+      - ./logs/pbs:/var/logs/commit-boost
+    networks:
+      - monitoring_network
+  cb_prometheus:
+    image: prom/prometheus:latest
+    container_name: cb_prometheus
+    ports:
+      - 9090:9090
+    volumes:
+      - ./cb-prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./targets.json:/etc/prometheus/targets.json
+      - prometheus-data:/prometheus
+    networks:
+      - monitoring_network
+  cb_grafana:
+    image: grafana/grafana:latest
+    container_name: cb_grafana
+    ports:
+      - 3000:3000
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+      - grafana-data:/var/lib/grafana
+    networks:
+      - monitoring_network
+    depends_on:
+      - cb_prometheus
+    logging:
+      driver: none
+  cb_cadvisor:
+    image: gcr.io/cadvisor/cadvisor
+    container_name: cb_cadvisor
+    ports:
+      - 8080:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - monitoring_network
+volumes:
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+networks:
+  monitoring_network:
+    driver: bridge
