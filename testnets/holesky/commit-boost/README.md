@@ -10,6 +10,12 @@ Here is a quick overview of the architecture described in [`cb.docker-compose.ym
   signing incoming preconfirmation requests, managing local fallback blocks and keeping track of the state.
 - `grafana`, `prometheus` and `cadvisor` periphery services for observability.
 
+## Requirements
+
+- An Ethereum validator node on the Holesky testnet
+- A synced Holesky Geth client with access to the Engine API
+- Docker and Docker Compose installed and running
+
 ## Setup
 
 1. Clone the repository if you haven't already: `git clone https://github.com/chainbound/bolt`
