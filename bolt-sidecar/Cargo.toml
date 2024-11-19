@@ -4,6 +4,10 @@ version = "0.3.0-alpha"
 edition = "2021"
 default-run = "bolt-sidecar"
 
+[profile.release]
+lto = true
+debug = true
+
 [dependencies]
 # core
 clap = { version = "4.5.20", features = ["derive", "env"] }

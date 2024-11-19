@@ -1,7 +1,17 @@
+# log files
 *_dump.log
 logs/
-target/
+
+# environment secrets
+.env
+
+# IDEs
 .vscode
 .idea
+
+# build artifacts
+target/
+dist/
+
+# other
 .DS_Store
-.env

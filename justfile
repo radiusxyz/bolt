@@ -136,23 +136,51 @@ send-blob-preconf count='1':
         --count {{count}}
 
 # build all the docker images locally
-build-images:
-	@just build-sidecar
-	@just build-bolt-boost
+build-local-images:
+	@just build-local-sidecar
+	@just build-local-bolt-boost
 
 # build the docker image for the bolt sidecar
 [private]
-build-sidecar:
+build-local-sidecar:
 	cd bolt-sidecar && docker build -t ghcr.io/chainbound/bolt-sidecar:0.1.0 . --load
 
 # build the docker image for bolt-boost
 [private]
-build-bolt-boost:
+build-local-bolt-boost:
 	cd bolt-boost && docker build -t ghcr.io/chainbound/bolt-boost:0.1.0 . --load
 
-# build and push multi-platform docker images to GHCR with the provided tag
-[confirm("are you sure? this will build and push new images on ghcr.io")]
-release tag:
-    chmod +x ./scripts/check_version_bumps.sh && ./scripts/check_version_bumps.sh {{tag}}
-    cd bolt-sidecar && docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/chainbound/bolt-sidecar:{{tag}} --push .
-    cd bolt-boost && docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/chainbound/bolt-boost:{{tag}} --push .
+
+# Cross platform compilation with cargo cross.
+# Install cross with: `cargo install cross --git https://github.com/cross-rs/cross`.
+# 
+# Troubleshooting tips:
+# * We have to clean the target directory before building for different targets because
+#   of a rustc incremental compilation bug. See: https://github.com/cross-rs/cross/issues/724#issuecomment-1484065725
+# * If incurring into issues related to building `aws-lc-rs`, check this out:
+#   https://github.com/cross-rs/cross/issues/1565#issuecomment-2483968180
+# * If incurring into issues related to building `sha2-asm`, make sure the "sha2-asm" feature
+#   is disabled in the `Cargo.toml` file you are trying to build.
+# 
+# build the cross platform binaries for a package by name. available: "bolt-sidecar", "bolt-boost".
+[private]
+cross-compile package target_arch release_dir:
+    cd {{package}} && cargo clean && cross build --release --target {{target_arch}}
+    mkdir -p {{release_dir}} && cp {{package}}/target/{{target_arch}}/release/{{package}} {{release_dir}}
+
+# build and push multi-platform docker images to GHCR for a package. available: "bolt-sidecar", "bolt-boost".
+build-and-push-image package tag:
+    @just cross-compile {{package}} x86_64-unknown-linux-gnu amd64
+    @just cross-compile {{package}} aarch64-unknown-linux-gnu arm64
+
+    docker buildx build \
+      --build-arg BINARY={{package}} \
+      --file ./scripts/cross.Dockerfile \
+      --platform linux/amd64,linux/arm64 \
+      --tag ghcr.io/chainbound/{{package}}:{{tag}} \
+      --push .
+
+# build and push all the available packages to GHCR with the provided tag
+build-and-push-all-images tag='latest':
+    @just build-and-push-image bolt-sidecar {{tag}}
+    @just build-and-push-image bolt-boost {{tag}}

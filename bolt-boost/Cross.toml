@@ -1,0 +1,7 @@
+[build]
+pre-build = [
+    # We depend on openssl for the build, so we need to install its cross-compiled version
+    # more info at: https://github.com/cross-rs/cross/wiki/Configuration#build
+    "dpkg --add-architecture $CROSS_DEB_ARCH",
+    "apt-get update && apt-get --assume-yes --no-install-recommends install libssl-dev:$CROSS_DEB_ARCH"
+]
