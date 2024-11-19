@@ -2,7 +2,7 @@
 # It assumes the binary has already been compiled for `$TARGETPLATFORM` and is
 # locatable in `./dist/bin/$TARGETARCH/$BINARY`.
 
-FROM --platform=$TARGETPLATFORM ubuntu:22.04
+FROM --platform=$TARGETPLATFORM ubuntu:24.04
 
 LABEL org.opencontainers.image.source=https://github.com/chainbound/bolt
 LABEL org.opencontainers.image.licenses="MIT"
