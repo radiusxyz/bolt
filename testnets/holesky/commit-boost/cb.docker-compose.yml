@@ -10,7 +10,10 @@ services:
     ports:
       - 8017:8017
       - 18550:18550
+    networks:
       - monitoring_network
+    volumes:
+      - ./delegations.json:/etc/delegations.json:ro
   cb_pbs:
     image: ghcr.io/chainbound/bolt-boost:v0.3.0-alpha
     container_name: cb_pbs
