@@ -171,19 +171,19 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         };
 
         if opts.unsafe_disable_onchain_checks {
-            info!("Skipping validators and operator public keys verification, --unsafe-disable-onchain-checks is 'true'");
+            warn!("Skipping validators and operator public keys verification, --unsafe-disable-onchain-checks is 'true'");
         } else if let Some(manager) =
             BoltManager::from_chain(opts.execution_api_url.clone(), *opts.chain)
         {
             // Verify the operator and validator keys with the bolt manager
-            let commitment_signer_pubkey = commitment_signer.public_key();
             info!(
                 validator_pubkeys = %validator_pubkeys.len(),
-                commitment_signer = ?commitment_signer_pubkey,
                 "Verifying validators and operator keys with Bolt Manager, this may take a while..."
             );
 
-            manager.verify_validator_pubkeys(validator_pubkeys, commitment_signer_pubkey).await?;
+            manager
+                .verify_validator_pubkeys(validator_pubkeys, commitment_signer.public_key())
+                .await?;
 
             info!("Successfully verified validators and operator keys with Bolt Manager.");
         } else {
