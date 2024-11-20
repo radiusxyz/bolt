@@ -2,6 +2,7 @@ use std::env;
 
 use alloy::primitives::Address;
 use clap::Parser;
+use eyre::bail;
 use reqwest::Url;
 use serde::Deserialize;
 
@@ -111,10 +112,33 @@ pub struct Opts {
     pub extra_args: Vec<String>,
 }
 
-/// It removes environment variables that are set as empty strings, i.e. like `MY_VAR=`. This is
+impl Opts {
+    /// Parse the command-line arguments into the `Opts` struct, using
+    /// environment variables as fallback values when not provided via CLI.
+    pub fn try_parse() -> eyre::Result<Self> {
+        read_env_file()?;
+
+        Ok(Opts::parse())
+    }
+}
+
+/// Reads the `.env` file and loads the environment variables into the process.
+fn read_env_file() -> eyre::Result<()> {
+    match dotenvy::dotenv() {
+        // It means the .env file hasn't been found but it's okay since it's optional
+        Err(dotenvy::Error::Io(_)) => (),
+        Err(err) => bail!("Failed to load .env file: {:?}", err),
+        Ok(path) => println!("Loaded environment variables from path: {:?}", path),
+    };
+
+    remove_empty_envs()?;
+    Ok(())
+}
+
+/// Removes environment variables that are set as empty strings, i.e. like `MY_VAR=`. This is
 /// useful to avoid unexpected edge cases and because we don't have options that make sense with an
 /// empty string value.
-pub fn remove_empty_envs() -> eyre::Result<()> {
+fn remove_empty_envs() -> eyre::Result<()> {
     for item in env::vars() {
         let (key, val) = item;
         if val.trim().is_empty() {

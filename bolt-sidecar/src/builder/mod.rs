@@ -51,7 +51,7 @@ pub enum BuilderError {
     #[error("Failed to decode hex: {0}")]
     Hex(#[from] hex::FromHexError),
     #[error("Invalid JWT: {0}")]
-    Jwt(#[from] reth_rpc_layer::JwtError),
+    Jwt(#[from] alloy_rpc_types_engine::JwtError),
     #[error("Failed HTTP request: {0}")]
     Reqwest(#[from] reqwest::Error),
     #[error("Failed while fetching from RPC: {0}")]

@@ -1,17 +1,21 @@
-use std::fmt;
+use std::{
+    fmt,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use alloy::{
     consensus::{Header, EMPTY_OMMER_ROOT_HASH},
     eips::{calc_excess_blob_gas, calc_next_block_base_fee, eip1559::BaseFeeParams},
     primitives::{Address, Bloom, Bytes, B256, B64, U256},
-    rpc::types::{engine::ExecutionPayload, Block, Withdrawal, Withdrawals},
+    rpc::types::{Block, Withdrawal, Withdrawals},
 };
+use alloy_rpc_types_engine::{Claims, ExecutionPayload, JwtSecret};
+use axum::http::HeaderValue;
 use beacon_api_client::{BlockId, StateId};
 use hex::FromHex;
 use regex::Regex;
 use reqwest::Url;
 use reth_primitives::{proofs, BlockBody, SealedBlock, SealedHeader, TransactionSigned};
-use reth_rpc_layer::{secret_to_bearer_header, JwtSecret};
 use serde_json::Value;
 use tracing::trace;
 
@@ -403,6 +407,25 @@ fn build_header_with_hints_and_context(
         requests_hash: None,
         extra_data: context.extra_data.clone(),
     }
+}
+
+/// Helper function to convert a secret into a Bearer auth header value with claims according to
+/// <https://github.com/ethereum/execution-apis/blob/main/src/engine/authentication.md#jwt-claims>.
+/// The token is valid for 60 seconds.
+pub fn secret_to_bearer_header(secret: &JwtSecret) -> HeaderValue {
+    format!(
+        "Bearer {}",
+        secret
+            .encode(&Claims {
+                iat: (SystemTime::now().duration_since(UNIX_EPOCH).unwrap() +
+                    Duration::from_secs(60))
+                .as_secs(),
+                exp: None,
+            })
+            .unwrap()
+    )
+    .parse()
+    .unwrap()
 }
 
 impl fmt::Debug for FallbackPayloadBuilder {

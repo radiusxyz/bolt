@@ -1,12 +1,7 @@
-use clap::Parser;
 use eyre::bail;
 use tracing::info;
 
-use bolt_sidecar::{
-    config::{remove_empty_envs, Opts},
-    telemetry::init_telemetry_stack,
-    SidecarDriver,
-};
+use bolt_sidecar::{config::Opts, telemetry::init_telemetry_stack, SidecarDriver};
 
 const BOLT: &str = r#"
 ██████╗  ██████╗ ██╗  ████████╗
@@ -20,31 +15,23 @@ const BOLT: &str = r#"
 async fn main() -> eyre::Result<()> {
     println!("{}", BOLT);
 
-    read_env_file()?;
-
-    let opts = Opts::parse();
+    let opts = Opts::try_parse()?;
 
     init_telemetry_stack(opts.telemetry.metrics_port())?;
 
     info!(chain = opts.chain.name(), "Starting Bolt sidecar");
 
-    if opts.constraint_signing.constraint_private_key.is_some() {
+    let use_local_signer = opts.constraint_signing.constraint_private_key.is_some();
+    let use_commit_boost_signer = opts.constraint_signing.commit_boost_signer_url.is_some();
+    let use_keystore_signer = opts.constraint_signing.keystore_path.is_some();
+
+    if use_local_signer {
         SidecarDriver::with_local_signer(&opts).await?.run_forever().await
-    } else if opts.constraint_signing.commit_boost_signer_url.is_some() {
+    } else if use_commit_boost_signer {
         SidecarDriver::with_commit_boost_signer(&opts).await?.run_forever().await
-    } else {
+    } else if use_keystore_signer {
         SidecarDriver::with_keystore_signer(&opts).await?.run_forever().await
+    } else {
+        bail!("No signing method specified")
     }
-}
-
-fn read_env_file() -> eyre::Result<()> {
-    match dotenvy::dotenv() {
-        // It means the .env file hasn't been found but it's okay since it's optional
-        Err(dotenvy::Error::Io(_)) => (),
-        Err(err) => bail!("Failed to load .env file: {:?}", err),
-        Ok(path) => println!("Loaded environment variables from path: {:?}", path),
-    };
-
-    remove_empty_envs()?;
-    Ok(())
 }
