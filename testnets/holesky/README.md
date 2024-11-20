@@ -1,6 +1,6 @@
 # Holesky Launch Instructions
 
-This document provides instructions for running the Bolt sidecar on the Holesky testnet.
+This document provides instructions for running Bolt on the Holesky testnet.
 
 # Table of Contents
 
@@ -407,16 +407,9 @@ After all of the steps above have been completed, we can proceed with running th
 
 There are various way to run the Bolt Sidecar depending on your preferences and your preferred signing methods:
 
-- Docker mode (recommended)
-- [Commit-Boost](https://commit-boost.github.io/commit-boost-client) mode
-  (requires Docker)
-- Native mode (advanced, requires building everything from source)
-
-Running the Bolt sidecar as a standalone binary requires building it from
-source. Both the standalone binary and the Docker container requires reading
-signing keys from [ERC-2335](https://eips.ethereum.org/EIPS/eip-2335) keystores,
-while the Commit-Boost module relies on an internal signer and a custom PBS
-module instead of regular [MEV-Boost](https://boost.flashbots.net/).
+1. Docker mode (recommended)
+2. [Commit-Boost](https://commit-boost.github.io/commit-boost-client) mode (requires Docker)
+3. Native mode (advanced, requires building everything from source)
 
 In this section we're going to explore each of these options and its
 requirements.
@@ -442,11 +435,10 @@ containing the necessary environment variables:
 
 1. **Bolt Sidecar Configuration:**
 
-   Change directory to the `testnets/holesky` folder and create a
+   Change directory to `testnets/holesky` if you haven't already, and create a
    `bolt-sidecar.env` file starting from the reference template:
 
    ```bash
-   cd testnets/holesky
    cp bolt-sidecar.env.example bolt-sidecar.env
    ```
 
@@ -456,7 +448,7 @@ containing the necessary environment variables:
    Signing](#delegations-and-signing-options-for-native-and-docker-compose-mode)
    section of this guide.
 
-2. **MEV-Boost Configuration:**
+1. **MEV-Boost Configuration:**
 
    Change directory to the `testnets/holesky` folder if you haven't already and
    copy over the example configuration file:
@@ -615,7 +607,30 @@ To stop the services run:
 docker compose -f telemetry.compose.yml down
 ```
 
+### Open Ports
+
+The Bolt sidecar will listen on port `8017` by default for incoming JSON-RPC requests of
+the Commitments API. This port should be open on your firewall in order to receive external requests.
+
+If you wish, you can enable a firewall rule to whitelist only the Bolt RPC for incoming traffic.
+The IP address of the Holesky Bolt RPC is: `135.181.191.125`.
+
+For example, on Linux you can use `ufw` rules:
+
+```bash
+sudo ufw allow from 135.181.191.125 to any port 8017
+```
+
 # Reference
+
+## Supported RPC nodes
+
+Currently the only deployed [Bolt RPC](https://docs.boltprotocol.xyz/technical-docs/api/rpc)
+API is the one provided by Chainbound:
+
+- [`https://rpc-holesky.bolt.chainbound.io`](https://rpc-holesky.bolt.chainbound.io)
+  - RPC entrypoint: [/rpc](https://rpc-holesky.bolt.chainbound.io/rpc)
+  - OpenAPI documentation: [/docs](https://rpc-holesky.bolt.chainbound.io/docs)
 
 ## Supported Relays
 
