@@ -607,7 +607,7 @@ To stop the services run:
 docker compose -f telemetry.compose.yml down
 ```
 
-### Open Ports
+### Firewall Configuration
 
 The Bolt sidecar will listen on port `8017` by default for incoming JSON-RPC requests of
 the Commitments API. This port should be open on your firewall in order to receive external requests.
