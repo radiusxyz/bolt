@@ -12,6 +12,9 @@ ignorePatterns:
   - pattern: "^https://.*etherscan.io/.*$"
   - pattern: "^https://.*docs.eigenlayer.xyz/.*$"
 
+  # endpoints that are not meant to be accessed by linkspector
+  - pattern: "^https://rpc-.*.bolt.chainbound.io/rpc"
+
   # relay endpoints don't need to be checked
   - pattern: "^https://.*relay-holesky.bolt.chainbound.io"
   - pattern: "^https://.*holesky-preconf.titanrelay.xyz"
