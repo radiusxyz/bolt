@@ -483,76 +483,8 @@ can find at `http://localhost:28017`.
 
 ## Commit-Boost Mode
 
-> [!IMPORTANT]
-> Running with commit-boost is still in the process of being tested. Keep track of the issue
-> here: https://github.com/chainbound/bolt/issues/328.
-
-First download the `commit-boost-cli` binary from the Commit-Boost [official
-releases page](https://github.com/Commit-Boost/commit-boost-client/releases)
-
-A commit-boost configuration file with Bolt support is provided at
-[`cb-bolt-config.toml`](./commit-boost/cb-bolt-config.toml). This file has support for the
-custom PBS module ([bolt-boost](../../bolt-boost)) that implements the
-[Constraints API][constraints-api], as well
-as the [bolt-sidecar](../../bolt-sidecar) module. This file can be used as a
-template for your own configuration.
-
-The important fields to configure are under the `[modules.env]` section of the
-`BOLT` module, which contain the environment variables to configure the bolt
-sidecar:
-
-```toml
-[modules.env]
-BOLT_SIDECAR_CHAIN = "holesky"
-
-BOLT_SIDECAR_CONSTRAINTS_API = "http://cb_pbs:18550"     # The address of the PBS module (static)
-BOLT_SIDECAR_BEACON_API = ""
-BOLT_SIDECAR_EXECUTION_API = ""
-BOLT_SIDECAR_ENGINE_API = ""                             # The execution layer engine API endpoint
-BOLT_SIDECAR_JWT_HEX = ""                                # The engine JWT used to authenticate with the engine API
-BOLT_SIDECAR_BUILDER_PROXY_PORT = "18551"                # The port on which the sidecar builder-API will listen on. This is what your beacon node should connect to.
-BOLT_SIDECAR_FEE_RECIPIENT = ""                          # The fee recipient
-```
-
-To initialize commit-boost, run the following command:
-
-```bash
-commit-boost init --config cb-bolt-config.toml
-```
-
-This will create three files:
-
-- `cb.docker-compose.yml`: which contains the full setup of the Commit-Boost services
-- `.cb.env`: with local env variables, including JWTs for modules
-- `target.json`: which enables dynamic discovery of services for metrics scraping via Prometheus
-
-**Running**
-
-The final step is to run the Commit-Boost services. This can be done with the following command:
-
-```bash
-commit-boost start --docker cb.docker-compose.yml --env .cb.env
-```
-
-This will run all modules in Docker containers.
-
-> [!IMPORTANT]
-> The `bolt-sidecar` service will be exposed at 18551 by default, set
-> with `BOLT_SIDECAR_BUILDER_PROXY_PORT`, and your beacon node MUST be
-> configured to point the `builder-api` to this port for Bolt to work.
-
-**Observability**
-
-Commit-Boost comes with various observability tools, such as Prometheus,
-cadvisor, and Grafana. It also comes with some pre-built dashboards, which can
-be found in the `commit-boost/grafana` directory.
-
-To update these dashboards, run the following command from the `commit-boost`
-directory:
-
-`bash ./update-grafana.sh `
-In this directory, you can also find a Bolt dashboard, which will be launched
-alongside the other dashboards.
+Please refer to the [Commit-Boost guide](./commit-boost/README.md) for more
+information on how to run the Bolt setup with Commit-Boost.
 
 ## Native Mode (advanced)
 
