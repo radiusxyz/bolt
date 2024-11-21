@@ -146,7 +146,7 @@ pub struct ValidatorsCommand {
 
 #[derive(Debug, Clone, Parser)]
 pub enum ValidatorsSubcommand {
-    /// The source of the private key.
+    /// Register a batch of validators.
     Register {
         /// The URL of the RPC to broadcast the transaction.
         #[clap(long, env = "RPC_URL")]
