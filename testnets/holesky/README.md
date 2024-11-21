@@ -228,6 +228,9 @@ Options:
           Print help
 ```
 
+To generate the JSON file containing the pubkeys, you can use the `bolt pubkeys`
+command. See `bolt pubkeys --help` for more info.
+
 Fill the required options and run the script. If the script executed
 succesfully, your validators were registered.
 

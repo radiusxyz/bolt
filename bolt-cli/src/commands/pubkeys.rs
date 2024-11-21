@@ -3,10 +3,10 @@ use eyre::Result;
 use lighthouse_eth2_keystore::Keystore;
 
 use crate::{
-    cli::{KeySource, PubkeysCommand},
+    cli::{KeysSource, PubkeysCommand},
     common::{
         dirk::Dirk,
-        keystore::{keystore_paths, KeystoreError, KeystoreSecret},
+        keystore::{keystore_paths, KeystoreError},
         write_to_file,
     },
     pb::eth2_signer_api::Account,
@@ -15,20 +15,23 @@ use crate::{
 impl PubkeysCommand {
     pub async fn run(self) -> Result<()> {
         match self.source {
-            KeySource::SecretKeys { secret_keys } => {
+            KeysSource::PublicKeys { public_keys } => {
+                write_to_file(&self.out, &public_keys)?;
+                println!("Pubkeys saved to {}", self.out);
+            }
+            KeysSource::SecretKeys { secret_keys } => {
                 let pubkeys = list_from_local_keys(&secret_keys)?;
 
                 write_to_file(&self.out, &pubkeys)?;
                 println!("Pubkeys generated and saved to {}", self.out);
             }
-            KeySource::LocalKeystore { opts } => {
-                let keystore_secret = KeystoreSecret::from_keystore_options(&opts)?;
-                let pubkeys = list_from_keystore(&opts.path, keystore_secret)?;
+            KeysSource::LocalKeystore { path } => {
+                let pubkeys = list_from_keystore(&path)?;
 
                 write_to_file(&self.out, &pubkeys)?;
-                println!("Pubkeys generated and saved to {}", self.out);
+                println!("Pubkeys generated from local keystore and saved to {}", self.out);
             }
-            KeySource::Dirk { opts } => {
+            KeysSource::Dirk { opts } => {
                 // Note: we don't need to unlock wallets to list pubkeys
                 let mut dirk = Dirk::connect(opts.url, opts.tls_credentials).await?;
 
@@ -36,7 +39,7 @@ impl PubkeysCommand {
                 let pubkeys = list_from_dirk_accounts(&accounts)?;
 
                 write_to_file(&self.out, &pubkeys)?;
-                println!("Pubkeys generated and saved to {}", self.out);
+                println!("Pubkeys generated from Dirk and saved to {}", self.out);
             }
         }
 
@@ -57,18 +60,19 @@ pub fn list_from_local_keys(secret_keys: &[String]) -> Result<Vec<BlsPublicKey>>
 }
 
 /// Derive public keys from the keystore files in the provided directory.
-pub fn list_from_keystore(
-    keys_path: &str,
-    keystore_secret: KeystoreSecret,
-) -> Result<Vec<BlsPublicKey>> {
+pub fn list_from_keystore(keys_path: &str) -> Result<Vec<BlsPublicKey>> {
     let keystores_paths = keystore_paths(keys_path)?;
     let mut pubkeys = Vec::with_capacity(keystores_paths.len());
 
     for path in keystores_paths {
         let ks = Keystore::from_json_file(path).map_err(KeystoreError::Eth2Keystore)?;
-        let password = keystore_secret.get(ks.pubkey()).ok_or(KeystoreError::MissingPassword)?;
-        let kp = ks.decrypt_keypair(password.as_bytes()).map_err(KeystoreError::Eth2Keystore)?;
-        let pubkey = BlsPublicKey::try_from(kp.pk.serialize().to_vec().as_ref())?;
+        let pubkey = BlsPublicKey::try_from(
+            ks.public_key()
+                .expect("to parse public key from keystore")
+                .serialize()
+                .to_vec()
+                .as_ref(),
+        )?;
         pubkeys.push(pubkey);
     }
 
