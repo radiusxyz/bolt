@@ -1,12 +1,15 @@
+use std::path::PathBuf;
+
+use alloy::primitives::{Address, B256, U256};
 use clap::{
     builder::styling::{AnsiColor, Color, Style},
     Parser, Subcommand, ValueEnum,
 };
 use reqwest::Url;
 
-use crate::common::keystore::DEFAULT_KEYSTORE_PASSWORD;
+use crate::{common::keystore::DEFAULT_KEYSTORE_PASSWORD, contracts::EigenLayerStrategy};
 
-/// `bolt` is a CLI tool to interact with Bolt Protocol ✨
+/// `bolt` is a CLI tool to interact with bolt Protocol ✨
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, styles = cli_styles(), about, arg_required_else_help(true))]
 pub struct Opts {
@@ -23,8 +26,14 @@ pub enum Cmd {
     /// Output a list of pubkeys in JSON format.
     Pubkeys(PubkeysCommand),
 
-    /// Send a preconfirmation request to a Bolt proposer.
+    /// Send a preconfirmation request to a bolt proposer.
     Send(Box<SendCommand>),
+
+    /// Handle validators in the bolt network.
+    Validators(ValidatorsCommand),
+
+    /// Handle operators in the bolt network.
+    Operators(OperatorsCommand),
 }
 
 impl Cmd {
@@ -34,6 +43,8 @@ impl Cmd {
             Cmd::Delegate(cmd) => cmd.run().await,
             Cmd::Pubkeys(cmd) => cmd.run().await,
             Cmd::Send(cmd) => cmd.run().await,
+            Cmd::Validators(cmd) => cmd.run().await,
+            Cmd::Operators(cmd) => cmd.run().await,
         }
     }
 }
@@ -60,7 +71,7 @@ pub struct DelegateCommand {
 
     /// The source of the private key.
     #[clap(subcommand)]
-    pub source: KeySource,
+    pub source: SecretsSource,
 }
 
 /// Command for outputting a list of pubkeys in JSON format.
@@ -72,13 +83,13 @@ pub struct PubkeysCommand {
 
     /// The source of the private keys from which to extract the pubkeys.
     #[clap(subcommand)]
-    pub source: KeySource,
+    pub source: KeysSource,
 }
 
-/// Command for sending a preconfirmation request to a Bolt proposer.
+/// Command for sending a preconfirmation request to a bolt proposer.
 #[derive(Debug, Clone, Parser)]
 pub struct SendCommand {
-    /// Bolt RPC URL to send requests to and fetch lookahead info from.
+    /// bolt RPC URL to send requests to and fetch lookahead info from.
     #[clap(long, env = "BOLT_RPC_URL", default_value = "https://rpc-holesky.bolt.chainbound.io")]
     pub bolt_rpc_url: Url,
 
@@ -86,7 +97,7 @@ pub struct SendCommand {
     #[clap(long, env = "PRIVATE_KEY", hide_env_values = true)]
     pub private_key: String,
 
-    /// The Bolt Sidecar URL to send requests to. If provided, this will override
+    /// The bolt Sidecar URL to send requests to. If provided, this will override
     /// the canonical bolt RPC URL and disregard any registration information.
     ///
     /// This is useful for testing and development purposes.
@@ -127,6 +138,132 @@ pub struct SendCommand {
     pub devnet_sidecar_url: Option<Url>,
 }
 
+#[derive(Debug, Clone, Parser)]
+pub struct ValidatorsCommand {
+    #[clap(subcommand)]
+    pub subcommand: ValidatorsSubcommand,
+}
+
+#[derive(Debug, Clone, Parser)]
+pub enum ValidatorsSubcommand {
+    /// Register a batch of validators.
+    Register {
+        /// The URL of the RPC to broadcast the transaction.
+        #[clap(long, env = "RPC_URL")]
+        rpc_url: Url,
+
+        /// The max gas limit the validator is willing to reserve to commitments.
+        #[clap(long, env = "MAX_COMMITTED_GAS_LIMIT")]
+        max_committed_gas_limit: u32,
+
+        /// The authorized operator for the validator.
+        #[clap(long, env = "AUTHORIZED_OPERATOR")]
+        authorized_operator: Address,
+
+        /// The path to the JSON pubkeys file, containing an array of BLS public keys.
+        #[clap(long, env = "PUBKEYS_PATH", default_value = "pubkeys.json")]
+        pubkeys_path: PathBuf,
+
+        /// The private key to sign the transactions with.
+        #[clap(long, env = "ADMIN_PRIVATE_KEY")]
+        admin_private_key: B256,
+    },
+}
+
+#[derive(Debug, Clone, Parser)]
+pub struct OperatorsCommand {
+    #[clap(subcommand)]
+    pub subcommand: OperatorsSubcommand,
+}
+
+#[derive(Debug, Clone, Parser)]
+pub enum OperatorsSubcommand {
+    /// Commands to interact with EigenLayer and bolt.
+    #[clap(name = "eigenlayer")] // and not eigen-layer
+    EigenLayer {
+        #[clap(subcommand)]
+        subcommand: EigenLayerSubcommand,
+    },
+    /// Commands to interact with Symbiotic and bolt.
+    Symbiotic {
+        #[clap(subcommand)]
+        subcommand: SymbioticSubcommand,
+    },
+}
+
+#[derive(Debug, Clone, Parser)]
+pub enum EigenLayerSubcommand {
+    /// Step 1: Deposit into a strategy.
+    Deposit {
+        /// The URL of the RPC to broadcast the transaction.
+        #[clap(long, env = "RPC_URL")]
+        rpc_url: Url,
+        /// The private key of the operator.
+        #[clap(long, env = "OPERATOR_PRIVATE_KEY")]
+        operator_private_key: B256,
+        /// The name of the strategy to deposit into.
+        #[clap(long, env = "EIGENLAYER_STRATEGY")]
+        strategy: EigenLayerStrategy,
+        /// The amount to deposit into the strategy, in ETH
+        #[clap(long, env = "EIGENLAYER_STRATEGY_DEPOSIT_AMOUNT")]
+        amount: U256,
+    },
+
+    /// Step 2: Register into the bolt AVS.
+    Register {
+        /// The URL of the RPC to broadcast the transaction.
+        #[clap(long, env = "RPC_URL")]
+        rpc_url: Url,
+        /// The private key of the operator.
+        #[clap(long, env = "OPERATOR_PRIVATE_KEY")]
+        operator_private_key: B256,
+        /// The URL of the operator RPC.
+        #[clap(long, env = "OPERATOR_RPC")]
+        operator_rpc: Url,
+        /// The salt for the operator signature.
+        #[clap(long, env = "OPERATOR_SIGNATURE_SALT")]
+        salt: B256,
+        /// The expiry timestamp for the operator signature.
+        #[clap(long, env = "OPERATOR_SIGNATURE_EXPIRY")]
+        expiry: U256,
+    },
+
+    /// Step 3: Check your operation registration in bolt
+    Status {
+        /// The URL of the RPC to broadcast the transaction.
+        #[clap(long, env = "RPC_URL")]
+        rpc_url: Url,
+        /// The address of the operator to check.
+        #[clap(long, env = "OPERATOR_ADDRESS")]
+        address: Address,
+    },
+}
+
+#[derive(Debug, Clone, Parser)]
+pub enum SymbioticSubcommand {
+    /// Register into the bolt manager contract as a Symbiotic operator.
+    Register {
+        /// The URL of the RPC to broadcast the transaction.
+        #[clap(long, env = "RPC_URL")]
+        rpc_url: Url,
+        /// The private key of the operator.
+        #[clap(long, env = "OPERATOR_PRIVATE_KEY")]
+        operator_private_key: B256,
+        /// The URL of the operator RPC.
+        #[clap(long, env = "OPERATOR_RPC")]
+        operator_rpc: Url,
+    },
+    /// Check the status of a Symbiotic operator.
+    Status {
+        /// The URL of the RPC to broadcast the transaction.
+        #[clap(long, env = "RPC_URL")]
+        rpc_url: Url,
+        /// The address of the operator to check.
+        #[clap(long, env = "OPERATOR_ADDRESS")]
+        address: Address,
+    },
+}
+
 /// The action to perform.
 #[derive(Debug, Clone, ValueEnum)]
 #[clap(rename_all = "kebab_case")]
@@ -138,7 +275,38 @@ pub enum Action {
 }
 
 #[derive(Debug, Clone, Parser)]
-pub enum KeySource {
+pub enum KeysSource {
+    /// Use directly local public keys as source.
+    PublicKeys {
+        /// The public keys in hex format. Multiple public keys must be seperated by commas.
+        #[clap(long, env = "PUBLIC_KEYS", value_delimiter = ',', hide_env_values = true)]
+        public_keys: Vec<String>,
+    },
+
+    /// Use local secret keys to generate the associated public keys.
+    SecretKeys {
+        /// The private key in hex format. Multiple secret keys must be seperated by commas.
+        #[clap(long, env = "SECRET_KEYS", value_delimiter = ',', hide_env_values = true)]
+        secret_keys: Vec<String>,
+    },
+
+    /// Use an EIP-2335 filesystem keystore directory as source for public keys.
+    LocalKeystore {
+        /// The path to the keystore file.
+        #[clap(long, env = "KEYSTORE_PATH")]
+        path: String,
+    },
+
+    /// Use a remote DIRK keystore as source for public keys.
+    Dirk {
+        /// The options for connecting to the DIRK keystore.
+        #[clap(flatten)]
+        opts: DirkOpts,
+    },
+}
+
+#[derive(Debug, Clone, Parser)]
+pub enum SecretsSource {
     /// Use local secret keys to generate the signed messages.
     SecretKeys {
         /// The private key in hex format.
@@ -225,7 +393,7 @@ pub struct TlsCredentials {
 }
 
 /// Supported chains for the CLI
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Debug, Clone, Copy, ValueEnum, Hash, PartialEq, Eq)]
 #[clap(rename_all = "kebab_case")]
 pub enum Chain {
     Mainnet,
@@ -242,6 +410,16 @@ impl Chain {
             Chain::Holesky => [1, 1, 112, 0],
             Chain::Helder => [16, 0, 0, 0],
             Chain::Kurtosis => [16, 0, 0, 56],
+        }
+    }
+
+    pub fn from_id(id: u64) -> Option<Self> {
+        match id {
+            1 => Some(Self::Mainnet),
+            17000 => Some(Self::Holesky),
+            3151908 => Some(Self::Kurtosis),
+            7014190335 => Some(Self::Helder),
+            _ => None,
         }
     }
 }

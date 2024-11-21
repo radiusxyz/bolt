@@ -11,7 +11,7 @@ use serde::Serialize;
 use tracing::{debug, warn};
 
 use crate::{
-    cli::{Action, Chain, DelegateCommand, KeySource},
+    cli::{Action, Chain, DelegateCommand, SecretsSource},
     common::{
         dirk::Dirk,
         keystore::{keystore_paths, KeystoreError, KeystoreSecret},
@@ -27,7 +27,7 @@ impl DelegateCommand {
     /// Run the `delegate` command.
     pub async fn run(self) -> Result<()> {
         match self.source {
-            KeySource::SecretKeys { secret_keys } => {
+            SecretsSource::SecretKeys { secret_keys } => {
                 let delegatee_pubkey = parse_bls_public_key(&self.delegatee_pubkey)?;
                 let signed_messages = generate_from_local_keys(
                     &secret_keys,
@@ -45,7 +45,7 @@ impl DelegateCommand {
                 write_to_file(&self.out, &signed_messages)?;
                 println!("Signed delegation messages generated and saved to {}", self.out);
             }
-            KeySource::LocalKeystore { opts } => {
+            SecretsSource::LocalKeystore { opts } => {
                 let keystore_secret = KeystoreSecret::from_keystore_options(&opts)?;
                 let delegatee_pubkey = parse_bls_public_key(&self.delegatee_pubkey)?;
                 let signed_messages = generate_from_keystore(
@@ -65,7 +65,7 @@ impl DelegateCommand {
                 write_to_file(&self.out, &signed_messages)?;
                 println!("Signed delegation messages generated and saved to {}", self.out);
             }
-            KeySource::Dirk { opts } => {
+            SecretsSource::Dirk { opts } => {
                 let mut dirk = Dirk::connect(opts.url, opts.tls_credentials).await?;
 
                 let delegatee_pubkey = parse_bls_public_key(&self.delegatee_pubkey)?;

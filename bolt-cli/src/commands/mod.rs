@@ -9,3 +9,9 @@ pub mod pubkeys;
 /// Module for the bolt `send` command to create and
 /// broadcast preconfirmations in Bolt.
 pub mod send;
+
+/// Module for the validators-related commands to interact with the bolt network.
+pub mod validators;
+
+/// Module for the operators-related commands to interact with the bolt network.
+pub mod operators;
