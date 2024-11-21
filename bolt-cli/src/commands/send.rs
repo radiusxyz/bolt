@@ -42,7 +42,7 @@ impl SendCommand {
         let provider = ProviderBuilder::new()
             .with_recommended_fillers()
             .wallet(transaction_signer)
-            .on_http(self.bolt_rpc_url.clone());
+            .on_http(self.bolt_rpc_url.join("/rpc")?);
 
         // Fetch the lookahead info from the Bolt RPC server
         let mut lookahead_url = self.bolt_rpc_url.join(BOLT_LOOKAHEAD_PATH)?;
@@ -50,15 +50,15 @@ impl SendCommand {
         // Note: it's possible for users to override the target sidecar URL
         // for testing and development purposes. In most cases, the sidecar will
         // reject a request for a slot that it is not responsible for.
-        let target_url = if let Some(sidecar_url) = &self.override_bolt_sidecar_url {
+        let target_url = if let Some(sidecar_url) = self.override_bolt_sidecar_url {
             // If using the override URL, we don't need to fetch the active proposers only.
             // we will set the next slot as the target slot.
-            sidecar_url.clone()
+            sidecar_url
         } else {
             // Filter out slots that are not active or in the past, to fetch the next
             // active proposer slot.
             lookahead_url.set_query(Some("activeOnly=true&futureOnly=true"));
-            self.bolt_rpc_url.clone()
+            self.bolt_rpc_url.join("/rpc")?
         };
 
         let lookahead_res = reqwest::get(lookahead_url).await?.json::<Vec<LookaheadSlot>>().await?;
