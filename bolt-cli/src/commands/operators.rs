@@ -1,5 +1,6 @@
 use alloy::{
     network::EthereumWallet,
+    node_bindings::WEI_IN_ETHER,
     primitives::{utils::format_ether, Bytes},
     providers::{Provider, ProviderBuilder, WalletProvider},
     signers::{local::PrivateKeySigner, SignerSync},
@@ -62,6 +63,8 @@ impl OperatorsCommand {
                         IStrategyManagerInstance::new(strategy_manager_address, provider.clone());
 
                     let token = strategy_contract.underlyingToken().call().await?.token;
+
+                    let amount = amount * WEI_IN_ETHER;
 
                     info!(%strategy, %token, amount = format_ether(amount), ?operator, "Depositing funds into EigenLayer strategy");
 
@@ -364,7 +367,7 @@ mod tests {
                     rpc_url: anvil_url.parse().expect("valid url"),
                     operator_private_key: secret_key,
                     strategy: EigenLayerStrategy::WEth,
-                    amount: parse_units("1.0", "ether").expect("parse ether").into(),
+                    amount: U256::from(1),
                 },
             },
         };
