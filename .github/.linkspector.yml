@@ -11,6 +11,7 @@ ignorePatterns:
   # some websites use anti-scraping that will block linkspector requests
   - pattern: "^https://.*etherscan.io/.*$"
   - pattern: "^https://.*docs.eigenlayer.xyz/.*$"
+  - pattern: "^https://.*docs.symbiotic.fi/.*$"
 
   # endpoints that are not meant to be accessed by linkspector
   - pattern: "^https://rpc-.*.bolt.chainbound.io/rpc"
