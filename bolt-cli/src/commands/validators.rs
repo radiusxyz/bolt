@@ -45,25 +45,34 @@ impl ValidatorsCommand {
                     validators = ?keys.len(),
                     ?max_committed_gas_limit,
                     ?authorized_operator,
+                    ?chain,
                     "Registering validators into bolt",
                 );
-
-                request_confirmation();
 
                 let bolt_validators =
                     BoltValidators::new(bolt_validators_address, provider.clone());
 
-                let call = bolt_validators.batchRegisterValidatorsUnsafe(
-                    pubkey_hashes,
-                    max_committed_gas_limit,
-                    authorized_operator,
-                );
+                request_confirmation();
 
-                let pending_tx = call.send().await?;
-                println!("Transaction submitted successfully, waiting for inclusion");
-                let receipt = pending_tx.get_receipt().await?;
-                println!("Transaction included. Receipt: {:?}", receipt);
-                assert!(receipt.status(), "transaction failed");
+                let pending = bolt_validators
+                    .batchRegisterValidatorsUnsafe(
+                        pubkey_hashes,
+                        max_committed_gas_limit,
+                        authorized_operator,
+                    )
+                    .send()
+                    .await?;
+
+                info!(
+                    hash = ?pending.tx_hash(),
+                    "batchRegisterValidatorsUnsafe transaction sent, awaiting receipt..."
+                );
+                let receipt = pending.get_receipt().await?;
+                if !receipt.status() {
+                    eyre::bail!("Transaction failed: {:?}", receipt)
+                }
+
+                info!("Successfully registered validators into bolt");
 
                 Ok(())
             }
