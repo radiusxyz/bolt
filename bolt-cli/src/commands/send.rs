@@ -58,7 +58,7 @@ impl SendCommand {
             // Filter out slots that are not active or in the past, to fetch the next
             // active proposer slot.
             lookahead_url.set_query(Some("activeOnly=true&futureOnly=true"));
-            self.bolt_rpc_url
+            self.bolt_rpc_url.join("/rpc")?
         };
 
         let lookahead_res = reqwest::get(lookahead_url).await?.json::<Vec<LookaheadSlot>>().await?;
