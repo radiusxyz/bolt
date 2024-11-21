@@ -266,8 +266,12 @@ impl OperatorsCommand {
 
 #[cfg(test)]
 mod tests {
+    use std::process::{Command, Output};
+
     use crate::{
-        cli::{Chain, EigenLayerSubcommand, OperatorsCommand, OperatorsSubcommand},
+        cli::{
+            Chain, EigenLayerSubcommand, OperatorsCommand, OperatorsSubcommand, SymbioticSubcommand,
+        },
         contracts::{
             deployments_for_chain,
             eigenlayer::{DelegationManager, IStrategy, OperatorDetails},
@@ -276,7 +280,7 @@ mod tests {
     };
     use alloy::{
         network::EthereumWallet,
-        primitives::{keccak256, utils::parse_units, Address, B256, U256},
+        primitives::{address, keccak256, utils::parse_units, Address, B256, U256},
         providers::{ext::AnvilApi, Provider, ProviderBuilder, WalletProvider},
         signers::local::PrivateKeySigner,
         sol_types::SolValue,
@@ -394,5 +398,131 @@ mod tests {
         };
 
         check_operator_registration.run().await.expect("to check operator registration");
+    }
+
+    /// Ignored since it requires Symbiotic CLI: https://docs.symbiotic.fi/guides/cli/#installation
+    /// To run this test, install the CLI, and then move the binary in the `symbiotic-cli` directory
+    /// which is git-ignored for this purpose.
+    #[tokio::test]
+    #[ignore = "requires Symbiotic CLI installed"]
+    async fn test_symbiotic_flow() {
+        let mut rnd = rand::thread_rng();
+        let secret_key = B256::from(rnd.gen::<[u8; 32]>());
+        let wallet = PrivateKeySigner::from_bytes(&secret_key).expect("valid private key");
+
+        let rpc_url = "https://rpc-holesky.bolt.chainbound.io/rpc";
+        let provider = ProviderBuilder::new()
+            .with_recommended_fillers()
+            .wallet(EthereumWallet::from(wallet))
+            .on_anvil_with_config(|anvil| anvil.fork(rpc_url));
+        let anvil_url = provider.client().transport().url();
+
+        let account = provider.default_signer_address();
+
+        // Add balance to the operator
+        provider.anvil_set_balance(account, U256::from(u64::MAX)).await.expect("set balance");
+
+        let deployments = deployments_for_chain(Chain::Holesky);
+
+        let weth_address = address!("94373a4919B3240D86eA41593D5eBa789FEF3848");
+
+        // Mock WETH balance using the Anvil API.
+        let hashed_slot = keccak256((account, U256::from(3)).abi_encode());
+        let mocked_balance: U256 = parse_units("100.0", "ether").expect("parse ether").into();
+        provider
+            .anvil_set_storage_at(weth_address, hashed_slot.into(), mocked_balance.into())
+            .await
+            .expect("to set storage");
+
+        let print_output = |output: Output| {
+            println!("{}", String::from_utf8_lossy(&output.stdout));
+        };
+
+        // We now follow the steps described in the Holesky guide
+
+        let register_operator = Command::new("python3")
+            .arg("symbiotic-cli/symb.py")
+            .arg("--chain")
+            .arg("holesky")
+            .arg("--provider")
+            .arg(anvil_url)
+            .arg("register-operator")
+            .arg("--private-key")
+            .arg(secret_key.to_string())
+            .output()
+            .expect("to register operator");
+
+        print_output(register_operator);
+
+        let opt_in_network = Command::new("python3")
+            .arg("symbiotic-cli/symb.py")
+            .arg("--chain")
+            .arg("holesky")
+            .arg("--provider")
+            .arg(anvil_url)
+            .arg("opt-in-network")
+            .arg("--private-key")
+            .arg(secret_key.to_string())
+            .arg(deployments.symbiotic.network.to_string())
+            .output()
+            .expect("to opt-in-network");
+
+        print_output(opt_in_network);
+
+        let vault = deployments.symbiotic.supported_vaults[3]; // WETH vault
+
+        let opt_in_vault = Command::new("python3")
+            .arg("symbiotic-cli/symb.py")
+            .arg("--chain")
+            .arg("holesky")
+            .arg("--provider")
+            .arg(anvil_url)
+            .arg("opt-in-vault")
+            .arg("--private-key")
+            .arg(secret_key.to_string())
+            .arg(vault.to_string())
+            .output()
+            .expect("to opt-in-vault");
+
+        print_output(opt_in_vault);
+
+        let deposit = Command::new("python3")
+            .arg("symbiotic-cli/symb.py")
+            .arg("--chain")
+            .arg("holesky")
+            .arg("--provider")
+            .arg(anvil_url)
+            .arg("deposit")
+            .arg("--private-key")
+            .arg(secret_key.to_string())
+            .arg(vault.to_string())
+            .arg("1") // 1 ether
+            .output()
+            .expect("to opt-in-vault");
+
+        print_output(deposit);
+
+        let register_into_bolt = OperatorsCommand {
+            subcommand: OperatorsSubcommand::Symbiotic {
+                subcommand: SymbioticSubcommand::Register {
+                    rpc_url: anvil_url.parse().expect("valid url"),
+                    operator_private_key: secret_key,
+                    operator_rpc: "https://bolt.chainbound.io".parse().expect("valid url"),
+                },
+            },
+        };
+
+        register_into_bolt.run().await.expect("to register into bolt");
+
+        let check_status = OperatorsCommand {
+            subcommand: OperatorsSubcommand::Symbiotic {
+                subcommand: SymbioticSubcommand::Status {
+                    rpc_url: anvil_url.parse().expect("valid url"),
+                    address: account,
+                },
+            },
+        };
+
+        check_status.run().await.expect("to check operator status");
     }
 }

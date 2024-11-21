@@ -6,3 +6,5 @@
 delegations.json
 pubkeys.json
 !test_data/pubkeys.json
+
+symbiotic-cli/

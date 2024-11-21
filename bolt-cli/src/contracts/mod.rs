@@ -37,13 +37,8 @@ pub struct Symbiotic {
     pub network_registry: Address,
     pub network_middleware_service: Address,
     pub middleware: Address,
+    pub supported_vaults: [Address; 6],
 }
-
-// - [`stETH`](https://holesky.etherscan.io/address/0x3F1c547b21f65e10480dE3ad8E19fAAC46C95034)
-// - [`rETH`](https://holesky.etherscan.io/address/0x7322c24752f79c05FFD1E2a6FCB97020C1C264F1)
-// - [`wETH`](https://holesky.etherscan.io/address/0x94373a4919B3240D86eA41593D5eBa789FEF3848)
-// - [`cbETH`](https://holesky.etherscan.io/address/0x8720095Fa5739Ab051799211B146a2EEE4Dd8B37)
-// - [`mETH`](https://holesky.etherscan.io/address/0xe3C063B1BEe9de02eb28352b55D49D85514C67FF)
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct EigenLayer {
@@ -128,6 +123,14 @@ const HOLESKY_DEPLOYMENTS: Contracts = Contracts {
         network_registry: address!("7d03b7343BF8d5cEC7C0C27ecE084a20113D15C9"),
         network_middleware_service: address!("62a1ddfD86b4c1636759d9286D3A0EC722D086e3"),
         middleware: address!("04f40d9CaE475E5BaA462acE53E5c58A0DD8D8e8"),
+        supported_vaults: [
+            address!("c79c533a77691641d52ebD5e87E51dCbCaeb0D78"),
+            address!("e5708788c90e971f73D928b7c5A8FD09137010e0"),
+            address!("11c5b9A9cd8269580aDDbeE38857eE451c1CFacd"),
+            address!("C56Ba584929c6f381744fA2d7a028fA927817f2b"),
+            address!("cDdeFfcD2bA579B8801af1d603812fF64c301462"),
+            address!("91e84e12Bb65576C0a6614c5E6EbbB2eA595E10f"),
+        ],
     },
     eigen_layer: EigenLayer {
         avs_directory: address!("055733000064333CaDDbC92763c58BF0192fFeBf"),
