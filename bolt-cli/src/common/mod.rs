@@ -38,7 +38,9 @@ pub fn write_to_file<T: Serialize>(out: &str, data: &T) -> Result<()> {
 }
 
 /// Asks whether the user wants to proceed further. If not, the process is exited.
+#[allow(unreachable_code)]
 pub fn request_confirmation() {
+    // Skip confirmation in tests
     #[cfg(test)]
     return;
 
