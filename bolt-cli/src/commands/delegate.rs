@@ -402,7 +402,7 @@ mod tests {
     /// --exact --show-output --ignored --nocapture
     /// ```
     #[tokio::test]
-    #[ignore]
+    #[ignore = "Requires Dirk to be installed on the system"]
     async fn test_delegation_dirk() -> eyre::Result<()> {
         let _ = tracing_subscriber::fmt::try_init();
         let (mut dirk, mut dirk_proc) = dirk::test_util::start_dirk_test_server().await?;
