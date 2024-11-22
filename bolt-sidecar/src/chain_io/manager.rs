@@ -193,9 +193,15 @@ mod tests {
     use super::BoltManager;
 
     #[tokio::test]
-    #[ignore = "requires Chainbound tailnet"]
     async fn test_verify_validator_pubkeys() {
         let url = Url::parse("http://remotebeast:48545").expect("valid url");
+
+        // Skip the test if the tailnet server isn't reachable
+        if reqwest::get(url.clone()).await.is_err_and(|err| err.is_timeout() || err.is_connect()) {
+            eprintln!("Skipping test because remotebeast is not reachable");
+            return;
+        }
+
         let manager =
             BoltManager::from_chain(url, Chain::Holesky).expect("manager deployed on Holesky");
 

@@ -39,6 +39,13 @@ jobs:
         with:
           crate: cargo-nextest
 
+      - name: Install Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
       - name: Run bolt-boost tests
         run: cd bolt-boost && cargo nextest run --workspace --retries 3
         env:

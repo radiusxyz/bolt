@@ -231,7 +231,7 @@ mod tests {
     /// --exact --show-output --ignored
     /// ```
     #[tokio::test]
-    #[ignore]
+    #[ignore = "Requires Dirk to be installed on the system"]
     async fn test_dirk_connection_e2e() -> eyre::Result<()> {
         let (mut dirk, mut dirk_proc) = test_util::start_dirk_test_server().await?;
 
