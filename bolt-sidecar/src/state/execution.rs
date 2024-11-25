@@ -262,6 +262,7 @@ impl<C: StateFetcher> ExecutionState<C> {
 
         // Check if there is room for more commitments
         if let Some(template) = self.get_block_template(target_slot) {
+            dbg!(&template);
             if template.transactions_len() >= self.limits.max_commitments_per_slot.get() {
                 return Err(ValidationError::MaxCommitmentsReachedForSlot(
                     self.slot,
@@ -273,6 +274,8 @@ impl<C: StateFetcher> ExecutionState<C> {
         // Check if the committed gas exceeds the maximum
         let template_committed_gas =
             self.get_block_template(target_slot).map(|t| t.committed_gas()).unwrap_or(0);
+
+        dbg!(template_committed_gas + req.gas_limit());
 
         if template_committed_gas + req.gas_limit() >= self.limits.max_committed_gas_per_slot.get()
         {
@@ -598,7 +601,10 @@ pub struct StateUpdate {
 
 #[cfg(test)]
 mod tests {
-    use crate::{builder::template::StateDiff, signer::local::LocalSigner};
+    use crate::{
+        builder::template::StateDiff, config::limits::DEFAULT_MAX_COMMITTED_GAS,
+        signer::local::LocalSigner,
+    };
     use std::{num::NonZero, str::FromStr, time::Duration};
 
     use alloy::{
@@ -1105,7 +1111,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let limits: LimitsOpts = LimitsOpts { min_priority_fee: 1000000000, ..Default::default() };
+        let limits = LimitsOpts { min_priority_fee: 1000000000, ..Default::default() };
         let mut state = ExecutionState::new(client.clone(), limits).await?;
 
         let sender = anvil.addresses().first().unwrap();
@@ -1115,7 +1121,8 @@ mod tests {
         let slot = client.get_head().await?;
         state.update_head(None, slot).await?;
 
-        let tx = default_test_transaction(*sender, None).with_gas_limit(4_999_999);
+        let tx = default_test_transaction(*sender, None)
+            .with_gas_limit(limits.max_committed_gas_per_slot.get() - 1);
 
         let target_slot = 10;
         let mut request = create_signed_inclusion_request(&[tx], sender_pk, target_slot).await?;
@@ -1139,7 +1146,7 @@ mod tests {
 
         assert!(matches!(
             state.validate_request(&mut request).await,
-            Err(ValidationError::MaxCommittedGasReachedForSlot(_, 5_000_000))
+            Err(ValidationError::MaxCommittedGasReachedForSlot(_, DEFAULT_MAX_COMMITTED_GAS))
         ));
 
         Ok(())
