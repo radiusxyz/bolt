@@ -1,84 +1,188 @@
 use std::{
+    borrow::Borrow,
     collections::HashMap,
+    fmt::Debug,
+    hash::{BuildHasher, Hash, RandomState},
     ops::{Deref, DerefMut},
 };
 
-/// A cache that stores values with a score, and evicts the lowest scoring items once the cache
-/// reaches a certain length.
-///
-/// To use when you need a map that periodically updates its values and requires a policy,
-/// based on reads and insertion, to evicts elements that are not frequently used.
-#[derive(Clone, Debug)]
-pub struct LowestScoreCache<K, V> {
-    // The hashmap that stores the values and their scores.
-    map: HashMap<K, (V, usize)>,
-    // The maximum length of the cache.
+pub struct ScoreCache<
+    const GET_SCORE: isize,
+    const INSERT_SCORE: isize,
+    const UPDATE_SCORE: isize,
+    K,
+    V,
+    S = RandomState,
+> {
+    map: HashMap<K, (V, isize), S>,
     max_len: usize,
-    // The score bonus to apply when getting or inserting a new value.
-    score_bonus: usize,
-    // The score penalty to apply when updating a value
-    score_penalty: usize,
 }
 
-impl<K: std::hash::Hash + Eq, V> LowestScoreCache<K, V> {
-    // Create a new cache with the specified maximum length, score bump, and score penalty.
-    pub fn new(max_len: usize, score_bump: usize, score_penalty: usize) -> Self {
-        Self {
-            map: HashMap::with_capacity(max_len),
-            max_len,
-            score_bonus: score_bump,
-            score_penalty,
-        }
-    }
+// -------- TRAITS --------
 
-    // Get a value from the cache and bump its score.
-    pub fn get_with_score_bump(&mut self, k: &K) -> Option<&V> {
-        let bonus = self.score_bonus;
-        self.get_mut(k).map(|(account, score)| {
-            *score = score.saturating_add(bonus);
-            // Return an immutable reference
-            &*account
-        })
-    }
-
-    // Insert a value into the cache with a starting score bump.
-    pub fn insert_with_score_bump(&mut self, k: K, v: V) {
-        self.clear_stales();
-        self.map.insert(k, (v, self.score_bonus));
-    }
-
-    // Update a value in the cache with a score penalty.
-    pub fn update_with_penalty(&mut self, k: &K, v: V) -> bool {
-        let penalty = self.score_penalty;
-        let Some((to_update, score)) = self.get_mut(k) else {
-            return false;
-        };
-        *to_update = v;
-        *score = score.saturating_sub(penalty);
-        true
-    }
-
-    // Clear the stale values from the cache if there is any.
-    fn clear_stales(&mut self) {
-        let mut i = 0;
-        while self.len() >= self.max_len {
-            self.retain(|_, (_, score)| *score > i);
-            i += 1;
-        }
+impl<const GET_SCORE: isize, const INSERT_SCORE: isize, const UPDATE_SCORE: isize, K, V> Default
+    for ScoreCache<GET_SCORE, INSERT_SCORE, UPDATE_SCORE, K, V, RandomState>
+{
+    fn default() -> Self {
+        ScoreCache::new()
     }
 }
 
-impl<K, V> Deref for LowestScoreCache<K, V> {
-    type Target = HashMap<K, (V, usize)>;
+impl<const GET_SCORE: isize, const INSERT_SCORE: isize, const UPDATE_SCORE: isize, K, V, S> Deref
+    for ScoreCache<GET_SCORE, INSERT_SCORE, UPDATE_SCORE, K, V, S>
+{
+    type Target = HashMap<K, (V, isize), S>;
 
     fn deref(&self) -> &Self::Target {
         &self.map
     }
 }
 
-impl<K, V> DerefMut for LowestScoreCache<K, V> {
+impl<const GET_SCORE: isize, const INSERT_SCORE: isize, const UPDATE_SCORE: isize, K, V, S> DerefMut
+    for ScoreCache<GET_SCORE, INSERT_SCORE, UPDATE_SCORE, K, V, S>
+{
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.map
+    }
+}
+
+impl<
+        const GET_SCORE: isize,
+        const INSERT_SCORE: isize,
+        const UPDATE_SCORE: isize,
+        K: Debug,
+        V: Debug,
+        S,
+    > Debug for ScoreCache<GET_SCORE, INSERT_SCORE, UPDATE_SCORE, K, V, S>
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ScoreCache")
+            .field("map", &self.map)
+            .field("max_len", &self.max_len)
+            .finish()
+    }
+}
+
+// -------- INIT IMPLEMENTATIONS --------
+
+impl<const GET_SCORE: isize, const INSERT_SCORE: isize, const UPDATE_SCORE: isize, K, V>
+    ScoreCache<GET_SCORE, INSERT_SCORE, UPDATE_SCORE, K, V, RandomState>
+{
+    /// Creates an empty `ScoreMap` without maximum length.
+    ///
+    /// See also [std::collections::HashMap::new].
+    #[inline]
+    pub fn new() -> Self {
+        Self { map: HashMap::<K, (V, isize)>::new(), max_len: usize::MAX }
+    }
+
+    /// Creates an empty `ScoreMap` with maximum length.
+    ///
+    /// See also [std::collections::HashMap::new].
+    #[inline]
+    pub fn with_max_len(max_len: usize) -> Self {
+        Self { map: HashMap::<K, (V, isize)>::new(), max_len }
+    }
+
+    /// Creates an empty `HashMap` with at least the specified capacity.
+    ///
+    /// See also [std::collections::HashMap::with_capacity].
+    #[inline]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self { map: HashMap::<K, (V, isize)>::with_capacity(capacity), max_len: usize::MAX }
+    }
+
+    #[inline]
+    pub fn with_capacity_and_len(capacity: usize, max_len: usize) -> Self {
+        Self { map: HashMap::<K, (V, isize)>::with_capacity(capacity), max_len }
+    }
+}
+
+impl<const GET_SCORE: isize, const INSERT_SCORE: isize, const UPDATE_SCORE: isize, K, V, S>
+    ScoreCache<GET_SCORE, INSERT_SCORE, UPDATE_SCORE, K, V, S>
+{
+    /// See [std::collections::HashMap::with_hasher].
+    #[inline]
+    pub fn with_hasher(hash_builder: S) -> Self {
+        Self { map: HashMap::with_hasher(hash_builder), max_len: usize::MAX }
+    }
+
+    /// See [std::collections::HashMap::with_capacity_and_hasher].
+    #[inline]
+    pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
+        Self { map: HashMap::with_capacity_and_hasher(capacity, hasher), max_len: usize::MAX }
+    }
+
+    /// Creates a score map with the specified capacity, hasher, and length.
+    ///
+    /// See [std::collections::HashMap::with_capacity_and_hasher].
+    #[inline]
+    pub fn with_capacity_and_hasher_and_max_len(
+        capacity: usize,
+        hasher: S,
+        max_len: usize,
+    ) -> Self {
+        Self { map: HashMap::with_capacity_and_hasher(capacity, hasher), max_len }
+    }
+}
+
+// -------- METHODS --------
+
+impl<const GET_SCORE: isize, const INSERT_SCORE: isize, const UPDATE_SCORE: isize, K, V, S>
+    ScoreCache<GET_SCORE, INSERT_SCORE, UPDATE_SCORE, K, V, S>
+where
+    K: Eq + Hash,
+    S: BuildHasher,
+{
+    /// A wrapper over [std::collections::HashMap::get_mut] that bumps the score of the key.
+    ///
+    /// Requires mutable access to the cache to update the score.
+    pub fn get<Q>(&mut self, k: &Q) -> Option<&V>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self.map.get_mut(k).map(|(v, score)| {
+            *score = score.saturating_add(GET_SCORE);
+            &*v
+        })
+    }
+
+    /// A wrapper over [std::collections::HashMap::get_mut] that bumps the score of the key.
+    ///
+    /// Requires mutable access to the cache to update the score.
+    pub fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self.map.get_mut(k).map(|(v, score)| {
+            *score = score.saturating_add(UPDATE_SCORE);
+            v
+        })
+    }
+
+    /// A wrapper over [std::collections::HashMap::insert] that bumps the score of the key.
+    ///
+    /// Adds a new key-value pair to the cache with the provided `INSERT_SCORE`, by first trying to
+    /// clear any stale element from the cache if necessary.
+    pub fn insert(&mut self, k: K, v: V) -> Option<V> {
+        self.clear_stales();
+        self.map.insert(k, (v, INSERT_SCORE)).map(|(v, _)| v)
+    }
+}
+
+impl<const GET_SCORE: isize, const INSERT_SCORE: isize, const UPDATE_SCORE: isize, K, V, S>
+    ScoreCache<GET_SCORE, INSERT_SCORE, UPDATE_SCORE, K, V, S>
+{
+    // Clear the stale values from the cache if there is any.
+    #[inline]
+    fn clear_stales(&mut self) {
+        let mut i = 0;
+        while self.len() >= self.max_len {
+            self.map.retain(|_, (_, score)| *score > i);
+            i += 1;
+        }
     }
 }
 
@@ -86,39 +190,39 @@ impl<K, V> DerefMut for LowestScoreCache<K, V> {
 mod tests {
     use super::*;
 
-    const DEFAULT_SCORE_BUMP: usize = 1;
-    const DEFAULT_SCORE_PENALTY: usize = 1;
+    const GET_SCORE: isize = 4;
+    const INSERT_SCORE: isize = 4;
+    const UPDATE_SCORE: isize = -1;
 
-    fn default_lowest_score_cache() -> LowestScoreCache<usize, String> {
-        LowestScoreCache::new(2, DEFAULT_SCORE_BUMP, DEFAULT_SCORE_PENALTY)
+    fn default_score_cache() -> ScoreCache<GET_SCORE, INSERT_SCORE, UPDATE_SCORE, usize, String> {
+        ScoreCache::with_max_len(2)
     }
 
     #[test]
-    fn test_score_logic() {
-        let mut map = default_lowest_score_cache();
+    fn test_score_logic_2() {
+        let mut cache = default_score_cache();
 
-        map.insert_with_score_bump(1, "one".to_string());
-        assert_eq!(map.get(&1), Some(&("one".to_string(), DEFAULT_SCORE_BUMP)));
+        cache.insert(1, "one".to_string());
+        assert_eq!(cache.map.get(&1), Some(&("one".to_string(), GET_SCORE)));
 
-        assert_eq!(map.get_with_score_bump(&1), Some(&"one".to_string()));
-        assert_eq!(map.get(&1), Some(&("one".to_string(), DEFAULT_SCORE_BUMP * 2)));
+        assert_eq!(cache.get(&1), Some(&"one".to_string()));
+        assert_eq!(cache.map.get(&1), Some(&("one".to_string(), GET_SCORE * 2)));
 
-        map.update_with_penalty(&1, "one".to_string());
-        assert_eq!(
-            map.get(&1),
-            Some(&("one".to_string(), DEFAULT_SCORE_BUMP * 2 - DEFAULT_SCORE_PENALTY))
-        );
+        let v = cache.get_mut(&1).unwrap();
+        *v = "one".to_string();
+        assert_eq!(cache.map.get(&1), Some(&("one".to_string(), GET_SCORE * 2 + UPDATE_SCORE)));
 
         // Insert a new value and update it to set its score to zero.
-        map.insert_with_score_bump(2, "two".to_string());
-        for _ in 0..DEFAULT_SCORE_BUMP {
-            map.update_with_penalty(&2, "two".to_string());
+        cache.insert(2, "two".to_string());
+        for _ in 0..GET_SCORE {
+            let v = cache.get_mut(&2).unwrap();
+            *v = "two".to_string();
         }
-        assert_eq!(map.get(&2), Some(&("two".to_string(), 0)));
+        assert_eq!(cache.map.get(&2), Some(&("two".to_string(), 0)));
 
         // Insert a new value: "2" should be dropped.
-        map.insert_with_score_bump(3, "three".to_string());
-        assert_eq!(map.len(), 2);
-        assert_eq!(map.get(&2), None);
+        cache.insert(3, "three".to_string());
+        assert_eq!(cache.len(), 2);
+        assert_eq!(cache.map.get(&2), None);
     }
 }

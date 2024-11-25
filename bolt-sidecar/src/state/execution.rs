@@ -12,7 +12,7 @@ use tracing::{debug, error, trace, warn};
 use crate::{
     builder::BlockTemplate,
     common::{
-        score_cache::LowestScoreCache,
+        score_cache::ScoreCache,
         transactions::{calculate_max_basefee, max_transaction_cost, validate_transaction},
     },
     config::limits::LimitsOpts,
@@ -122,8 +122,7 @@ impl ValidationError {
     }
 }
 
-pub const ACCOUNT_STATE_SCORE_BUMP: usize = 4;
-pub const ACCOUNT_STATE_UPDATE_PENALTY: usize = 1;
+type AccountStatesCache = ScoreCache<4, 4, -1, Address, AccountState>;
 
 /// The minimal state of the execution layer at some block number (`head`).
 /// This is the state that is needed to simulate commitments.
@@ -155,7 +154,7 @@ pub struct ExecutionState<C> {
     /// When a commitment request is made from an account its score is bumped of
     /// [ACCOUNT_STATE_SCORE_BUMP], and when it updated it is decreased by
     /// [ACCOUNT_STATE_UPDATE_PENALTY].
-    account_states: LowestScoreCache<Address, AccountState>,
+    account_states: AccountStatesCache,
     /// The block templates by target SLOT NUMBER.
     /// We have multiple block templates because in rare cases we might have multiple
     /// proposal duties for a single lookahead.
@@ -220,11 +219,7 @@ impl<C: StateFetcher> ExecutionState<C> {
             limits,
             client,
             slot: 0,
-            account_states: LowestScoreCache::new(
-                num_accounts,
-                ACCOUNT_STATE_SCORE_BUMP,
-                ACCOUNT_STATE_UPDATE_PENALTY,
-            ),
+            account_states: AccountStatesCache::with_max_len(num_accounts),
             block_templates: HashMap::new(),
             // Load the default KZG settings
             kzg_settings: EnvKzgSettings::default(),
@@ -374,7 +369,7 @@ impl<C: StateFetcher> ExecutionState<C> {
 
             trace!(nonce_diff, %balance_diff, "Applying diffs to account state");
 
-            let account_state = match self.account_states.get_with_score_bump(sender).copied() {
+            let account_state = match self.account_states.get(sender).copied() {
                 Some(account) => account,
                 None => {
                     // Fetch the account state from the client if it does not exist
@@ -388,7 +383,7 @@ impl<C: StateFetcher> ExecutionState<C> {
                         }
                     };
 
-                    self.account_states.insert_with_score_bump(*sender, account);
+                    self.account_states.insert(*sender, account);
                     account
                 }
             };
@@ -528,11 +523,11 @@ impl<C: StateFetcher> ExecutionState<C> {
         self.basefee = update.min_basefee;
 
         for (address, state) in update.account_states {
-            let found = self.account_states.update_with_penalty(&address, state);
-            if !found {
+            let Some(prev_state) = self.account_states.get_mut(&address) else {
                 error!(%address, "Account state requested for update but not found in cache");
                 continue;
             };
+            *prev_state = state
         }
 
         self.refresh_templates();
@@ -719,7 +714,7 @@ mod tests {
             Err(ValidationError::NonceTooLow(1, 0))
         ));
 
-        assert!(state.account_states.get(sender).unwrap().0.transaction_count == 0);
+        assert!(state.account_states.get(sender).unwrap().transaction_count == 0);
 
         // Create a transaction with a nonce that is too high
         let tx = default_test_transaction(*sender, Some(2));
