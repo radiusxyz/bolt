@@ -126,15 +126,18 @@ be restaked in either the Symbiotic or EigenLayer restaking protocols. Bolt is c
 > For now, these are the only vaults & strategies that have been whitelisted by the Bolt protocol.
 
 After that, you need to interact with two contracts on Holesky:
-`BoltValidators` and `BoltManager`. The former is used to register your
-active validators into the protocol, while the latter is used to
-register as an operator into the system and integrate with the restaking
-protocols.
+
+- `BoltValidators`, used to register your active validators into bolt
+- `BoltManager`, used to register as an **operator** into the system and integrate with restaking protocols.
 
 > [!IMPORTANT]
-> When registering your operator in the `BoltManager` contract you must use the
-> public key associated to the private key used to sign commitments with the
-> Bolt Sidecar (the `--commitment-private-key` flag).
+> When registering your **operator** in the `BoltManager` contract you MUST use the
+> Ethereum address for which you specify the private key as the `--commitment-private-key`
+> flag in the Bolt Sidecar configuration.
+>
+> In other words, the `commitment-private-key` flag MUST be set to the private key of the Ethereum
+> address that is registered as operator in the `BoltManager` contract for your validators to be
+> able to sign valid commitments.
 
 **Prerequisites**
 
