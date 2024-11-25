@@ -310,7 +310,7 @@ impl EngineHinter {
             .client
             .post(self.engine_rpc_url.as_str())
             .header("Content-Type", "application/json")
-            .header("Authorization", auth_jwt.clone())
+            .header("Authorization", auth_jwt)
             .body(body)
             .send()
             .await?

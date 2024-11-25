@@ -1,5 +1,4 @@
 use tokio::sync::{mpsc, oneshot};
-use tracing::error;
 
 use crate::primitives::{FetchPayloadRequest, PayloadAndBid};
 
@@ -25,13 +24,7 @@ impl PayloadFetcher for LocalPayloadFetcher {
         let fetch_params = FetchPayloadRequest { response_tx, slot };
         self.tx.send(fetch_params).await.ok()?;
 
-        match response_rx.await {
-            Ok(res) => res,
-            Err(e) => {
-                error!(err = ?e, "Failed to fetch payload");
-                None
-            }
-        }
+        response_rx.await.ok().flatten()
     }
 }
 

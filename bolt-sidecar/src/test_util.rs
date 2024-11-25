@@ -33,17 +33,17 @@ use crate::{
 /// The URL of the test execution client HTTP API.
 ///
 /// NOTE: this DNS is only available through the Chainbound Tailnet
-const EXECUTION_API_URL: &str = "http://remotebeast:8545";
+const EXECUTION_API_URL: &str = "http://remotebeast:48545";
 
 /// The URL of the test beacon client HTTP API.
 ///
 /// NOTE: this DNS is only available through the Chainbound Tailnet
-const BEACON_API_URL: &str = "http://remotebeast:3500";
+const BEACON_API_URL: &str = "http://remotebeast:44400";
 
 /// The URL of the test engine client HTTP API.
 ///
 /// NOTE: this DNS is only available through the Chainbound Tailnet
-const ENGINE_API_URL: &str = "http://remotebeast:8551";
+const ENGINE_API_URL: &str = "http://remotebeast:48551";
 
 /// Check if the test execution client is reachable by sending a GET request to it.
 pub(crate) async fn try_get_execution_api_url() -> Option<&'static str> {

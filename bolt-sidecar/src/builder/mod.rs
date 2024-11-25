@@ -117,18 +117,20 @@ impl LocalBuilder {
         // to ALWAYS prefer PBS blocks. This is a safety measure that doesn't hurt to keep.
         let value = U256::from(100_000_000_000_000_000_000u128);
 
-        let eth_payload = compat::to_consensus_execution_payload(&block);
-        let payload_and_blobs = PayloadAndBlobs { execution_payload: eth_payload, blobs_bundle };
+        let execution_payload = compat::to_consensus_execution_payload(&block);
+        let payload_and_blobs = PayloadAndBlobs { execution_payload, blobs_bundle };
 
-        // 2. create a signed builder bid with the sealed block header we just created
+        // 2. create a builder bid with the sealed block header we just created
         let eth_header = compat::to_execution_payload_header(&block, transactions);
 
         // 3. sign the bid with the local builder's BLS key
         let signed_bid = self.create_signed_builder_bid(value, eth_header, kzg_commitments)?;
 
-        // 4. prepare a get_payload response for when the beacon node will ask for it
+        // 4. prepare a get_payload response
         let get_payload_response = GetPayloadResponse::from(payload_and_blobs);
 
+        // 5. cache the payload and bid in the local builder instance for it
+        // to be fetched by the beacon node later
         self.payload_and_bid =
             Some(PayloadAndBid { bid: signed_bid, payload: get_payload_response });
 
