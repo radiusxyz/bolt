@@ -122,7 +122,10 @@ impl ValidationError {
     }
 }
 
-type AccountStatesCache = ScoreCache<4, 4, -1, Address, AccountState>;
+const GET_SCORE: isize = 4;
+const INSERT_SCORE: isize = 4;
+const UPDATE_SCORE: isize = -1;
+type AccountStatesCache = ScoreCache<GET_SCORE, INSERT_SCORE, UPDATE_SCORE, Address, AccountState>;
 
 /// The minimal state of the execution layer at some block number (`head`).
 /// This is the state that is needed to simulate commitments.
