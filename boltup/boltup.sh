@@ -10,8 +10,6 @@ BASE_DIR=${XDG_CONFIG_HOME:-$HOME}
 BOLT_DIR=${BOLT_DIR:-"$BASE_DIR/.bolt"}
 BOLT_BIN_DIR="$BOLT_DIR/bin"
 
-export RUSTFLAGS="${RUSTFLAGS:--C target-cpu=native}"
-
 main() {
   need_cmd git
   need_cmd curl
@@ -33,8 +31,6 @@ main() {
         exit 1
     esac; shift
   done
-
-  CARGO_BUILD_ARGS=(--release)
 
   # Print the banner after successfully parsing args
   banner
