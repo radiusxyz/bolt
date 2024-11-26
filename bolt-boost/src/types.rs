@@ -1,17 +1,18 @@
 use alloy::{
-    consensus::{TxEip4844Variant, TxEnvelope},
+    consensus::{TxEip4844Variant, TxEip4844WithSidecar, TxEnvelope},
     eips::eip2718::{Decodable2718, Eip2718Error, Eip2718Result},
-    primitives::{Bytes, TxHash, B256},
+    primitives::{keccak256, Bytes, TxHash, B256},
     rpc::types::beacon::{BlsPublicKey, BlsSignature},
     signers::k256::sha2::{Digest, Sha256},
 };
-use alloy_rlp::{BufMut, Encodable};
+use alloy_rlp::Encodable;
 use axum::http::HeaderMap;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
 use std::ops::Deref;
 use tracing::error;
+use tree_hash::TreeHash;
 
 use cb_common::{
     constants::COMMIT_BOOST_DOMAIN,
@@ -99,12 +100,7 @@ impl TryFrom<ConstraintsMessage> for ConstraintsWithProofData {
         let transactions = value
             .transactions
             .iter()
-            .map(|tx| {
-                let envelope = TxEnvelope::decode_2718(&mut tx.as_ref())?;
-                let tx_hash_tree_root = calculate_tx_hash_tree_root(&envelope, tx)?;
-
-                Ok((*envelope.tx_hash(), tx_hash_tree_root))
-            })
+            .map(calculate_tx_proof_data)
             .collect::<Result<Vec<_>, Eip2718Error>>()?;
 
         Ok(Self { message: value, proof_data: transactions })
@@ -113,38 +109,45 @@ impl TryFrom<ConstraintsMessage> for ConstraintsWithProofData {
 
 /// Calculate the SSZ hash tree root of a transaction, starting from its enveloped form.
 /// For type 3 transactions, the hash tree root of the inner transaction is taken (without blobs).
-fn calculate_tx_hash_tree_root(
-    envelope: &TxEnvelope,
-    raw_tx: &Bytes,
-) -> Result<B256, Eip2718Error> {
-    match envelope {
-        // For type 3 txs, take the hash tree root of the inner tx (EIP-4844)
-        TxEnvelope::Eip4844(tx) => match tx.tx() {
-            TxEip4844Variant::TxEip4844(tx) => {
-                let mut out = Vec::new();
-                out.put_u8(0x03);
-                tx.encode(&mut out);
+fn calculate_tx_proof_data(raw_tx: &Bytes) -> Result<(TxHash, HashTreeRoot), Eip2718Error> {
+    let is_type_3 = raw_tx
+        .first()
+        .ok_or(Eip2718Error::RlpError(alloy_rlp::Error::Custom("empty RLP bytes")))?
+        == &0x03;
 
-                Ok(tree_hash::TreeHash::tree_hash_root(&Transaction::<
-                    <DenebSpec as EthSpec>::MaxBytesPerTransaction,
-                >::from(out)))
-            }
-            TxEip4844Variant::TxEip4844WithSidecar(tx) => {
-                use alloy_rlp::Encodable;
-                let mut out = Vec::new();
-                out.put_u8(0x03);
-                tx.tx.encode(&mut out);
-
-                Ok(tree_hash::TreeHash::tree_hash_root(&Transaction::<
-                    <DenebSpec as EthSpec>::MaxBytesPerTransaction,
-                >::from(out)))
-            }
-        },
-        // For other transaction types, take the hash tree root of the whole tx
-        _ => Ok(tree_hash::TreeHash::tree_hash_root(&Transaction::<
-            <DenebSpec as EthSpec>::MaxBytesPerTransaction,
-        >::from(raw_tx.to_vec()))),
+    // For blob transactions (type 3), we need to make sure to strip out the blob sidecar when
+    // calculating both the transaction hash and the hash tree root
+    if !is_type_3 {
+        let tx_hash = keccak256(raw_tx);
+        return Ok((tx_hash, hash_tree_root_raw_tx(raw_tx.to_vec())));
     }
+
+    let envelope = TxEnvelope::decode_2718(&mut raw_tx.as_ref())?;
+    let TxEnvelope::Eip4844(signed_tx) = envelope else {
+        unreachable!("we have already checked it is not a type 3 transaction")
+    };
+    let (tx, signature, tx_hash) = signed_tx.into_parts();
+    match tx {
+        TxEip4844Variant::TxEip4844(_) => {
+            // We have the type 3 variant without sidecar, we can safely hash tree root the raw
+            // RLP.
+            Ok((tx_hash, hash_tree_root_raw_tx(raw_tx.to_vec())))
+        }
+        TxEip4844Variant::TxEip4844WithSidecar(TxEip4844WithSidecar { tx, .. }) => {
+            // We strip out the sidecar and hash tree root the transaction
+            let mut buf = Vec::new();
+            tx.encode_with_signature_fields(&signature, &mut buf);
+            // We need to add the type back
+            buf.insert(0, 0x03);
+
+            Ok((tx_hash, hash_tree_root_raw_tx(buf)))
+        }
+    }
+}
+
+fn hash_tree_root_raw_tx(raw_tx: Vec<u8>) -> HashTreeRoot {
+    let tx = Transaction::<<DenebSpec as EthSpec>::MaxBytesPerTransaction>::from(raw_tx);
+    TreeHash::tree_hash_root(&tx)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
