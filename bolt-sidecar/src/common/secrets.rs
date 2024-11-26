@@ -1,3 +1,5 @@
+//! Secret key types wrappers for BLS, ECDSA and JWT.
+
 use std::{
     fmt::{self, Display},
     fs::read_to_string,

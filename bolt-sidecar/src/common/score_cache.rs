@@ -1,3 +1,12 @@
+//! ScoreCache provides a hash map-like data structure with an additional scoring mechanism. Each
+//! entry in the cache is assigned a score, which is modified based on specific operations (GET,
+//! INSERT, UPDATE).
+//! The cache has a maximum length (max_len), and when this length is exceeded,
+//! stale elements (entries with the lowest scores) are removed to make space for new entries.
+//!
+//! The module is particularly useful for scenarios where a priority-based
+//! eviction policy is required.
+
 use std::{
     borrow::Borrow,
     collections::HashMap,
