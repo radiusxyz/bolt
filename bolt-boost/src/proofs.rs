@@ -86,75 +86,23 @@ mod tests {
 
     use crate::testutil::*;
 
-    /// NOTE: This test is disabled because multiproof support has not landed in ssz-rs main yet.
-    // #[test]
-    // fn test_single_multiproof() {
-    //     let (root, transactions) = read_test_transactions();
-    //     println!(
-    //         "Transactions root: {:?}, num transactions: {}",
-    //         root,
-    //         transactions.len()
-    //     );
-
-    //     // Shoudl be 1073741824, 1048576
-    //     let transactions_list =
-    //         transactions_to_ssz_list::<1073741824, 1048576>(transactions.clone());
-
-    //     // let index = rand::random::<usize>() % transactions.len();
-    //     let index = 51;
-
-    //     println!("Index to prove: {index}");
-
-    //     let root_node = transactions_list.hash_tree_root().unwrap();
-
-    //     assert_eq!(root_node, root);
-
-    //     // Generate the path from the transaction indexes
-    //     let path = path_from_indeces(&[index]);
-
-    //     let start_proof = std::time::Instant::now();
-    //     let (multi_proof, witness) = transactions_list.multi_prove(&[&path]).unwrap();
-    //     println!("Generated multiproof in {:?}", start_proof.elapsed());
-
-    //     // Root and witness must be the same
-    //     assert_eq!(root, witness);
-
-    //     let start_verify = std::time::Instant::now();
-    //     assert!(multi_proof.verify(witness).is_ok());
-    //     println!("Verified multiproof in {:?}", start_verify.elapsed());
-
-    //     // assert!(verify_multiproofs(&[c1_with_data], proofs, root).is_ok());
-    // }
-
+    // NOTE:
     #[test]
     fn test_single_proof() {
         let (root, transactions) = read_test_transactions();
-        println!("Transactions root: {:?}, num transactions: {}", root, transactions.len());
 
-        // Shoudl be 1073741824, 1048576
         let transactions_list =
             transactions_to_ssz_list::<1073741824, 1048576>(transactions.clone());
 
         // let index = rand::random::<usize>() % transactions.len();
         let index = 26;
 
-        println!("Index to prove: {index}");
-
-        // let c1 = ConstraintsMessage {
-        //     validator_index: 0,
-        //     slot: 1,
-        //     top: false,
-        //     transactions: vec![transactions[index].clone()],
-        // };
-
-        // let c1_with_data = ConstraintsWithProofData::try_from(c1).unwrap();
-
         let root_node = transactions_list.hash_tree_root().unwrap();
 
         assert_eq!(root_node, root);
 
         // Generate the path from the transaction indexes
-        let path = path_from_indeces(&[index]);
+        let path = path_from_indexes(&[index]);
 
         let start_proof = std::time::Instant::now();
         let (proof, witness) = transactions_list.prove(&path).unwrap();
@@ -166,12 +114,10 @@ mod tests {
         let start_verify = std::time::Instant::now();
         assert!(proof.verify(witness).is_ok());
         println!("Verified proof in {:?}", start_verify.elapsed());
-
-        // assert!(verify_multiproofs(&[c1_with_data], proofs, root).is_ok());
     }
 
-    #[test]
     /// Testdata from https://github.com/ferranbt/fastssz/blob/455b54c08c81c3a270b6a7160f92ce68408491d4/tests/codetrie_test.go#L195
+    #[test]
     fn test_fastssz_multiproof() {
         let root =
             B256::from_hex("f1824b0084956084591ff4c91c11bcc94a40be82da280e5171932b967dd146e9")
@@ -204,8 +150,8 @@ mod tests {
         );
     }
 
-    fn path_from_indeces(indeces: &[usize]) -> Vec<PathElement> {
-        indeces.iter().map(|i| PathElement::from(*i)).collect::<Vec<_>>()
+    fn path_from_indexes(indexes: &[usize]) -> Vec<PathElement> {
+        indexes.iter().map(|i| PathElement::from(*i)).collect::<Vec<_>>()
     }
 
     fn transactions_to_ssz_list<const B: usize, const N: usize>(
