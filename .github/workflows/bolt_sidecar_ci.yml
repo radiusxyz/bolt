@@ -40,6 +40,12 @@ jobs:
         with:
           cache-on-failure: true
 
+      - name: Build
+        run: cargo build
+
+      - name: Lint Code with Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
       - name: Install cargo-nextest
         uses: baptiste0928/cargo-install@v3
         with:
