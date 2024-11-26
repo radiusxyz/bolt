@@ -12,9 +12,9 @@ pub enum PbsClientError {
 impl PbsClientError {
     pub fn status_code(&self) -> StatusCode {
         match self {
-            PbsClientError::NoResponse => StatusCode::SERVICE_UNAVAILABLE,
-            PbsClientError::NoPayload => StatusCode::BAD_GATEWAY,
-            PbsClientError::BadRequest => StatusCode::BAD_REQUEST,
+            Self::NoResponse => StatusCode::SERVICE_UNAVAILABLE,
+            Self::NoPayload => StatusCode::BAD_GATEWAY,
+            Self::BadRequest => StatusCode::BAD_REQUEST,
         }
     }
 }
@@ -22,9 +22,9 @@ impl PbsClientError {
 impl IntoResponse for PbsClientError {
     fn into_response(self) -> axum::response::Response {
         let msg = match self {
-            PbsClientError::NoResponse => "no response from relays",
-            PbsClientError::NoPayload => "no payload from relays",
-            PbsClientError::BadRequest => "bad request",
+            Self::NoResponse => "no response from relays",
+            Self::NoPayload => "no payload from relays",
+            Self::BadRequest => "bad request",
         };
 
         (self.status_code(), msg).into_response()
