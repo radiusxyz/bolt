@@ -1213,7 +1213,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "bolt-prometheus",
+  "title": "bolt sidecar",
   "uid": "bolt-prometheus",
   "version": 24,
   "weekStart": ""

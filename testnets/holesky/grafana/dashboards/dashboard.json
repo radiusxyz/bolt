@@ -1213,7 +1213,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "bolt-prometheus-holesky",
+  "title": "bolt sidecar Holesky",
   "uid": "bolt-prometheus-holesky",
   "version": 24,
   "weekStart": ""
