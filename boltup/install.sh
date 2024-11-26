@@ -12,7 +12,8 @@ BASE_DIR="${XDG_CONFIG_HOME:-$HOME}"
 BOLT_DIR="${BOLT_DIR:-"$BASE_DIR/.bolt"}"
 BOLT_BIN_DIR="$BOLT_DIR/bin"
 
-BIN_URL=https://raw.githubusercontent.com/chainbound/bolt/unstable/boltup/boltup.sh
+DEFAULT_BRANCH="unstable"
+BIN_URL="https://raw.githubusercontent.com/chainbound/bolt/$DEFAULT_BRANCH/boltup/boltup.sh"
 BIN_PATH="$BOLT_BIN_DIR/boltup"
 
 # Create the .bolt bin directory and boltup binary if it doesn't exist.
