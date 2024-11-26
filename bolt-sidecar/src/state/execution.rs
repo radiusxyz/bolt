@@ -262,7 +262,6 @@ impl<C: StateFetcher> ExecutionState<C> {
 
         // Check if there is room for more commitments
         if let Some(template) = self.get_block_template(target_slot) {
-            dbg!(&template);
             if template.transactions_len() >= self.limits.max_commitments_per_slot.get() {
                 return Err(ValidationError::MaxCommitmentsReachedForSlot(
                     self.slot,
@@ -274,8 +273,6 @@ impl<C: StateFetcher> ExecutionState<C> {
         // Check if the committed gas exceeds the maximum
         let template_committed_gas =
             self.get_block_template(target_slot).map(|t| t.committed_gas()).unwrap_or(0);
-
-        dbg!(template_committed_gas + req.gas_limit());
 
         if template_committed_gas + req.gas_limit() >= self.limits.max_committed_gas_per_slot.get()
         {
