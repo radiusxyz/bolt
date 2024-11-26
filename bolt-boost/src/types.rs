@@ -1,11 +1,10 @@
 use alloy::{
-    consensus::{TxEip4844Variant, TxEip4844WithSidecar, TxEnvelope},
-    eips::eip2718::{Decodable2718, Eip2718Error, Eip2718Result},
+    consensus::{Signed, TxEip4844Variant, TxEip4844WithSidecar, TxEnvelope},
+    eips::eip2718::{Decodable2718, Eip2718Error, Eip2718Result, Encodable2718},
     primitives::{keccak256, Bytes, TxHash, B256},
     rpc::types::beacon::{BlsPublicKey, BlsSignature},
     signers::k256::sha2::{Digest, Sha256},
 };
-use alloy_rlp::Encodable;
 use axum::http::HeaderMap;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
@@ -135,10 +134,10 @@ fn calculate_tx_proof_data(raw_tx: &Bytes) -> Result<(TxHash, HashTreeRoot), Eip
         }
         TxEip4844Variant::TxEip4844WithSidecar(TxEip4844WithSidecar { tx, .. }) => {
             // We strip out the sidecar and hash tree root the transaction
+            let signed = Signed::new_unchecked(tx, signature, tx_hash);
+            let new_envelope = TxEnvelope::from(signed);
             let mut buf = Vec::new();
-            tx.encode_with_signature_fields(&signature, &mut buf);
-            // We need to add the type back
-            buf.insert(0, 0x03);
+            new_envelope.encode_2718(&mut buf);
 
             Ok((tx_hash, hash_tree_root_raw_tx(buf)))
         }
