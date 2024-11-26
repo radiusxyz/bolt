@@ -74,7 +74,7 @@ impl BuilderState {
 }
 
 /// An extended builder-API that implements the constraints-API as defined in
-/// the spec: <https://chainbound.github.io/bolt-docs/api/builder>.
+/// the spec: <https://docs.boltprotocol.xyz/technical-docs/api/builder>.
 ///
 /// The added endpoints are defined in [extra_routes](ConstraintsApi::extra_routes).
 pub struct ConstraintsApi;
@@ -99,7 +99,7 @@ impl BuilderApi<BuilderState> for ConstraintsApi {
     }
 
     /// Gets the extra routes for supporting the constraints API as defined in
-    /// the spec: <https://chainbound.github.io/bolt-docs/api/builder>.
+    /// the spec: <https://docs.boltprotocol.xyz/technical-docs/api/builder>.
     fn extra_routes() -> Option<Router<PbsState<BuilderState>>> {
         let mut router = Router::new();
         router = router.route(SUBMIT_CONSTRAINTS_PATH, post(submit_constraints));
@@ -111,7 +111,7 @@ impl BuilderApi<BuilderState> for ConstraintsApi {
 }
 
 /// Submit signed constraints to the builder.
-/// Spec: <https://chainbound.github.io/bolt-docs/api/builder#constraints>
+/// Spec: <https://docs.boltprotocol.xyz/technical-docs/api/builder#constraints>
 #[tracing::instrument(skip_all)]
 async fn submit_constraints(
     State(state): State<PbsState<BuilderState>>,
@@ -141,7 +141,7 @@ async fn submit_constraints(
 }
 
 /// Delegate constraint submission rights to another BLS key.
-/// Spec: <https://chainbound.github.io/bolt-docs/api/builder#delegate>
+/// Spec: <https://docs.boltprotocol.xyz/technical-docs/api/builder#delegate>
 #[tracing::instrument(skip_all)]
 async fn delegate(
     State(state): State<PbsState<BuilderState>>,
@@ -153,7 +153,7 @@ async fn delegate(
 }
 
 /// Revoke constraint submission rights from a BLS key.
-/// Spec: <https://chainbound.github.io/bolt-docs/api/builder#revoke>
+/// Spec: <https://docs.boltprotocol.xyz/technical-docs/api/builder#revoke>
 #[tracing::instrument(skip_all)]
 async fn revoke(
     State(state): State<PbsState<BuilderState>>,
@@ -165,7 +165,7 @@ async fn revoke(
 }
 
 /// Get a header with proofs for a given slot and parent hash.
-/// Spec: <https://chainbound.github.io/bolt-docs/api/builder#get_header_with_proofs>
+/// Spec: <https://docs.boltprotocol.xyz/technical-docs/api/builder#get_header_with_proofs>
 #[tracing::instrument(skip_all, fields(slot = params.slot))]
 async fn get_header_with_proofs(
     State(state): State<PbsState<BuilderState>>,
