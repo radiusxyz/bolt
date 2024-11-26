@@ -55,3 +55,7 @@ lazy_static = "1.5.0"
 # NOTE: we need this in order to play nice with Lighthouse types at version 5.3.0
 ssz_compat = { version = "0.5", package = "ethereum_ssz" }
 types = { git = "https://github.com/sigp/lighthouse", tag = "v5.3.0" }
+
+[lints.clippy]
+unnecessary_self_imports = "warn"
+use_self = "warn"
