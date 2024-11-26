@@ -1,9 +1,9 @@
-# Holesky Validator Opt-in Quick Guide
-
-This quick guide skips the details and provides a step-by-step practical guide
-to opt-in to Bolt on the Holesky testnet.
+# Holesky Validator Opt-in Quick Start Guide
 
 > [!IMPORTANT]
+> This quick guide skips the details and provides a step-by-step practical guide
+> to opt-in to Bolt on the Holesky testnet.
+>
 > You need to have at least 1 Holesky validator node running to opt-in to Bolt.
 > This includes an Execution client, a Beacon client, and a Validator client,
 > and at least 1 beacon chain deposit of 32 ETH.
@@ -18,7 +18,8 @@ You will need the following dependencies on your machine:
 
 Additionally, you will need:
 
-- A running Holesky validator node
+- A running Holesky validator node (at least 32 ETH deposited in the beacon chain)
+  - Control of your private keys (e.g. a local keystore directory or remote Dirk instance)
 - A Holesky wallet funded with a few testnet ETH
 
 ## 1. Clone the bolt repository
@@ -29,6 +30,8 @@ git clone https://github.com/chainbound/bolt && cd bolt
 
 ## 2. Install the bolt CLI
 
+You can install the CLI directly from source:
+
 ```bash
 cd bolt-cli
 cargo install --force --path .
@@ -37,15 +40,22 @@ cargo install --force --path .
 bolt --help
 ```
 
+Alternatively, you can download one of the pre-built binaries from the
+[releases page](https://github.com/chainbound/bolt/releases/tag/v0.3.0-alpha) (under "Assets").
+Make sure to download the correct binary for your system (e.g. `bolt-cli-aarch64-apple-darwin`
+on MacBook with Apple Silicon chips).
+
 ## 3. Obtain a list of your validator public keys
 
-This command will list all the public keys of your validator(s) and save them
-in a `pubkeys.json` file in the current directory.
-
-It works with different key sources depending on where your keys are stored:
+This CLI command will list all the public keys of your validator(s) and save them
+in a `pubkeys.json` file in the current directory. It works with different key sources
+depending on where your keys are stored:
 
 <details>
-<summary>If using a local keystore directory:</summary>
+<summary>If your keys are stored in a local keystore directory</summary>
+
+- NOTE: Right now the `local-keystore` source only supports `lighthouse` style keystores
+  (with `validators` and `secrets` subdirectories containing the keystores and passwords respectively).
 
 ```bash
 bolt pubkeys local-keystore --path <validators_path> --password-path <secrets_path>
@@ -65,10 +75,19 @@ Example file structure when using `local-keystore` source:
         - 0xabcdef1234...567890
 ```
 
+In this case you would run the command (called from the `validator_keys` directory):
+
+```bash
+bolt pubkeys local-keystore --path validators --password-path secrets
+```
+
 </details>
 
 <details>
-<summary>If using a remote Dirk instance:</summary>
+<summary>If your keys are stored on a remote Dirk instance</summary>
+
+- NOTE: You will need to have a running Dirk instance and the necessary TLS certificates to access
+  the wallets inside it.
 
 ```bash
 bolt pubkeys dirk --url <dirk_url> \
@@ -90,6 +109,10 @@ Example Dirk setup might look like this:
 </details>
 
 ## 4. Register your validators in the `BoltValidators` contract
+
+- NOTE: Before running this command, make sure you have the `pubkeys.json` file generated in the previous step.
+- NOTE: You will need a new wallet to use as **operator** for the validators (`--authorized-operator` flag).
+  You can generate a new keypair using [`cast wallet new`](https://book.getfoundry.sh/reference/cast/cast-wallet-new) if needed.
 
 ```bash
 bolt validators register \
@@ -125,10 +148,9 @@ your operator address.
 Here we provide a quick guide on how to register with both, but you can choose the one you prefer.
 
 <details>
-<summary>Register with Symbiotic:</summary>
+<summary>Guide to register with Symbiotic</summary>
 
 First, you'll need to install the [Symbiotic CLI](https://docs.symbiotic.fi/guides/cli/).
-
 Then you can follow these steps to register your operator:
 
 1. Register your operator address as a Symbiotic operator with
@@ -185,18 +207,14 @@ Then you can follow these steps to register your operator:
 
 5. Finally register into the BoltManager contract with `bolt` CLI:
 
-   > [!IMPORTANT]
-   > The `--operator-rpc` flag MUST be set to a PUBLICLY ACCESSIBLE URL. This is where your bolt-sidecar will
-   > receive commitment requests from users and reply with signed commitments.
-   >
-   > For instance, you can simply use your IP address and port (e.g. `--operator-rpc http://<ip>:<port`) AND make
-   > sure to open the <port> on your firewall. The <port> here refers to the port where the bolt-sidecar commitments-api
-   > server is running. By default it is `8017` and can be changed in the sidecar configuration file.
-   >
-   > If you are using a firewall such as `ufw`, you can open the port with the following command:
-   > `sudo ufw allow from <your_ip> to any port 8017`.
-   >
-   > WARNING: Do NOT set the `--operator-rpc` flag to `localhost` or things like `infura.io` as they will not work.
+   - NOTE: The `--operator-rpc` flag MUST be set to a PUBLICLY ACCESSIBLE URL. This is where your bolt-sidecar will
+     receive commitment requests from users and reply with signed commitments. For instance, you can simply use your IP
+     address and port (e.g. `--operator-rpc http://<public_ip>:<port`) AND make sure to open the <port> on your firewall.
+     The <port> here refers to the port where the bolt-sidecar commitments-api server is running.
+     By default it is `8017` and can be changed in the sidecar configuration file.
+   - NOTE: If you are using a firewall such as `ufw`, you can open the port with the following command:
+     `sudo ufw allow from <your_ip> to any port 8017`.
+   - WARNING: Do NOT set the `--operator-rpc` flag to `localhost` or things like `infura.io` as they will not work.
 
    ```bash
    bolt operators symbiotic register \
@@ -216,14 +234,78 @@ Then you can follow these steps to register your operator:
 </details>
 
 <details>
-<summary>Register with Eigenlayer:</summary>
+<summary>Guide to register with Eigenlayer</summary>
 
 First, you need to install the
 [Eigenlayer CLI](https://docs.eigenlayer.xyz/eigenlayer/operator-guides/operator-installation#cli-installation).
 
-TODO: Add intermediary Eigenlayer registration steps
+1. If you're not registered as an Eigenlayer operator yet, you need to do so by following
+   [their official guide](https://docs.eigenlayer.xyz/eigenlayer/operator-guides/operator-installation#operator-configuration-and-registration).
 
-6. Check your operator status to ensure everything is set up correctly:
+   ```bash
+   eigenlayer operator register operator.yaml
+   ```
+
+2. Deposit collateral into an Eigenlayer Strategy using the bolt CLI:
+
+   - NOTE: this command will call the [`StrategyManager.depositIntoStrategy`](https://github.com/Layr-Labs/eigenlayer-contracts/blob/testnet-holesky/src/contracts/core/StrategyManager.sol#L303-L322) function in the Eigenlayer contracts.
+
+   ```bash
+   bolt operators eigenlayer deposit \
+         --rpc-url http://localhost:8545 \
+         --operator-private-key <operator_private_key> \
+         --strategy <strategy_name> \
+         --amount <amount>
+   ```
+
+   Where:
+
+   - `--rpc-url` is the URL of the Ethereum node to send transactions to (e.g. Geth)
+   - `--operator-private-key` is the private key of your registered operator address
+   - `--strategy` is the **NAME** of the strategy to deposit into. [possible values: st-eth, r-eth, w-eth, cb-eth, m-eth].
+   - `--amount` is the amount to deposit into the strategy (in ETH) (e.g. '1' for 1 ETH).
+
+3. Register into the Bolt AVS:
+
+   - NOTE: The `--operator-rpc` flag MUST be set to a PUBLICLY ACCESSIBLE URL. This is where your bolt-sidecar will
+     receive commitment requests from users and reply with signed commitments. For instance, you can simply use your IP
+     address and port (e.g. `--operator-rpc http://<public_ip>:<port`) AND make sure to open the <port> on your firewall.
+     The <port> here refers to the port where the bolt-sidecar commitments-api server is running.
+     By default it is `8017` and can be changed in the sidecar configuration file.
+   - NOTE: If you are using a firewall such as `ufw`, you can open the port with the following command:
+     `sudo ufw allow from <your_ip> to any port 8017`.
+   - WARNING: Do NOT set the `--operator-rpc` flag to `localhost` or things like `infura.io` as they will not work.
+
+   ```bash
+    bolt operators eigenlayer register \
+        --rpc-url http://localhost:8545 \
+        --operator-private-key <operator_private_key> \
+        --operator-rpc <operator_rpc> \
+        --salt <SALT> \
+        --expiry <EXPIRY>
+   ```
+
+   Where:
+
+   - `--rpc-url` is the URL of the Ethereum node to send transactions to (e.g. Geth)
+   - `--operator-private-key` is the private key of your registered operator address
+   - `--operator-rpc` is the URL of the operator's RPC server (e.g. `http://<ip>:<port>`)
+   - `--salt` is a unique 32 bytes value to add replay attacks. To generate one (on MacOS or linux)
+     you can run:
+
+     ```bash
+     echo -n "0x"; head -c 32 /dev/urandom | hexdump -e '32/1 "%02x" "\n"'
+     ```
+
+   - `--expiry` is the timestamp of the signature expiry in seconds.
+     To generate it on both Linux and MacOS run the following command, replacing <EXPIRY_TIMESTAMP>
+     with the desired timestamp:
+
+     ```bash
+     echo -n "0x"; printf "%064x\n" <EXPIRY_TIMESTAMP>
+     ```
+
+4. Check your operator status to ensure everything is set up correctly:
 
    ```bash
    bolt operators eigenlayer status \
@@ -233,7 +315,7 @@ TODO: Add intermediary Eigenlayer registration steps
 
 </details>
 
-## 6. Start the Bolt Sidecar
+## 6. Start the Bolt Sidecar + Mev-Boost setup
 
 There are two modes in which the Bolt-sidecar can be run:
 
@@ -241,11 +323,11 @@ There are two modes in which the Bolt-sidecar can be run:
 2. Commit-boost mode
 
 In this section we're going to cover the Docker mode, while the Commit-boost mode is covered in a
-separate guide [here](./commit-boost/README.md).
+separate guide [here](./commit-boost/README.md) in detail.
 
 ### Docker mode
 
-First, change directory to the `holesky` folder in the bolt repository you cloned in step 1:
+First, change directory to the `testnets/holesky` folder in the bolt repository you cloned in step 1:
 
 ```bash
 cd testnets/holesky
@@ -321,6 +403,9 @@ cp mev-boost.env.example mev-boost.env
 ```
 
 And fill out the values in the `mev-boost.env` file as well.
+
+- NOTE: the config file comes with relay URLs already set up for you. Feel free to change them if
+  you only want to use some specific relays.
 
 Once the config files are in place, make sure you have Docker running and then start the docker compose:
 
