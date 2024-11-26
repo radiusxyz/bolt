@@ -2,37 +2,43 @@
 
 This document provides instructions for running Bolt on the Holesky testnet.
 
+> [!IMPORTANT]
+> Other than this guide, we also have a [Quick Start Guide](./QUICK_START.md) that provides
+> a more concise and straightforward practical guide to running Bolt on Holesky.
+>
+> This page contains more detailed information and architecture explanations.
+
 # Table of Contents
 
 <!-- vim-markdown-toc GFM -->
 
-* [Prerequisites](#prerequisites)
-* [On-Chain Registration](#on-chain-registration)
-  * [Validator Registration](#validator-registration)
-    * [Registration Steps](#registration-steps)
-  * [Bolt Network Entrypoint](#bolt-network-entrypoint)
-  * [Operator Registration](#operator-registration)
-    * [Symbiotic Registration Steps](#symbiotic-registration-steps)
-    * [EigenLayer Registration Steps](#eigenlayer-registration-steps)
-* [Off-Chain Setup](#off-chain-setup)
-  * [Docker Mode (recommended)](#docker-mode-recommended)
-  * [Commit-Boost Mode](#commit-boost-mode)
-  * [Native Mode (advanced)](#native-mode-advanced)
-    * [Building and running the MEV-Boost fork binary](#building-and-running-the-mev-boost-fork-binary)
-    * [Building and running the Bolt sidecar binary](#building-and-running-the-bolt-sidecar-binary)
-      * [Configuration file](#configuration-file)
-    * [Observability](#observability)
-    * [Firewall Configuration](#firewall-configuration)
-* [Reference](#reference)
-  * [Supported RPC nodes](#supported-rpc-nodes)
-  * [Supported Relays](#supported-relays)
-  * [Command-line options](#command-line-options)
-  * [Delegations and signing options for Native and Docker Compose Mode](#delegations-and-signing-options-for-native-and-docker-compose-mode)
-    * [`bolt` CLI](#bolt-cli)
-      * [Installation and usage](#installation-and-usage)
-    * [Using a private key directly](#using-a-private-key-directly)
-    * [Using a ERC-2335 Keystore](#using-a-erc-2335-keystore)
-  * [Avoid restarting the beacon node](#avoid-restarting-the-beacon-node)
+- [Prerequisites](#prerequisites)
+- [On-Chain Registration](#on-chain-registration)
+  - [Validator Registration](#validator-registration)
+    - [Registration Steps](#registration-steps)
+  - [Bolt Network Entrypoint](#bolt-network-entrypoint)
+  - [Operator Registration](#operator-registration)
+    - [Symbiotic Registration Steps](#symbiotic-registration-steps)
+    - [EigenLayer Registration Steps](#eigenlayer-registration-steps)
+- [Off-Chain Setup](#off-chain-setup)
+  - [Docker Mode (recommended)](#docker-mode-recommended)
+  - [Commit-Boost Mode](#commit-boost-mode)
+  - [Native Mode (advanced)](#native-mode-advanced)
+    - [Building and running the MEV-Boost fork binary](#building-and-running-the-mev-boost-fork-binary)
+    - [Building and running the Bolt sidecar binary](#building-and-running-the-bolt-sidecar-binary)
+      - [Configuration file](#configuration-file)
+    - [Observability](#observability)
+    - [Firewall Configuration](#firewall-configuration)
+- [Reference](#reference)
+  - [Supported RPC nodes](#supported-rpc-nodes)
+  - [Supported Relays](#supported-relays)
+  - [Command-line options](#command-line-options)
+  - [Delegations and signing options for Native and Docker Compose Mode](#delegations-and-signing-options-for-native-and-docker-compose-mode)
+    - [`bolt` CLI](#bolt-cli)
+      - [Installation and usage](#installation-and-usage)
+    - [Using a private key directly](#using-a-private-key-directly)
+    - [Using a ERC-2335 Keystore](#using-a-erc-2335-keystore)
+  - [Avoid restarting the beacon node](#avoid-restarting-the-beacon-node)
 
 <!-- vim-markdown-toc -->
 
@@ -126,15 +132,18 @@ be restaked in either the Symbiotic or EigenLayer restaking protocols. Bolt is c
 > For now, these are the only vaults & strategies that have been whitelisted by the Bolt protocol.
 
 After that, you need to interact with two contracts on Holesky:
-`BoltValidators` and `BoltManager`. The former is used to register your
-active validators into the protocol, while the latter is used to
-register as an operator into the system and integrate with the restaking
-protocols.
+
+- `BoltValidators`, used to register your active validators into bolt
+- `BoltManager`, used to register as an **operator** into the system and integrate with restaking protocols.
 
 > [!IMPORTANT]
-> When registering your operator in the `BoltManager` contract you must use the
-> public key associated to the private key used to sign commitments with the
-> Bolt Sidecar (the `--commitment-private-key` flag).
+> When registering your **operator** in the `BoltManager` contract you MUST use the
+> Ethereum address for which you specify the private key as the `--commitment-private-key`
+> flag in the Bolt Sidecar configuration.
+>
+> In other words, the `commitment-private-key` flag MUST be set to the private key of the Ethereum
+> address that is registered as operator in the `BoltManager` contract for your validators to be
+> able to sign valid commitments.
 
 **Prerequisites**
 
