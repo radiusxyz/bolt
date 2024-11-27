@@ -184,3 +184,7 @@ build-and-push-image package tag:
 build-and-push-all-images tag='latest':
     @just build-and-push-image bolt-sidecar {{tag}}
     @just build-and-push-image bolt-boost {{tag}}
+
+# Create tarballs for the bolt-cli binaries for all the supported platforms
+create-bolt-cli-tarballs:
+    chmod +x ./scripts/bolt-cli-tarballs.sh && ./scripts/bolt-cli-tarballs.sh

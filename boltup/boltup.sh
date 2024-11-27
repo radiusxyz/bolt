@@ -95,8 +95,7 @@ main() {
   BIN_FILENAME="bolt-cli-${ARCHITECTURE}-${PLATFORM}.$EXT"
   BIN_ARCHIVE_URL="${RELEASE_URL}${BIN_FILENAME}"
 
-  # Download and extract the binaries archive
-  say "downloading latest binary"
+  # Download and extract the tarball.
   if [ "$PLATFORM" = "win32" ]; then
     tmp="$(mktemp -d 2>/dev/null || echo ".")/bolt.zip"
     ensure download "$BIN_ARCHIVE_URL" "$tmp"
