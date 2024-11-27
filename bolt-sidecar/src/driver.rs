@@ -231,7 +231,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
 
         let unsafe_skip_consensus_checks = opts.unsafe_disable_consensus_checks;
 
-        Ok(SidecarDriver {
+        Ok(Self {
             unsafe_skip_consensus_checks,
             head_tracker,
             execution,
@@ -342,7 +342,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         //
         // For more information, check out the constraints API docs:
         // https://docs.boltprotocol.xyz/technical-docs/api/builder#constraints
-        for tx in inclusion_request.txs.iter() {
+        for tx in &inclusion_request.txs {
             let tx_type = tx.tx_type();
             let message =
                 ConstraintsMessage::from_tx(signing_pubkey.clone(), target_slot, tx.clone());

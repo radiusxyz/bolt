@@ -95,30 +95,30 @@ impl ValidationError {
     /// Returns the tag of the enum as a string, mainly for metrics purposes
     pub const fn to_tag_str(&self) -> &'static str {
         match self {
-            ValidationError::BaseFeeTooLow(_) => "base_fee_too_low",
-            ValidationError::BlobBaseFeeTooLow(_) => "blob_base_fee_too_low",
-            ValidationError::BlobValidation(_) => "blob_validation",
-            ValidationError::MaxBaseFeeCalcOverflow => "max_base_fee_calc_overflow",
-            ValidationError::NonceTooLow(_, _) => "nonce_too_low",
-            ValidationError::NonceTooHigh(_, _) => "nonce_too_high",
-            ValidationError::AccountHasCode => "account_has_code",
-            ValidationError::GasLimitTooHigh => "gas_limit_too_high",
-            ValidationError::TransactionSizeTooHigh => "transaction_size_too_high",
-            ValidationError::MaxPriorityFeePerGasTooHigh => "max_priority_fee_per_gas_too_high",
-            ValidationError::MaxPriorityFeePerGasTooLow => "max_priority_fee_per_gas_too_low",
-            ValidationError::InsufficientBalance => "insufficient_balance",
-            ValidationError::Eip4844Limit => "eip4844_limit",
-            ValidationError::SlotTooLow(_) => "slot_too_low",
-            ValidationError::MaxCommitmentsReachedForSlot(_, _) => {
+            Self::BaseFeeTooLow(_) => "base_fee_too_low",
+            Self::BlobBaseFeeTooLow(_) => "blob_base_fee_too_low",
+            Self::BlobValidation(_) => "blob_validation",
+            Self::MaxBaseFeeCalcOverflow => "max_base_fee_calc_overflow",
+            Self::NonceTooLow(_, _) => "nonce_too_low",
+            Self::NonceTooHigh(_, _) => "nonce_too_high",
+            Self::AccountHasCode => "account_has_code",
+            Self::GasLimitTooHigh => "gas_limit_too_high",
+            Self::TransactionSizeTooHigh => "transaction_size_too_high",
+            Self::MaxPriorityFeePerGasTooHigh => "max_priority_fee_per_gas_too_high",
+            Self::MaxPriorityFeePerGasTooLow => "max_priority_fee_per_gas_too_low",
+            Self::InsufficientBalance => "insufficient_balance",
+            Self::Eip4844Limit => "eip4844_limit",
+            Self::SlotTooLow(_) => "slot_too_low",
+            Self::MaxCommitmentsReachedForSlot(_, _) => {
                 "max_commitments_reached_for_slot"
             }
-            ValidationError::MaxCommittedGasReachedForSlot(_, _) => {
+            Self::MaxCommittedGasReachedForSlot(_, _) => {
                 "max_committed_gas_reached_for_slot"
             }
-            ValidationError::Signature(_) => "signature",
-            ValidationError::RecoverSigner => "recover_signer",
-            ValidationError::ChainIdMismatch => "chain_id_mismatch",
-            ValidationError::Internal(_) => "internal",
+            Self::Signature(_) => "signature",
+            Self::RecoverSigner => "recover_signer",
+            Self::ChainIdMismatch => "chain_id_mismatch",
+            Self::Internal(_) => "internal",
         }
     }
 }
@@ -316,7 +316,7 @@ impl<C: StateFetcher> ExecutionState<C> {
         // and balance diffs that will be applied to the account state.
         let mut bundle_nonce_diff_map = HashMap::new();
         let mut bundle_balance_diff_map = HashMap::new();
-        for tx in req.txs.iter() {
+        for tx in &req.txs {
             let sender = tx.sender().expect("Recovered sender");
 
             // From previous preconfirmations requests retrieve
@@ -513,10 +513,10 @@ impl<C: StateFetcher> ExecutionState<C> {
     /// transactions by checking the nonce and balance of the account after applying the state
     /// diffs.
     fn refresh_templates(&mut self) {
-        for (address, account_state) in self.account_states.iter_mut() {
+        for (address, account_state) in &mut self.account_states {
             trace!(%address, ?account_state, "Refreshing template...");
             // Iterate over all block templates and apply the state diff
-            for (_, template) in self.block_templates.iter_mut() {
+            for template in self.block_templates.values_mut() {
                 // Retain only signed constraints where transactions are still valid based on the
                 // canonical account states.
                 template.retain(*address, *account_state);

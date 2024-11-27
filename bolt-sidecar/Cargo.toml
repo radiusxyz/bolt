@@ -33,7 +33,9 @@ alloy = { version = "0.6.4", features = [
   "rpc-types-beacon",
   "rpc-types-engine",
 ] }
-alloy-rpc-types-engine = { version = "0.6.4", default_features = false, features = ["jwt"] }
+alloy-rpc-types-engine = { version = "0.6.4", default_features = false, features = [
+  "jwt",
+] }
 
 # reth
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", version = "1.1.1" }
@@ -86,3 +88,12 @@ ignored = ["ethereum_ssz"]
 [[bin]]
 name = "bolt-sidecar"
 path = "bin/sidecar.rs"
+
+[lints.clippy]
+explicit_iter_loop = "warn"
+if_not_else = "warn"
+manual_let_else = "warn"
+match_bool = "warn"
+redundant_else = "warn"
+unnecessary_self_imports = "warn"
+use_self = "warn"

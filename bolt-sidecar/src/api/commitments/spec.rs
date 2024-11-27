@@ -60,48 +60,48 @@ pub enum CommitmentError {
 impl IntoResponse for CommitmentError {
     fn into_response(self) -> axum::http::Response<axum::body::Body> {
         match self {
-            CommitmentError::Rejected(err) => {
+            Self::Rejected(err) => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32000, err.to_string())))
                     .into_response()
             }
-            CommitmentError::Duplicate => {
+            Self::Duplicate => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32001, self.to_string())))
                     .into_response()
             }
-            CommitmentError::Internal => (
+            Self::Internal => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(JsonResponse::from_error(-32002, self.to_string())),
             )
                 .into_response(),
-            CommitmentError::NoSignature => {
+            Self::NoSignature => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32003, self.to_string())))
                     .into_response()
             }
-            CommitmentError::InvalidSignature(err) => {
+            Self::InvalidSignature(err) => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32004, err.to_string())))
                     .into_response()
             }
-            CommitmentError::Signature(err) => {
+            Self::Signature(err) => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32005, err.to_string())))
                     .into_response()
             }
-            CommitmentError::Consensus(err) => {
+            Self::Consensus(err) => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32006, err.to_string())))
                     .into_response()
             }
-            CommitmentError::Validation(err) => {
+            Self::Validation(err) => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32006, err.to_string())))
                     .into_response()
             }
-            CommitmentError::MalformedHeader => {
+            Self::MalformedHeader => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32007, self.to_string())))
                     .into_response()
             }
-            CommitmentError::UnknownMethod => {
+            Self::UnknownMethod => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32601, self.to_string())))
                     .into_response()
             }
-            CommitmentError::InvalidJson(err) => (
+            Self::InvalidJson(err) => (
                 StatusCode::BAD_REQUEST,
                 Json(JsonResponse::from_error(-32600, format!("Invalid request: {err}"))),
             )
