@@ -72,11 +72,11 @@ pub enum EigenLayerStrategy {
 impl std::fmt::Display for EigenLayerStrategy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let output = match self {
-            EigenLayerStrategy::StEth => "stETH",
-            EigenLayerStrategy::REth => "rETH",
-            EigenLayerStrategy::WEth => "wETH",
-            EigenLayerStrategy::CbEth => "cbETH",
-            EigenLayerStrategy::MEth => "mETH",
+            Self::StEth => "stETH",
+            Self::REth => "rETH",
+            Self::WEth => "wETH",
+            Self::CbEth => "cbETH",
+            Self::MEth => "mETH",
         };
         write!(f, "{}", output)
     }
