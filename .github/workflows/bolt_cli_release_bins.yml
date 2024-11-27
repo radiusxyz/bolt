@@ -3,10 +3,12 @@ name: Build and push Bolt CLI release binaries
 on:
   push:
     tags:
-      - "v*" # Push when version tags are pushed (e.g. v0.2.4)
+      - "v*" # Trigger when version tags are pushed (e.g. v0.3.1)
   release:
     types:
-      - created # Push when a new release is created
+      - created # Trigger when a release is created and immediately published
+      - published # Trigger when a release is published
+
   workflow_dispatch: # allows manual triggering of the workflow
 
 env:
@@ -131,6 +133,7 @@ jobs:
           fi
 
       - name: Push updated binaries to the release
+        if: github.event_name == 'release'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
