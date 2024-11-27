@@ -210,15 +210,12 @@ mod test {
     async fn test_bls_commit_boost_signer() -> eyre::Result<()> {
         let _ = dotenvy::dotenv();
 
-        let (signer_server_address, jwt_hex) = match (
+        let (Some(signer_server_address), Ok(jwt_hex)) = (
             std::env::var("BOLT_SIDECAR_CB_SIGNER_URL").ok(),
             std::env::var("BOLT_SIDECAR_CB_JWT_HEX"),
-        ) {
-            (Some(address), Ok(hex)) => (address, hex),
-            _ => {
-                warn!("skipping test: commit-boost inputs are not set");
-                return Ok(());
-            }
+        ) else {
+            warn!("skipping test: commit-boost inputs are not set");
+            return Ok(());
         };
         let signer = CommitBoostSigner::new(signer_server_address.parse()?, &jwt_hex).unwrap();
 
@@ -240,15 +237,12 @@ mod test {
     async fn test_ecdsa_commit_boost_signer() -> eyre::Result<()> {
         let _ = dotenvy::dotenv();
 
-        let (signer_server_address, jwt_hex) = match (
+        let (Some(signer_server_address), Ok(jwt_hex)) = (
             std::env::var("BOLT_SIDECAR_CB_SIGNER_URL").ok(),
             std::env::var("BOLT_SIDECAR_CB_JWT_HEX"),
-        ) {
-            (Some(address), Ok(hex)) => (address, hex),
-            _ => {
-                warn!("skipping test: commit-boost inputs are not set");
-                return Ok(());
-            }
+        ) else {
+            warn!("skipping test: commit-boost inputs are not set");
+            return Ok(());
         };
         let signer = CommitBoostSigner::new(signer_server_address.parse()?, &jwt_hex).unwrap();
         let pubkey = signer.get_proxy_ecdsa_pubkey();
