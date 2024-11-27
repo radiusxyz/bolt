@@ -34,7 +34,7 @@ impl<const GET_SCORE: isize, const INSERT_SCORE: isize, const UPDATE_SCORE: isiz
     for ScoreCache<GET_SCORE, INSERT_SCORE, UPDATE_SCORE, K, V, RandomState>
 {
     fn default() -> Self {
-        ScoreCache::new()
+        Self::new()
     }
 }
 

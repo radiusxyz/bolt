@@ -27,12 +27,12 @@ impl BlsSecretKeyWrapper {
 }
 
 impl<'de> Deserialize<'de> for BlsSecretKeyWrapper {
-    fn deserialize<D>(deserializer: D) -> Result<BlsSecretKeyWrapper, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         let sk = String::deserialize(deserializer)?;
-        Ok(BlsSecretKeyWrapper::from(sk.as_str()))
+        Ok(Self::from(sk.as_str()))
     }
 }
 
@@ -40,7 +40,7 @@ impl From<&str> for BlsSecretKeyWrapper {
     fn from(sk: &str) -> Self {
         let hex_sk = sk.strip_prefix("0x").unwrap_or(sk);
         let sk = SecretKey::from_bytes(&hex::decode(hex_sk).expect("valid hex")).expect("valid sk");
-        BlsSecretKeyWrapper(sk)
+        Self(sk)
     }
 }
 
@@ -69,12 +69,12 @@ impl EcdsaSecretKeyWrapper {
 }
 
 impl<'de> Deserialize<'de> for EcdsaSecretKeyWrapper {
-    fn deserialize<D>(deserializer: D) -> Result<EcdsaSecretKeyWrapper, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         let sk = String::deserialize(deserializer)?;
-        Ok(EcdsaSecretKeyWrapper::from(sk.as_str()))
+        Ok(Self::from(sk.as_str()))
     }
 }
 
@@ -83,7 +83,7 @@ impl From<&str> for EcdsaSecretKeyWrapper {
         let hex_sk = sk.strip_prefix("0x").unwrap_or(sk);
         let bytes = hex::decode(hex_sk).expect("valid hex");
         let sk = SigningKey::from_slice(&bytes).expect("valid sk");
-        EcdsaSecretKeyWrapper(sk)
+        Self(sk)
     }
 }
 
