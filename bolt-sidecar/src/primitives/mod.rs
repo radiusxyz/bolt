@@ -40,6 +40,8 @@ pub use transaction::{deserialize_txs, serialize_txs, FullTransaction, Transacti
 pub type Slot = u64;
 
 /// Minimal account state needed for commitment validation.
+///
+/// Each account state is 8 + 32 + 1 + 7 (padding) bytes = 48 bytes.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct AccountState {
     /// The nonce of the account. This is the number of transactions sent from this account

@@ -416,8 +416,8 @@ pub fn secret_to_bearer_header(secret: &JwtSecret) -> HeaderValue {
         "Bearer {}",
         secret
             .encode(&Claims {
-                iat: (SystemTime::now().duration_since(UNIX_EPOCH).unwrap() +
-                    Duration::from_secs(60))
+                iat: (SystemTime::now().duration_since(UNIX_EPOCH).unwrap()
+                    + Duration::from_secs(60))
                 .as_secs(),
                 exp: None,
             })
@@ -481,9 +481,9 @@ mod tests {
         let raw_encoded = tx_signed.encoded_2718();
         let tx_signed_reth = TransactionSigned::decode_2718(&mut raw_encoded.as_slice())?;
 
-        let slot = genesis_time +
-            (SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() / cfg.chain.slot_time()) +
-            1;
+        let slot = genesis_time
+            + (SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() / cfg.chain.slot_time())
+            + 1;
 
         let block = builder.build_fallback_payload(slot, &[tx_signed_reth]).await?;
         assert_eq!(block.body.transactions.len(), 1);

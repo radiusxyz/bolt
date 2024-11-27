@@ -7,17 +7,20 @@ use alloy::{
 use reth_primitives::{revm_primitives::EnvKzgSettings, PooledTransactionsElement};
 use std::{collections::HashMap, ops::Deref};
 use thiserror::Error;
-use tracing::{debug, trace, warn};
+use tracing::{debug, error, trace, warn};
 
 use crate::{
     builder::BlockTemplate,
-    common::{calculate_max_basefee, max_transaction_cost, validate_transaction},
+    common::{
+        score_cache::ScoreCache,
+        transactions::{calculate_max_basefee, max_transaction_cost, validate_transaction},
+    },
     config::limits::LimitsOpts,
     primitives::{AccountState, InclusionRequest, SignedConstraints, Slot},
     telemetry::ApiMetrics,
 };
 
-use super::fetcher::StateFetcher;
+use super::{account_state::AccountStateCache, fetcher::StateFetcher};
 
 /// Possible commitment validation errors.
 ///
@@ -109,12 +112,8 @@ impl ValidationError {
             Self::InsufficientBalance => "insufficient_balance",
             Self::Eip4844Limit => "eip4844_limit",
             Self::SlotTooLow(_) => "slot_too_low",
-            Self::MaxCommitmentsReachedForSlot(_, _) => {
-                "max_commitments_reached_for_slot"
-            }
-            Self::MaxCommittedGasReachedForSlot(_, _) => {
-                "max_committed_gas_reached_for_slot"
-            }
+            Self::MaxCommitmentsReachedForSlot(_, _) => "max_commitments_reached_for_slot",
+            Self::MaxCommittedGasReachedForSlot(_, _) => "max_committed_gas_reached_for_slot",
             Self::Signature(_) => "signature",
             Self::RecoverSigner => "recover_signer",
             Self::ChainIdMismatch => "chain_id_mismatch",
@@ -146,10 +145,14 @@ pub struct ExecutionState<C> {
     /// The cached account states. This should never be read directly.
     /// These only contain the canonical account states at the head block,
     /// not the intermediate states.
-    account_states: HashMap<Address, AccountState>,
+    account_states: AccountStateCache,
     /// The block templates by target SLOT NUMBER.
     /// We have multiple block templates because in rare cases we might have multiple
     /// proposal duties for a single lookahead.
+    ///
+    /// INVARIANT: contains only entries for slots greater than or equal to the latest known beacon
+    /// chain head.
+    /// See [ExecutionState::remove_block_templates_until].
     block_templates: HashMap<Slot, BlockTemplate>,
     /// The chain ID of the chain (constant).
     chain_id: u64,
@@ -192,6 +195,13 @@ impl<C: StateFetcher> ExecutionState<C> {
             client.get_chain_id()
         )?;
 
+        // Calculate the number of account states that can be cached by diving the configured max
+        // size by the size of an account state and its key.
+        let num_accounts = limits
+            .max_account_states_size
+            .get()
+            .div_ceil(size_of::<AccountState>() + size_of::<Address>());
+
         Ok(Self {
             basefee,
             blob_basefee,
@@ -200,7 +210,7 @@ impl<C: StateFetcher> ExecutionState<C> {
             limits,
             client,
             slot: 0,
-            account_states: HashMap::new(),
+            account_states: AccountStateCache(ScoreCache::with_max_len(num_accounts)),
             block_templates: HashMap::new(),
             // Load the default KZG settings
             kzg_settings: EnvKzgSettings::default(),
@@ -350,7 +360,7 @@ impl<C: StateFetcher> ExecutionState<C> {
 
             trace!(nonce_diff, %balance_diff, "Applying diffs to account state");
 
-            let account_state = match self.account_state(sender).copied() {
+            let account_state = match self.account_states.get(sender).copied() {
                 Some(account) => account,
                 None => {
                     // Fetch the account state from the client if it does not exist
@@ -503,8 +513,13 @@ impl<C: StateFetcher> ExecutionState<C> {
         self.block_number = update.block_number;
         self.basefee = update.min_basefee;
 
-        // `extend` will overwrite existing values. This is what we want.
-        self.account_states.extend(update.account_states);
+        for (address, state) in update.account_states {
+            let Some(prev_state) = self.account_states.get_mut(&address) else {
+                error!(%address, "Account state requested for update but not found in cache");
+                continue;
+            };
+            *prev_state = state
+        }
 
         self.refresh_templates();
     }
@@ -513,7 +528,7 @@ impl<C: StateFetcher> ExecutionState<C> {
     /// transactions by checking the nonce and balance of the account after applying the state
     /// diffs.
     fn refresh_templates(&mut self) {
-        for (address, account_state) in &mut self.account_states {
+        for (address, (account_state, _)) in self.account_states.iter_mut() {
             trace!(%address, ?account_state, "Refreshing template...");
             // Iterate over all block templates and apply the state diff
             for template in self.block_templates.values_mut() {
@@ -530,11 +545,6 @@ impl<C: StateFetcher> ExecutionState<C> {
                 }
             }
         }
-    }
-
-    /// Returns the cached account state for the given address
-    fn account_state(&self, address: &Address) -> Option<&AccountState> {
-        self.account_states.get(address)
     }
 
     /// Gets the block template for the given slot number.
@@ -576,7 +586,10 @@ pub struct StateUpdate {
 
 #[cfg(test)]
 mod tests {
-    use crate::{builder::template::StateDiff, signer::local::LocalSigner};
+    use crate::{
+        builder::template::StateDiff, config::limits::DEFAULT_MAX_COMMITTED_GAS,
+        signer::local::LocalSigner,
+    };
     use std::{num::NonZero, str::FromStr, time::Duration};
 
     use alloy::{
@@ -805,12 +818,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let limits = LimitsOpts {
-            max_commitments_per_slot: NonZero::new(10).unwrap(),
-            max_committed_gas_per_slot: NonZero::new(5_000_000).unwrap(),
-            min_priority_fee: 200000000, // 0.2 gwei
-        };
-
+        let limits = LimitsOpts::default();
         let mut state = ExecutionState::new(client.clone(), limits).await?;
 
         let basefee = state.basefee();
@@ -845,9 +853,8 @@ mod tests {
         let client = StateClient::new(anvil.endpoint_url());
 
         let limits = LimitsOpts {
-            max_commitments_per_slot: NonZero::new(10).unwrap(),
             max_committed_gas_per_slot: NonZero::new(5_000_000).unwrap(),
-            min_priority_fee: 2000000000,
+            ..Default::default()
         };
         let mut state = ExecutionState::new(client.clone(), limits).await?;
 
@@ -875,11 +882,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let limits = LimitsOpts {
-            max_commitments_per_slot: NonZero::new(10).unwrap(),
-            max_committed_gas_per_slot: NonZero::new(5_000_000).unwrap(),
-            min_priority_fee: 2 * GWEI_TO_WEI as u128,
-        };
+        let limits = LimitsOpts { min_priority_fee: 2 * GWEI_TO_WEI as u128, ..Default::default() };
 
         let mut state = ExecutionState::new(client.clone(), limits).await?;
 
@@ -917,11 +920,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let limits = LimitsOpts {
-            max_commitments_per_slot: NonZero::new(10).unwrap(),
-            max_committed_gas_per_slot: NonZero::new(5_000_000).unwrap(),
-            min_priority_fee: 2 * GWEI_TO_WEI as u128,
-        };
+        let limits = LimitsOpts { min_priority_fee: 2 * GWEI_TO_WEI as u128, ..Default::default() };
 
         let mut state = ExecutionState::new(client.clone(), limits).await?;
 
@@ -964,11 +963,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let limits = LimitsOpts {
-            max_commitments_per_slot: NonZero::new(10).unwrap(),
-            max_committed_gas_per_slot: NonZero::new(5_000_000).unwrap(),
-            min_priority_fee: 2 * GWEI_TO_WEI as u128,
-        };
+        let limits = LimitsOpts { min_priority_fee: 2 * GWEI_TO_WEI as u128, ..Default::default() };
 
         let mut state = ExecutionState::new(client.clone(), limits).await?;
 
@@ -1101,11 +1096,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let limits: LimitsOpts = LimitsOpts {
-            max_commitments_per_slot: NonZero::new(10).unwrap(),
-            max_committed_gas_per_slot: NonZero::new(5_000_000).unwrap(),
-            min_priority_fee: 1000000000,
-        };
+        let limits = LimitsOpts { min_priority_fee: 1000000000, ..Default::default() };
         let mut state = ExecutionState::new(client.clone(), limits).await?;
 
         let sender = anvil.addresses().first().unwrap();
@@ -1115,7 +1106,8 @@ mod tests {
         let slot = client.get_head().await?;
         state.update_head(None, slot).await?;
 
-        let tx = default_test_transaction(*sender, None).with_gas_limit(4_999_999);
+        let tx = default_test_transaction(*sender, None)
+            .with_gas_limit(limits.max_committed_gas_per_slot.get() - 1);
 
         let target_slot = 10;
         let mut request = create_signed_inclusion_request(&[tx], sender_pk, target_slot).await?;
@@ -1139,7 +1131,7 @@ mod tests {
 
         assert!(matches!(
             state.validate_request(&mut request).await,
-            Err(ValidationError::MaxCommittedGasReachedForSlot(_, 5_000_000))
+            Err(ValidationError::MaxCommittedGasReachedForSlot(_, DEFAULT_MAX_COMMITTED_GAS))
         ));
 
         Ok(())

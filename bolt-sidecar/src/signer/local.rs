@@ -111,7 +111,7 @@ impl LocalSigner {
 impl LocalSigner {
     /// Create a signer with a random BLS key configured for Mainnet for testing.
     pub fn random() -> Self {
-        use crate::common::BlsSecretKeyWrapper;
+        use crate::common::secrets::BlsSecretKeyWrapper;
 
         Self { key: BlsSecretKeyWrapper::random().0, chain: ChainConfig::mainnet() }
     }

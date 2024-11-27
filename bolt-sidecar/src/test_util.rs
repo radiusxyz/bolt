@@ -20,7 +20,7 @@ use secp256k1::Message;
 use tracing::warn;
 
 use crate::{
-    common::{BlsSecretKeyWrapper, EcdsaSecretKeyWrapper, JwtSecretConfig},
+    common::secrets::{BlsSecretKeyWrapper, EcdsaSecretKeyWrapper, JwtSecretConfig},
     config::{ChainConfig, Opts},
     crypto::{ecdsa::SignableECDSA, SignableBLS},
     primitives::{

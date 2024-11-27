@@ -23,7 +23,7 @@ use crate::{
     builder::payload_fetcher::LocalPayloadFetcher,
     chain_io::BoltManager,
     client::ConstraintsClient,
-    common::retry_with_backoff,
+    common::backoff::retry_with_backoff,
     config::Opts,
     crypto::{SignableBLS, SignerECDSA},
     primitives::{

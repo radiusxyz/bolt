@@ -9,7 +9,7 @@ use reth_primitives::TransactionSigned;
 use tracing::warn;
 
 use crate::{
-    common::max_transaction_cost,
+    common::transactions::max_transaction_cost,
     primitives::{AccountState, FullTransaction, SignedConstraints, TransactionExt},
 };
 

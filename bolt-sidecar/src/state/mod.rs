@@ -23,6 +23,10 @@ pub use consensus::ConsensusState;
 pub mod head_tracker;
 pub use head_tracker::HeadTracker;
 
+/// Module that defines the account state cache.
+pub mod account_state;
+pub use account_state::AccountStateCache;
+
 /// The deadline for a which a commitment is considered valid.
 #[derive(Debug)]
 pub struct CommitmentDeadline {

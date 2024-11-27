@@ -7,7 +7,7 @@ use ethereum_consensus::{
 };
 
 use crate::{
-    common::BlsSecretKeyWrapper,
+    common::secrets::BlsSecretKeyWrapper,
     config::{ChainConfig, Opts},
     primitives::{
         BuilderBid, GetPayloadResponse, PayloadAndBid, PayloadAndBlobs, SignedBuilderBid,
