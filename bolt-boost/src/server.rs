@@ -203,7 +203,7 @@ async fn get_header_with_proofs(
 
     let relays = state.relays();
     let mut handles = Vec::with_capacity(relays.len());
-    for relay in relays.iter() {
+    for relay in relays {
         handles.push(send_timed_get_header(
             params,
             relay.clone(),
@@ -361,15 +361,14 @@ async fn send_timed_get_header(
             {
                 debug!(n_headers, "TG: received headers from relay");
                 return Ok(maybe_header);
-            } else {
-                // all requests failed
-                warn!("TG: no headers received");
-
-                return Err(PbsError::RelayResponse {
-                    error_msg: "no headers received".to_string(),
-                    code: TIMEOUT_ERROR_CODE,
-                });
             }
+            // all requests failed
+            warn!("TG: no headers received");
+
+            return Err(PbsError::RelayResponse {
+                error_msg: "no headers received".to_string(),
+                code: TIMEOUT_ERROR_CODE,
+            });
         }
     }
 
@@ -543,12 +542,12 @@ where
             Ok(response) => {
                 let url = response.url().clone();
                 let status = response.status();
-                if status != StatusCode::OK {
-                    let body = response.text().await.ok();
-                    error!(%status, %url, "Failed to POST to relay: {body:?}");
-                } else {
+                if status == StatusCode::OK {
                     debug!(%url, "Successfully sent POST request to relay");
                     success = true;
+                } else {
+                    let body = response.text().await.ok();
+                    error!(%status, %url, "Failed to POST to relay: {body:?}");
                 }
             }
             Err(e) => error!(error = ?e, "Failed to POST to relay"),
