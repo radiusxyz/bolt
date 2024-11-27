@@ -61,14 +61,8 @@ jobs:
         run: |
           cargo install cross --force
 
-      #   - name: Install Protoc
-      #     uses: arduino/setup-protoc@v3
-
-      - name: Cache cargo registry
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}
-          cache-on-failure: true
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
 
       #   - name: Apple M1 setup
       #     if: matrix.target == 'aarch64-apple-darwin'
@@ -91,6 +85,10 @@ jobs:
         shell: bash
         run: |
           set -eo pipefail
+
+          # Install the toolchain if it's not already installed
+          rustup target add $TARGET || true
+
           flags=(--target $TARGET --profile $PROFILE)
 
           [[ "$TARGET" == *windows* ]] && ext=".exe"
