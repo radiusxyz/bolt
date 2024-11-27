@@ -41,10 +41,10 @@ jobs:
           cache-on-failure: true
 
       - name: Build
-        run: cargo build
+        run: cd bolt-cli && cargo build
 
       - name: Lint Code with Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cd bolt-cli && cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Install cargo-nextest
         uses: baptiste0928/cargo-install@v3
