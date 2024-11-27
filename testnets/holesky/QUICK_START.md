@@ -12,8 +12,6 @@
 
 You will need the following dependencies on your machine:
 
-- [Install Rust](https://www.rust-lang.org/tools/install)
-- [Install Protoc](https://grpc.io/docs/protoc-installation/)
 - [Install Docker](https://docs.docker.com/get-docker/)
 
 Additionally, you will need:
@@ -30,7 +28,30 @@ git clone https://github.com/chainbound/bolt && cd bolt
 
 ## 2. Install the bolt CLI
 
-You can install the CLI directly from source:
+To install the bolt CLI, you can either use our pre-built binaries or build it from source.
+
+### Using pre-built binaries
+
+```bash
+# download the bolt-cli installer
+curl -L https://raw.githubusercontent.com/chainbound/bolt/unstable/boltup/install.sh | bash
+
+# start a new shell to use the boltup installer
+exec $SHELL
+
+# install the bolt-cli binary for holesky
+boltup --tag v0.3.0-alpha
+
+# check for successful installation
+bolt --help
+```
+
+### Building from source
+
+You will need the following dependencies to build the bolt CLI yourself:
+
+- [Install Rust](https://www.rust-lang.org/tools/install)
+- [Install Protoc](https://grpc.io/docs/protoc-installation/)
 
 ```bash
 cd bolt-cli
@@ -39,11 +60,6 @@ cargo install --force --path .
 # check for successful installation
 bolt --help
 ```
-
-Alternatively, you can download one of the pre-built binaries from the
-[releases page](https://github.com/chainbound/bolt/releases/tag/v0.3.0-alpha) (under "Assets").
-Make sure to download the correct binary for your system (e.g. `bolt-cli-aarch64-apple-darwin`
-on MacBook with Apple Silicon chips).
 
 ## 3. Obtain a list of your validator public keys
 
