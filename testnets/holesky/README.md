@@ -882,6 +882,39 @@ and outputs a JSON file with the delegation/revocation messages to the provided
 
 #### Installation and usage
 
+To install the bolt CLI, you can either use our pre-built binaries or build it from source.
+
+**Using pre-built binaries**
+
+```bash
+# download the bolt-cli installer
+curl -L https://raw.githubusercontent.com/chainbound/bolt/unstable/boltup/install.sh | bash
+
+# start a new shell to use the boltup installer
+exec $SHELL
+
+# install the bolt-cli binary for holesky
+boltup --tag v0.3.0-alpha
+
+# check for successful installation
+bolt --help
+```
+
+**Building from source**
+
+You will need the following dependencies to build the bolt CLI yourself:
+
+- [Install Rust](https://www.rust-lang.org/tools/install)
+- [Install Protoc](https://grpc.io/docs/protoc-installation/)
+
+```bash
+cd bolt-cli
+cargo install --force --path .
+
+# check for successful installation
+bolt --help
+```
+
 Prerequisites:
 
 - [Rust toolchain](https://www.rust-lang.org/tools/install)
