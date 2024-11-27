@@ -40,11 +40,11 @@ impl Cmd {
     /// Run the command.
     pub async fn run(self) -> eyre::Result<()> {
         match self {
-            Cmd::Delegate(cmd) => cmd.run().await,
-            Cmd::Pubkeys(cmd) => cmd.run().await,
-            Cmd::Send(cmd) => cmd.run().await,
-            Cmd::Validators(cmd) => cmd.run().await,
-            Cmd::Operators(cmd) => cmd.run().await,
+            Self::Delegate(cmd) => cmd.run().await,
+            Self::Pubkeys(cmd) => cmd.run().await,
+            Self::Send(cmd) => cmd.run().await,
+            Self::Validators(cmd) => cmd.run().await,
+            Self::Operators(cmd) => cmd.run().await,
         }
     }
 }
@@ -406,10 +406,10 @@ impl Chain {
     /// Get the fork version for the given chain.
     pub fn fork_version(&self) -> [u8; 4] {
         match self {
-            Chain::Mainnet => [0, 0, 0, 0],
-            Chain::Holesky => [1, 1, 112, 0],
-            Chain::Helder => [16, 0, 0, 0],
-            Chain::Kurtosis => [16, 0, 0, 56],
+            Self::Mainnet => [0, 0, 0, 0],
+            Self::Holesky => [1, 1, 112, 0],
+            Self::Helder => [16, 0, 0, 0],
+            Self::Kurtosis => [16, 0, 0, 56],
         }
     }
 

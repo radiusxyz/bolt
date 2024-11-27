@@ -39,9 +39,9 @@ impl KeystoreSecret {
     /// Create a new [`KeystoreSecret`] from the provided [`LocalKeystoreOpts`].
     pub fn from_keystore_options(opts: &LocalKeystoreOpts) -> Result<Self> {
         if let Some(password_path) = &opts.password_path {
-            Ok(KeystoreSecret::from_directory(password_path)?)
+            Ok(Self::from_directory(password_path)?)
         } else if let Some(password) = &opts.password {
-            Ok(KeystoreSecret::from_unique_password(password.clone()))
+            Ok(Self::from_unique_password(password.clone()))
         } else {
             // This case is prevented upstream by clap's validation.
             bail!("Either `password_path` or `password` must be provided")
@@ -61,19 +61,19 @@ impl KeystoreSecret {
             let secret = fs::read_to_string(&path).wrap_err("Failed to read secret file")?;
             secrets.insert(filename.trim_start_matches("0x").to_string(), secret);
         }
-        Ok(KeystoreSecret::Directory(secrets))
+        Ok(Self::Directory(secrets))
     }
 
     /// Set a unique password for all validators in the keystore.
     pub fn from_unique_password(password: String) -> Self {
-        KeystoreSecret::Unique(password)
+        Self::Unique(password)
     }
 
     /// Get the password for the given validator public key.
     pub fn get(&self, validator_pubkey: &str) -> Option<&str> {
         match self {
-            KeystoreSecret::Unique(password) => Some(password.as_str()),
-            KeystoreSecret::Directory(secrets) => secrets.get(validator_pubkey).map(|s| s.as_str()),
+            Self::Unique(password) => Some(password.as_str()),
+            Self::Directory(secrets) => secrets.get(validator_pubkey).map(|s| s.as_str()),
         }
     }
 }
@@ -83,13 +83,13 @@ impl KeystoreSecret {
 impl Drop for KeystoreSecret {
     fn drop(&mut self) {
         match self {
-            KeystoreSecret::Unique(password) => {
+            Self::Unique(password) => {
                 let bytes = unsafe { password.as_bytes_mut() };
                 for b in bytes.iter_mut() {
                     *b = 0;
                 }
             }
-            KeystoreSecret::Directory(secrets) => {
+            Self::Directory(secrets) => {
                 for secret in secrets.values_mut() {
                     let bytes = unsafe { secret.as_bytes_mut() };
                     for b in bytes.iter_mut() {

@@ -45,3 +45,12 @@ alloy-node-bindings = "0.6.3"
 
 [build-dependencies]
 tonic-build = "0.12.3"
+
+[lints.clippy]
+explicit_iter_loop = "warn"
+if_not_else = "warn"
+manual_let_else = "warn"
+match_bool = "warn"
+redundant_else = "warn"
+unnecessary_self_imports = "warn"
+use_self = "warn"
