@@ -109,10 +109,9 @@ impl TryFrom<ConstraintsMessage> for ConstraintsWithProofData {
 /// Calculate the SSZ hash tree root of a transaction, starting from its enveloped form.
 /// For type 3 transactions, the hash tree root of the inner transaction is taken (without blobs).
 fn calculate_tx_proof_data(raw_tx: &Bytes) -> Result<(TxHash, HashTreeRoot), Eip2718Error> {
-    let is_type_3 = raw_tx
-        .first()
-        .ok_or(Eip2718Error::RlpError(alloy_rlp::Error::Custom("empty RLP bytes")))?
-        == &0x03;
+    let Some(is_type_3) = raw_tx.first().map(|type_id| type_id == &0x03) else {
+        return Err(Eip2718Error::RlpError(alloy_rlp::Error::Custom("empty RLP bytes")));
+    };
 
     // For blob transactions (type 3), we need to make sure to strip out the blob sidecar when
     // calculating both the transaction hash and the hash tree root
