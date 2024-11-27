@@ -14,6 +14,9 @@ main() {
   need_cmd git
   need_cmd curl
 
+  # Loop as long as $1 (the first positional argument) is not empty, and match its 
+  # value against existing flags. If a flag is found, the argument is discarded 
+  # (via shift) and the value for the flag is read.
   while [[ -n $1 ]]; do
     case $1 in
       --)               shift; break;;
