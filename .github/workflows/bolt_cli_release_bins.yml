@@ -52,10 +52,6 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
 
-      - name: Move to bolt-cli directory
-        run: |
-          cd bolt-cli
-
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -99,7 +95,7 @@ jobs:
 
           [[ "$TARGET" == *windows* ]] && ext=".exe"
 
-          cross build "${flags[@]}"
+          (cd bolt-cli && cross build "${flags[@]}")
 
           bin=$OUT_DIR/bolt$ext
           echo ""
