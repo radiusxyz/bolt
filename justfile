@@ -2,6 +2,14 @@
 default:
   @just --list --unsorted
 
+lint:
+	@just clippy bolt-cli
+	@just clippy bolt-boost
+	@just clippy bolt-sidecar
+
+clippy package:
+	cd {{ package }} && cargo clippy --all-targets --all-features -- -D warnings
+
 # spin up the bolt devnet
 up:
 	chmod +x ./scripts/start-devnet.sh
