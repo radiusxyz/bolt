@@ -1,5 +1,3 @@
-//! Utilities for retrying a future with backoff.
-
 use std::{future::Future, time::Duration};
 
 use tokio_retry::{

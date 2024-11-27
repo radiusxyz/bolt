@@ -1,5 +1,3 @@
-//! A hash map-like data structure with an additional scoring mechanism.
-
 use std::{
     borrow::Borrow,
     collections::HashMap,

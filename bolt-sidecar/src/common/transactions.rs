@@ -1,5 +1,3 @@
-//! This module contains utility functions for working with transactions.
-
 use alloy::primitives::U256;
 use reth_primitives::PooledTransactionsElement;
 

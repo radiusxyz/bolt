@@ -39,9 +39,10 @@ pub struct LimitsOpts {
         default_value_t = LimitsOpts::default().min_priority_fee
     )]
     pub min_priority_fee: u128,
-    /// The maximum size in MiB of the [crate::state::ExecutionState] LRU cache that holds account
-    /// states. Each [crate::primitives::AccountState] is 48 bytes, and its key is 20 bytes, so the
-    /// default value of 1024 KiB = 1 MiB can hold around 15k account states.
+    /// The maximum size in MiB of the [crate::state::ExecutionState] ScoreCache that holds account
+    /// states. Each [crate::primitives::AccountState] is 48 bytes, its score is [usize] bytes, and
+    /// its key is 20 bytes, so the default value of 1024 KiB = 1 MiB can hold around 15k account
+    /// states.
     #[clap(
         long,
         env = "BOLT_SIDECAR_MAX_ACCOUNT_STATES_SIZE",

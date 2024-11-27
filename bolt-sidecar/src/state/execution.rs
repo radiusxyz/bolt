@@ -145,13 +145,6 @@ pub struct ExecutionState<C> {
     /// The cached account states. This should never be read directly.
     /// These only contain the canonical account states at the head block,
     /// not the intermediate states.
-    ///
-    /// The value of the map is a tuple containing the account state and a score.
-    /// The score is needed to determine which accounts to evict when the cache is full with a
-    /// custom logic.
-    /// When a commitment request is made from an account its score is bumped of
-    /// [ACCOUNT_STATE_SCORE_BUMP], and when it updated it is decreased by
-    /// [ACCOUNT_STATE_UPDATE_PENALTY].
     account_states: AccountStateCache,
     /// The block templates by target SLOT NUMBER.
     /// We have multiple block templates because in rare cases we might have multiple
