@@ -20,7 +20,7 @@ use crate::{
     telemetry::ApiMetrics,
 };
 
-use super::fetcher::StateFetcher;
+use super::{account_state::AccountStateCache, fetcher::StateFetcher};
 
 /// Possible commitment validation errors.
 ///
@@ -122,11 +122,6 @@ impl ValidationError {
     }
 }
 
-const GET_SCORE: isize = 4;
-const INSERT_SCORE: isize = 4;
-const UPDATE_SCORE: isize = -1;
-type AccountStatesCache = ScoreCache<GET_SCORE, INSERT_SCORE, UPDATE_SCORE, Address, AccountState>;
-
 /// The minimal state of the execution layer at some block number (`head`).
 /// This is the state that is needed to simulate commitments.
 /// It contains per-address nonces and balances, as well as the minimum basefee.
@@ -157,7 +152,7 @@ pub struct ExecutionState<C> {
     /// When a commitment request is made from an account its score is bumped of
     /// [ACCOUNT_STATE_SCORE_BUMP], and when it updated it is decreased by
     /// [ACCOUNT_STATE_UPDATE_PENALTY].
-    account_states: AccountStatesCache,
+    account_states: AccountStateCache,
     /// The block templates by target SLOT NUMBER.
     /// We have multiple block templates because in rare cases we might have multiple
     /// proposal duties for a single lookahead.
@@ -222,7 +217,7 @@ impl<C: StateFetcher> ExecutionState<C> {
             limits,
             client,
             slot: 0,
-            account_states: AccountStatesCache::with_max_len(num_accounts),
+            account_states: AccountStateCache(ScoreCache::with_max_len(num_accounts)),
             block_templates: HashMap::new(),
             // Load the default KZG settings
             kzg_settings: EnvKzgSettings::default(),

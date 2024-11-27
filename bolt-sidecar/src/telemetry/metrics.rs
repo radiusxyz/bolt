@@ -28,6 +28,8 @@ const GROSS_TIP_REVENUE: &str = "bolt_sidecar_gross_tip_revenue";
 //  Gauges ------------------------------------------------------------------
 /// Gauge for the latest slot number
 const LATEST_HEAD: &str = "bolt_sidecar_latest_head";
+/// Number of account states saved in cache.
+const ACCOUNT_STATES: &str = "bolt_sidecar_account_states";
 
 //  Histograms --------------------------------------------------------------
 /// Histogram for the total duration of HTTP requests in seconds.
@@ -52,6 +54,7 @@ impl ApiMetrics {
 
         // Gauges
         describe_gauge!(LATEST_HEAD, "Latest slot number");
+        describe_gauge!(ACCOUNT_STATES, "Number of account states saved in cache");
 
         // Histograms
         describe_histogram!(
@@ -117,6 +120,10 @@ impl ApiMetrics {
 
     pub fn set_latest_head(slot: u32) {
         gauge!(LATEST_HEAD).set(slot);
+    }
+
+    pub fn set_account_states(count: usize) {
+        gauge!(ACCOUNT_STATES).set(count as f64);
     }
 
     /// Mixed ----------------------------------------------------------------
