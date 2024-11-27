@@ -148,6 +148,7 @@ where
     /// A wrapper over [std::collections::HashMap::get_mut] that bumps the score of the key.
     ///
     /// Requires mutable access to the cache to update the score.
+    #[inline]
     pub fn get<Q>(&mut self, k: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
@@ -162,6 +163,7 @@ where
     /// A wrapper over [std::collections::HashMap::get_mut] that bumps the score of the key.
     ///
     /// Requires mutable access to the cache to update the score.
+    #[inline]
     pub fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
     where
         K: Borrow<Q>,
@@ -177,6 +179,7 @@ where
     ///
     /// Adds a new key-value pair to the cache with the provided `INSERT_SCORE`, by first trying to
     /// clear any stale element from the cache if necessary.
+    #[inline]
     pub fn insert(&mut self, k: K, v: V) -> Option<V> {
         self.clear_stales();
         self.map.insert(k, (v, INSERT_SCORE)).map(|(v, _)| v)
