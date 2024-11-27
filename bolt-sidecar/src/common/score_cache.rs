@@ -102,6 +102,7 @@ impl<const GET_SCORE: isize, const INSERT_SCORE: isize, const UPDATE_SCORE: isiz
         Self { map: HashMap::<K, (V, isize)>::with_capacity(capacity), max_len: usize::MAX }
     }
 
+    /// Creates an empty `HashMap` with at least the specified capacity and maximum length.
     #[inline]
     pub fn with_capacity_and_len(capacity: usize, max_len: usize) -> Self {
         Self { map: HashMap::<K, (V, isize)>::with_capacity(capacity), max_len }

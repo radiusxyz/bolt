@@ -11,10 +11,13 @@ use alloy::{hex, signers::k256::ecdsa::SigningKey};
 use blst::min_pk::SecretKey;
 use rand::{Rng, RngCore};
 use serde::{Deserialize, Deserializer};
+
+/// A warpper for BLS secret key.
 #[derive(Clone, Debug)]
 pub struct BlsSecretKeyWrapper(pub SecretKey);
 
 impl BlsSecretKeyWrapper {
+    /// Generate a new random BLS secret key.
     pub fn random() -> Self {
         let mut rng = rand::thread_rng();
         let mut ikm = [0u8; 32];
@@ -54,12 +57,12 @@ impl fmt::Display for BlsSecretKeyWrapper {
     }
 }
 
+/// A warpper for ECDSA secret key.
 #[derive(Clone, Debug)]
 pub struct EcdsaSecretKeyWrapper(pub SigningKey);
 
 impl EcdsaSecretKeyWrapper {
     /// Generate a new random ECDSA secret key.
-    #[allow(dead_code)]
     pub fn random() -> Self {
         Self(SigningKey::random(&mut rand::thread_rng()))
     }
@@ -98,6 +101,7 @@ impl Deref for EcdsaSecretKeyWrapper {
     }
 }
 
+/// A warpper for JWT secret key.
 #[derive(Debug, Clone)]
 pub struct JwtSecretConfig(pub String);
 
