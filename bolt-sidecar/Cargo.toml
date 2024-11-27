@@ -88,6 +88,7 @@ ignored = ["ethereum_ssz"]
 
 [[bench]]
 name = "score_cache"
+path = "benches/score_cache.rs"
 harness = false
 
 
