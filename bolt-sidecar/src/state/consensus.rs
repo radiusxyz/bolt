@@ -94,7 +94,7 @@ impl ConsensusState {
         commitment_deadline_duration: Duration,
         unsafe_lookahead_enabled: bool,
     ) -> Self {
-        ConsensusState {
+        Self {
             beacon_api_client,
             epoch: Epoch::default(),
             latest_slot: Default::default(),

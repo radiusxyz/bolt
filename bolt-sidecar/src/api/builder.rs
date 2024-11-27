@@ -69,7 +69,7 @@ where
     }
 
     /// Gets the status. Just forwards the request to constraints client and returns the status.
-    pub async fn status(State(server): State<Arc<BuilderProxyServer<T, P>>>) -> StatusCode {
+    pub async fn status(State(server): State<Arc<Self>>) -> StatusCode {
         let start = std::time::Instant::now();
         debug!("Received status request");
 
@@ -92,7 +92,7 @@ where
     ///
     /// TODO: intercept this to register Bolt validators on-chain as well.
     pub async fn register_validators(
-        State(server): State<Arc<BuilderProxyServer<T, P>>>,
+        State(server): State<Arc<Self>>,
         Json(registrations): Json<Vec<SignedValidatorRegistration>>,
     ) -> Result<StatusCode, BuilderApiError> {
         debug!("Received register validators request");
@@ -106,7 +106,7 @@ where
     /// In case of a builder or relay failure, we return the locally built block header
     /// and store the actual payload so we can return it later.
     pub async fn get_header(
-        State(server): State<Arc<BuilderProxyServer<T, P>>>,
+        State(server): State<Arc<Self>>,
         Path(params): Path<GetHeaderParams>,
     ) -> Result<Json<VersionedValue<SignedBuilderBid>>, BuilderApiError> {
         let start = std::time::Instant::now();
@@ -171,7 +171,7 @@ where
     /// Gets the payload. If we have a locally built payload, we return it.
     /// Otherwise, we forward the request to the constraints client.
     pub async fn get_payload(
-        State(server): State<Arc<BuilderProxyServer<T, P>>>,
+        State(server): State<Arc<Self>>,
         req: Request<Body>,
     ) -> Result<Json<GetPayloadResponse>, BuilderApiError> {
         let start = std::time::Instant::now();

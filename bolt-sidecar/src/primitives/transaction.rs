@@ -40,40 +40,40 @@ pub trait TransactionExt {
 impl TransactionExt for PooledTransactionsElement {
     fn gas_limit(&self) -> u64 {
         match self {
-            PooledTransactionsElement::Legacy { transaction, .. } => transaction.gas_limit,
-            PooledTransactionsElement::Eip2930 { transaction, .. } => transaction.gas_limit,
-            PooledTransactionsElement::Eip1559 { transaction, .. } => transaction.gas_limit,
-            PooledTransactionsElement::BlobTransaction(blob_tx) => blob_tx.transaction.tx.gas_limit,
+            Self::Legacy { transaction, .. } => transaction.gas_limit,
+            Self::Eip2930 { transaction, .. } => transaction.gas_limit,
+            Self::Eip1559 { transaction, .. } => transaction.gas_limit,
+            Self::BlobTransaction(blob_tx) => blob_tx.transaction.tx.gas_limit,
             _ => unimplemented!(),
         }
     }
 
     fn value(&self) -> U256 {
         match self {
-            PooledTransactionsElement::Legacy { transaction, .. } => transaction.value,
-            PooledTransactionsElement::Eip2930 { transaction, .. } => transaction.value,
-            PooledTransactionsElement::Eip1559 { transaction, .. } => transaction.value,
-            PooledTransactionsElement::BlobTransaction(blob_tx) => blob_tx.transaction.tx.value,
+            Self::Legacy { transaction, .. } => transaction.value,
+            Self::Eip2930 { transaction, .. } => transaction.value,
+            Self::Eip1559 { transaction, .. } => transaction.value,
+            Self::BlobTransaction(blob_tx) => blob_tx.transaction.tx.value,
             _ => unimplemented!(),
         }
     }
 
     fn tx_type(&self) -> TxType {
         match self {
-            PooledTransactionsElement::Legacy { .. } => TxType::Legacy,
-            PooledTransactionsElement::Eip2930 { .. } => TxType::Eip2930,
-            PooledTransactionsElement::Eip1559 { .. } => TxType::Eip1559,
-            PooledTransactionsElement::BlobTransaction(_) => TxType::Eip4844,
+            Self::Legacy { .. } => TxType::Legacy,
+            Self::Eip2930 { .. } => TxType::Eip2930,
+            Self::Eip1559 { .. } => TxType::Eip1559,
+            Self::BlobTransaction(_) => TxType::Eip4844,
             _ => unimplemented!(),
         }
     }
 
     fn tx_kind(&self) -> TxKind {
         match self {
-            PooledTransactionsElement::Legacy { transaction, .. } => transaction.to,
-            PooledTransactionsElement::Eip2930 { transaction, .. } => transaction.to,
-            PooledTransactionsElement::Eip1559 { transaction, .. } => transaction.to,
-            PooledTransactionsElement::BlobTransaction(blob_tx) => {
+            Self::Legacy { transaction, .. } => transaction.to,
+            Self::Eip2930 { transaction, .. } => transaction.to,
+            Self::Eip1559 { transaction, .. } => transaction.to,
+            Self::BlobTransaction(blob_tx) => {
                 TxKind::Call(blob_tx.transaction.tx.to)
             }
             _ => unimplemented!(),
@@ -82,20 +82,20 @@ impl TransactionExt for PooledTransactionsElement {
 
     fn input(&self) -> &Bytes {
         match self {
-            PooledTransactionsElement::Legacy { transaction, .. } => &transaction.input,
-            PooledTransactionsElement::Eip2930 { transaction, .. } => &transaction.input,
-            PooledTransactionsElement::Eip1559 { transaction, .. } => &transaction.input,
-            PooledTransactionsElement::BlobTransaction(blob_tx) => &blob_tx.transaction.tx.input,
+            Self::Legacy { transaction, .. } => &transaction.input,
+            Self::Eip2930 { transaction, .. } => &transaction.input,
+            Self::Eip1559 { transaction, .. } => &transaction.input,
+            Self::BlobTransaction(blob_tx) => &blob_tx.transaction.tx.input,
             _ => unimplemented!(),
         }
     }
 
     fn chain_id(&self) -> Option<u64> {
         match self {
-            PooledTransactionsElement::Legacy { transaction, .. } => transaction.chain_id,
-            PooledTransactionsElement::Eip2930 { transaction, .. } => Some(transaction.chain_id),
-            PooledTransactionsElement::Eip1559 { transaction, .. } => Some(transaction.chain_id),
-            PooledTransactionsElement::BlobTransaction(blob_tx) => {
+            Self::Legacy { transaction, .. } => transaction.chain_id,
+            Self::Eip2930 { transaction, .. } => Some(transaction.chain_id),
+            Self::Eip1559 { transaction, .. } => Some(transaction.chain_id),
+            Self::BlobTransaction(blob_tx) => {
                 Some(blob_tx.transaction.tx.chain_id)
             }
             _ => unimplemented!(),
@@ -104,7 +104,7 @@ impl TransactionExt for PooledTransactionsElement {
 
     fn blob_sidecar(&self) -> Option<&BlobTransactionSidecar> {
         match self {
-            PooledTransactionsElement::BlobTransaction(blob_tx) => {
+            Self::BlobTransaction(blob_tx) => {
                 Some(&blob_tx.transaction.sidecar)
             }
             _ => None,
@@ -113,10 +113,10 @@ impl TransactionExt for PooledTransactionsElement {
 
     fn size(&self) -> usize {
         match self {
-            PooledTransactionsElement::Legacy { transaction, .. } => transaction.size(),
-            PooledTransactionsElement::Eip2930 { transaction, .. } => transaction.size(),
-            PooledTransactionsElement::Eip1559 { transaction, .. } => transaction.size(),
-            PooledTransactionsElement::BlobTransaction(blob_tx) => blob_tx.transaction.tx.size(),
+            Self::Legacy { transaction, .. } => transaction.size(),
+            Self::Eip2930 { transaction, .. } => transaction.size(),
+            Self::Eip1559 { transaction, .. } => transaction.size(),
+            Self::BlobTransaction(blob_tx) => blob_tx.transaction.tx.size(),
             _ => unimplemented!(),
         }
     }

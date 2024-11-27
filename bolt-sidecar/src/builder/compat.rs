@@ -46,7 +46,7 @@ pub(crate) fn to_execution_payload_header(
         List::default();
 
     if let Some(withdrawals) = sealed_block.body.withdrawals.as_ref() {
-        for w in withdrawals.iter() {
+        for w in withdrawals {
             withdrawals_ssz.push(to_consensus_withdrawal(w));
         }
     }

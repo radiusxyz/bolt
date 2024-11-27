@@ -121,7 +121,7 @@ impl BlockTemplate {
 
     /// Adds a list of constraints to the block template and updates the state diff.
     pub fn add_constraints(&mut self, constraints: SignedConstraints) {
-        for constraint in constraints.message.transactions.iter() {
+        for constraint in &constraints.message.transactions {
             let max_cost = max_transaction_cost(constraint);
             self.state_diff
                 .diffs
@@ -140,7 +140,7 @@ impl BlockTemplate {
     fn remove_constraints_at_index(&mut self, index: usize) {
         let constraints = self.signed_constraints_list.remove(index);
 
-        for constraint in constraints.message.transactions.iter() {
+        for constraint in &constraints.message.transactions {
             self.state_diff
                 .diffs
                 .entry(*constraint.sender().expect("recovered sender"))

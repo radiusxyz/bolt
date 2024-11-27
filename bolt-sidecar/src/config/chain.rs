@@ -100,27 +100,27 @@ impl Chain {
     /// Get the chain name for the given chain.
     pub fn name(&self) -> &'static str {
         match self {
-            Chain::Mainnet => "mainnet",
-            Chain::Holesky => "holesky",
-            Chain::Helder => "helder",
-            Chain::Kurtosis => "kurtosis",
+            Self::Mainnet => "mainnet",
+            Self::Holesky => "holesky",
+            Self::Helder => "helder",
+            Self::Kurtosis => "kurtosis",
         }
     }
 
     /// Get the fork version for the given chain.
     pub fn fork_version(&self) -> [u8; 4] {
         match self {
-            Chain::Mainnet => [0, 0, 0, 0],
-            Chain::Holesky => [1, 1, 112, 0],
-            Chain::Helder => [16, 0, 0, 0],
-            Chain::Kurtosis => [16, 0, 0, 56],
+            Self::Mainnet => [0, 0, 0, 0],
+            Self::Holesky => [1, 1, 112, 0],
+            Self::Helder => [16, 0, 0, 0],
+            Self::Kurtosis => [16, 0, 0, 56],
         }
     }
 
     /// Returns the address of the canonical BoltManager contract for a given chain, if present
     pub const fn manager_address(&self) -> Option<Address> {
         match self {
-            Chain::Holesky => Some(MANAGER_ADDRESS_HOLESKY),
+            Self::Holesky => Some(MANAGER_ADDRESS_HOLESKY),
             _ => None,
         }
     }

@@ -329,9 +329,8 @@ impl EngineHinter {
             // payload response or an error message that we can't parse.
             if raw_hint.contains("\"status\":\"VALID\"") {
                 return Ok(EngineApiHint::ValidPayload);
-            } else {
-                return Err(BuilderError::InvalidEngineHint(raw_hint));
             }
+            return Err(BuilderError::InvalidEngineHint(raw_hint));
         };
 
         trace!("raw hint: {:?}", raw_hint);

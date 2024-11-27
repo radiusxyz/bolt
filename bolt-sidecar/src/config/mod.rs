@@ -118,7 +118,7 @@ impl Opts {
     pub fn try_parse() -> eyre::Result<Self> {
         read_env_file()?;
 
-        Ok(Opts::parse())
+        Ok(Self::parse())
     }
 }
 

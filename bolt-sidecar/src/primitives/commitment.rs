@@ -52,7 +52,7 @@ impl CommitmentRequest {
     /// Returns a reference to the inner request if this is an inclusion request, otherwise `None`.
     pub fn as_inclusion_request(&self) -> Option<&InclusionRequest> {
         match self {
-            CommitmentRequest::Inclusion(req) => Some(req),
+            Self::Inclusion(req) => Some(req),
         }
     }
 
@@ -62,7 +62,7 @@ impl CommitmentRequest {
         signer: &S,
     ) -> eyre::Result<SignedCommitment> {
         match self {
-            CommitmentRequest::Inclusion(req) => {
+            Self::Inclusion(req) => {
                 req.commit_and_sign(signer).await.map(SignedCommitment::Inclusion)
             }
         }
@@ -71,7 +71,7 @@ impl CommitmentRequest {
     /// Returns the signature (if signed).
     pub fn signature(&self) -> Option<&Signature> {
         match self {
-            CommitmentRequest::Inclusion(req) => req.signature.as_ref(),
+            Self::Inclusion(req) => req.signature.as_ref(),
         }
     }
 }
@@ -245,7 +245,7 @@ impl InclusionRequest {
 
 impl From<InclusionRequest> for CommitmentRequest {
     fn from(req: InclusionRequest) -> Self {
-        CommitmentRequest::Inclusion(req)
+        Self::Inclusion(req)
     }
 }
 

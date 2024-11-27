@@ -64,18 +64,10 @@ impl ConstraintsClient {
         if delegatees.is_empty() {
             if available_pubkeys.contains(&validator_pubkey) {
                 return Some(validator_pubkey);
-            } else {
-                return None;
             }
-        } else {
-            for delegatee in delegatees {
-                if available_pubkeys.contains(&delegatee) {
-                    return Some(delegatee);
-                }
-            }
+            return None;
         }
-
-        None
+        delegatees.into_iter().find(|delegatee| available_pubkeys.contains(delegatee))
     }
 
     /// Finds all delegations for the given validator public key.
@@ -137,20 +129,19 @@ impl BuilderApi for ConstraintsClient {
         // registrations to the relay
         if self.delegations.is_empty() {
             return Ok(());
-        } else {
-            let validator_pubkeys =
-                registrations.iter().map(|r| &r.message.public_key).collect::<HashSet<_>>();
+        }
+        let validator_pubkeys =
+            registrations.iter().map(|r| &r.message.public_key).collect::<HashSet<_>>();
 
-            let filtered_delegations = self
-                .delegations
-                .iter()
-                .filter(|d| validator_pubkeys.contains(&d.message.validator_pubkey))
-                .cloned()
-                .collect::<Vec<_>>();
+        let filtered_delegations = self
+            .delegations
+            .iter()
+            .filter(|d| validator_pubkeys.contains(&d.message.validator_pubkey))
+            .cloned()
+            .collect::<Vec<_>>();
 
-            if let Err(err) = self.delegate(&filtered_delegations).await {
-                error!(?err, "Failed to propagate delegations during validator registration");
-            }
+        if let Err(err) = self.delegate(&filtered_delegations).await {
+            error!(?err, "Failed to propagate delegations during validator registration");
         }
 
         Ok(())

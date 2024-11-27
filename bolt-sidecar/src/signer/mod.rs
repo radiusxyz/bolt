@@ -44,9 +44,9 @@ impl SignerBLS {
     /// Returns all the public keys available for signing.
     pub fn available_pubkeys(&self) -> HashSet<BlsPublicKey> {
         match self {
-            SignerBLS::Local(signer) => [signer.pubkey()].into(),
-            SignerBLS::CommitBoost(signer) => [signer.pubkey()].into(),
-            SignerBLS::Keystore(signer) => signer.pubkeys(),
+            Self::Local(signer) => [signer.pubkey()].into(),
+            Self::CommitBoost(signer) => [signer.pubkey()].into(),
+            Self::Keystore(signer) => signer.pubkeys(),
         }
     }
 }
