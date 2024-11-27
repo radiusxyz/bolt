@@ -145,12 +145,12 @@ impl FallbackPayloadBuilder {
             latest_block.header.gas_limit,
             latest_block.header.base_fee_per_gas.unwrap_or_default(),
             BaseFeeParams::ethereum(),
-        ) as u64;
+        );
 
         let excess_blob_gas = calc_excess_blob_gas(
             latest_block.header.excess_blob_gas.unwrap_or_default(),
             latest_block.header.blob_gas_used.unwrap_or_default(),
-        ) as u64;
+        );
 
         let blob_gas_used =
             transactions.iter().fold(0, |acc, tx| acc + tx.blob_gas_used().unwrap_or_default());
