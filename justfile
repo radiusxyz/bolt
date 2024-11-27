@@ -2,11 +2,13 @@
 default:
   @just --list --unsorted
 
+# lint all packages
 lint:
 	@just clippy bolt-cli
 	@just clippy bolt-boost
 	@just clippy bolt-sidecar
 
+# lint a package by name
 clippy package:
 	cd {{ package }} && cargo clippy --all-targets --all-features -- -D warnings
 
