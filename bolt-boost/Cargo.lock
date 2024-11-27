@@ -1069,7 +1069,7 @@ dependencies = [
  "cb-pbs",
  "ethereum_ssz 0.5.4",
  "ethereum_ssz 0.8.0",
- "ethereum_ssz_derive 0.7.1",
+ "ethereum_ssz_derive 0.8.0",
  "eyre",
  "futures",
  "lazy_static",
@@ -1837,6 +1837,18 @@ name = "ethereum_ssz_derive"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3deae99c8e74829a00ba7a92d49055732b3c1f093f2ccfa3cbc621679b6fa91"
+dependencies = [
+ "darling 0.20.10",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.79",
+]
+
+[[package]]
+name = "ethereum_ssz_derive"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d37845ba7c16bf4be8be4b5786f03a2ba5f2fda0d7f9e7cb2282f69cff420d7"
 dependencies = [
  "darling 0.20.10",
  "proc-macro2",
