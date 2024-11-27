@@ -106,8 +106,9 @@ impl TryFrom<ConstraintsMessage> for ConstraintsWithProofData {
     }
 }
 
-/// Calculate the SSZ hash tree root of a transaction, starting from its enveloped form.
-/// For type 3 transactions, the hash tree root of the inner transaction is taken (without blobs).
+/// Takes a raw EIP-2718 RLP-encoded transaction and calculates its proof data, consisting of its
+/// hash and the hash tree root of the transaction. For type 3 transactions, the hash tree root of
+/// the inner transaction is computed without blob sidecar.
 fn calculate_tx_proof_data(raw_tx: &Bytes) -> Result<(TxHash, HashTreeRoot), Eip2718Error> {
     let Some(is_type_3) = raw_tx.first().map(|type_id| type_id == &0x03) else {
         return Err(Eip2718Error::RlpError(alloy_rlp::Error::Custom("empty RLP bytes")));
@@ -127,12 +128,12 @@ fn calculate_tx_proof_data(raw_tx: &Bytes) -> Result<(TxHash, HashTreeRoot), Eip
     let (tx, signature, tx_hash) = signed_tx.into_parts();
     match tx {
         TxEip4844Variant::TxEip4844(_) => {
-            // We have the type 3 variant without sidecar, we can safely hash tree root the raw
-            // RLP.
+            // We have the type 3 variant without sidecar, we can safely compute the hash tree root
+            // of the transaction from the raw RLP bytes.
             Ok((tx_hash, hash_tree_root_raw_tx(raw_tx.to_vec())))
         }
         TxEip4844Variant::TxEip4844WithSidecar(TxEip4844WithSidecar { tx, .. }) => {
-            // We strip out the sidecar and hash tree root the transaction
+            // We strip out the sidecar and compute the hash tree root the transaction
             let signed = Signed::new_unchecked(tx, signature, tx_hash);
             let new_envelope = TxEnvelope::from(signed);
             let mut buf = Vec::new();
