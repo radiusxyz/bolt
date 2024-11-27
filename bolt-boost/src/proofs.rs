@@ -78,83 +78,37 @@ pub fn verify_multiproofs(
 
 #[cfg(test)]
 mod tests {
+    use std::fs::File;
+
     use alloy::{
         hex::FromHex,
-        primitives::{Bytes, B256},
+        primitives::{hex, Bytes, B256},
     };
     use ssz_rs::{HashTreeRoot, List, PathElement, Prove};
 
-    use crate::testutil::*;
-
-    /// NOTE: This test is disabled because multiproof support has not landed in ssz-rs main yet.
-    // #[test]
-    // fn test_single_multiproof() {
-    //     let (root, transactions) = read_test_transactions();
-    //     println!(
-    //         "Transactions root: {:?}, num transactions: {}",
-    //         root,
-    //         transactions.len()
-    //     );
-
-    //     // Shoudl be 1073741824, 1048576
-    //     let transactions_list =
-    //         transactions_to_ssz_list::<1073741824, 1048576>(transactions.clone());
-
-    //     // let index = rand::random::<usize>() % transactions.len();
-    //     let index = 51;
-
-    //     println!("Index to prove: {index}");
-
-    //     let root_node = transactions_list.hash_tree_root().unwrap();
-
-    //     assert_eq!(root_node, root);
-
-    //     // Generate the path from the transaction indexes
-    //     let path = path_from_indeces(&[index]);
-
-    //     let start_proof = std::time::Instant::now();
-    //     let (multi_proof, witness) = transactions_list.multi_prove(&[&path]).unwrap();
-    //     println!("Generated multiproof in {:?}", start_proof.elapsed());
-
-    //     // Root and witness must be the same
-    //     assert_eq!(root, witness);
-
-    //     let start_verify = std::time::Instant::now();
-    //     assert!(multi_proof.verify(witness).is_ok());
-    //     println!("Verified multiproof in {:?}", start_verify.elapsed());
-
-    //     // assert!(verify_multiproofs(&[c1_with_data], proofs, root).is_ok());
-    // }
+    use crate::{
+        constraints::ConstraintsCache,
+        proofs::verify_multiproofs,
+        testutil::*,
+        types::{InclusionProofs, SignedConstraints},
+    };
 
     #[test]
     fn test_single_proof() {
         let (root, transactions) = read_test_transactions();
-        println!("Transactions root: {:?}, num transactions: {}", root, transactions.len());
 
-        // Shoudl be 1073741824, 1048576
         let transactions_list =
             transactions_to_ssz_list::<1073741824, 1048576>(transactions.clone());
 
         // let index = rand::random::<usize>() % transactions.len();
         let index = 26;
 
-        println!("Index to prove: {index}");
-
-        // let c1 = ConstraintsMessage {
-        //     validator_index: 0,
-        //     slot: 1,
-        //     top: false,
-        //     transactions: vec![transactions[index].clone()],
-        // };
-
-        // let c1_with_data = ConstraintsWithProofData::try_from(c1).unwrap();
-
         let root_node = transactions_list.hash_tree_root().unwrap();
 
         assert_eq!(root_node, root);
 
         // Generate the path from the transaction indexes
-        let path = path_from_indeces(&[index]);
+        let path = path_from_indexes(&[index]);
 
         let start_proof = std::time::Instant::now();
         let (proof, witness) = transactions_list.prove(&path).unwrap();
@@ -166,16 +120,95 @@ mod tests {
         let start_verify = std::time::Instant::now();
         assert!(proof.verify(witness).is_ok());
         println!("Verified proof in {:?}", start_verify.elapsed());
-
-        // assert!(verify_multiproofs(&[c1_with_data], proofs, root).is_ok());
     }
 
     #[test]
+    fn test_merkle_multiproof_blob() {
+        // Proof generated from bolt-builder code for the blob transaction inside
+        // ./testdata/signed_constraints_with_blob.json
+        let root =
+            B256::from(hex!("085f9483581f0302fd8a5a7b03e5aa9f110d4548bd679bedc04764dc9405a700"));
+
+        let proof = vec![
+            hex!("8c0bd07dcc7050700654b730d245db145c92ad92ef6ac81e2361533c66ee9688"),
+            hex!("ee38e5ba99fa98c9c8963c7e9c59e3128f285454f27daf9549d19c4bb98039fd"),
+            hex!("af0302f3b715a72dab24a7590f01dc5717c642a39fc5a92bc09518b24e05d56c"),
+            hex!("c78009fdf07fc56a11f122370658a353aaa542ed63e44c4bc15ff4cd105ab33c"),
+            hex!("536d98837f2dd165a55d5eeae91485954472d56f246df256bf3cae19352a123c"),
+            hex!("9efde052aa15429fae05bad4d0b1d7c64da64d03d7a1854a588c2cb8430c0d30"),
+            hex!("d88ddfeed400a8755596b21942c1497e114c302e6118290f91e6772976041fa1"),
+            hex!("87eb0ddba57e35f6d286673802a4af5975e22506c7cf4c64bb6be5ee11527f2c"),
+            hex!("26846476fd5fc54a5d43385167c95144f2643f533cc85bb9d16b782f8d7db193"),
+            hex!("506d86582d252405b840018792cad2bf1259f1ef5aa5f887e13cb2f0094f51e1"),
+            hex!("ffff0ad7e659772f9534c195c815efc4014ef1e1daed4404c06385d11192e92b"),
+            hex!("6cf04127db05441cd833107a52be852868890e4317e6a02ab47683aa75964220"),
+            hex!("b7d05f875f140027ef5118a2247bbb84ce8f2f0f1123623085daf7960c329f5f"),
+            hex!("df6af5f5bbdb6be9ef8aa618e4bf8073960867171e29676f8b284dea6a08a85e"),
+            hex!("b58d900f5e182e3c50ef74969ea16c7726c549757cc23523c369587da7293784"),
+            hex!("d49a7502ffcfb0340b1d7885688500ca308161a7f96b62df9d083b71fcc8f2bb"),
+            hex!("8fe6b1689256c0d385f42f5bbe2027a22c1996e110ba97c171d3e5948de92beb"),
+            hex!("8d0d63c39ebade8509e0ae3c9c3876fb5fa112be18f905ecacfecb92057603ab"),
+            hex!("95eec8b2e541cad4e91de38385f2e046619f54496c2382cb6cacd5b98c26f5a4"),
+            hex!("f893e908917775b62bff23294dbbe3a1cd8e6cc1c35b4801887b646a6f81f17f"),
+            hex!("0600000000000000000000000000000000000000000000000000000000000000"),
+        ]
+        .iter()
+        .map(B256::from)
+        .collect::<Vec<_>>();
+
+        let leaves = [hex!("b4bb948e1cfc750a20fa08d6661d3f0717ca367eec45d81fcf92e8f1ae1fe688")]
+            .iter()
+            .map(B256::from)
+            .collect::<Vec<_>>();
+
+        let transaction_hashes =
+            [hex!("00724d63ef8a791110a66d6e7433d097637aec698f5cf81c44446e1ea5c45a1a")]
+                .iter()
+                .map(B256::from)
+                .collect::<Vec<_>>();
+
+        let generalized_indexes = vec![2097152];
+
+        let inclusion_proof =
+            InclusionProofs { transaction_hashes, merkle_hashes: proof, generalized_indexes };
+
+        assert!(ssz_rs::multiproofs::verify_merkle_multiproof(
+            &leaves,
+            &inclusion_proof.merkle_hashes,
+            &inclusion_proof.generalized_indexes,
+            root
+        )
+        .is_ok());
+
+        let constraints_cache = ConstraintsCache::new();
+
+        // We know the inclusion proof is valid, now we start from scratch from a signed constraint
+        // message
+
+        let signed_constraints: Vec<SignedConstraints> = serde_json::from_reader(
+            File::open("testdata/signed_constraints_with_blob.json").unwrap(),
+        )
+        .expect("to read signed constraints");
+
+        constraints_cache
+            .insert(0, signed_constraints[0].message.clone())
+            .expect("to save constraints");
+        let constraints_with_proof = constraints_cache.remove(0).expect("to find constraints");
+
+        // Sanity check to ensure we're verifying the same transaction
+        assert_eq!(
+            constraints_with_proof[0].proof_data[0].0,
+            inclusion_proof.transaction_hashes[0]
+        );
+
+        assert!(verify_multiproofs(&constraints_with_proof, &inclusion_proof, root).is_ok());
+    }
+
     /// Testdata from https://github.com/ferranbt/fastssz/blob/455b54c08c81c3a270b6a7160f92ce68408491d4/tests/codetrie_test.go#L195
+    #[test]
     fn test_fastssz_multiproof() {
         let root =
-            B256::from_hex("f1824b0084956084591ff4c91c11bcc94a40be82da280e5171932b967dd146e9")
-                .unwrap();
+            B256::from(hex!("f1824b0084956084591ff4c91c11bcc94a40be82da280e5171932b967dd146e9"));
 
         let proof = vec![
             "0000000000000000000000000000000000000000000000000000000000000000",
@@ -197,15 +230,15 @@ mod tests {
         .map(|hex| B256::from_hex(hex).unwrap())
         .collect::<Vec<_>>();
 
-        let indices = vec![10usize, 49usize];
+        let indexes = vec![10usize, 49usize];
 
         assert!(
-            ssz_rs::multiproofs::verify_merkle_multiproof(&leaves, &proof, &indices, root).is_ok()
+            ssz_rs::multiproofs::verify_merkle_multiproof(&leaves, &proof, &indexes, root).is_ok()
         );
     }
 
-    fn path_from_indeces(indeces: &[usize]) -> Vec<PathElement> {
-        indeces.iter().map(|i| PathElement::from(*i)).collect::<Vec<_>>()
+    fn path_from_indexes(indexes: &[usize]) -> Vec<PathElement> {
+        indexes.iter().map(|i| PathElement::from(*i)).collect::<Vec<_>>()
     }
 
     fn transactions_to_ssz_list<const B: usize, const N: usize>(
