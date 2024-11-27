@@ -1,0 +1,141 @@
+name: Build and push Bolt CLI release binaries
+
+on:
+  push:
+    tags:
+      - "v*" # Push when version tags are pushed (e.g. v0.2.4)
+  release:
+    types:
+      - created # Push when a new release is created
+  workflow_dispatch: # allows manual triggering of the workflow
+
+env:
+  CARGO_TERM_COLOR: always
+  PROFILE: release
+
+jobs:
+  build-and-push:
+    name: ${{ matrix.target }} (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # `runner`: GHA runner label
+          # `target`: Rust build target triple
+          # `platform` and `arch`: Used in tarball names
+          - runner: Linux-24.04
+            target: x86_64-unknown-linux-gnu
+            platform: linux
+            arch: amd64
+          - runner: Linux-24.04
+            target: aarch64-unknown-linux-gnu
+            platform: linux
+            arch: arm64
+          - runner: macos-12-large
+            target: x86_64-apple-darwin
+            platform: darwin
+            arch: amd64
+          - runner: macos-latest-large
+            target: aarch64-apple-darwin
+            platform: darwin
+            arch: arm64
+          - runner: Windows
+            target: x86_64-pc-windows-msvc
+            platform: win32
+            arch: amd64
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Move to bolt-cli directory
+        run: |
+          cd bolt-cli
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Cross
+        run: |
+          cargo install cross --force
+
+      #   - name: Install Protoc
+      #     uses: arduino/setup-protoc@v3
+
+      - name: Cache cargo registry
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+          cache-on-failure: true
+
+      #   - name: Apple M1 setup
+      #     if: matrix.target == 'aarch64-apple-darwin'
+      #     run: |
+      #       echo "SDKROOT=$(xcrun -sdk macosx --show-sdk-path)" >> $GITHUB_ENV
+      #       echo "MACOSX_DEPLOYMENT_TARGET=$(xcrun -sdk macosx --show-sdk-platform-version)" >> $GITHUB_ENV
+
+      #   - name: Linux ARM setup
+      #     if: matrix.target == 'aarch64-unknown-linux-gnu'
+      #     run: |
+      #       sudo apt-get update -y
+      #       sudo apt-get install -y gcc-aarch64-linux-gnu
+      #       echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
+      - name: Build binaries
+        env:
+          PLATFORM_NAME: ${{ matrix.platform }}
+          TARGET: ${{ matrix.target }}
+          OUT_DIR: target/${{ matrix.target }}/${{ env.PROFILE }}
+        shell: bash
+        run: |
+          set -eo pipefail
+          flags=(--target $TARGET --profile $PROFILE)
+
+          [[ "$TARGET" == *windows* ]] && ext=".exe"
+
+          cross build "${flags[@]}"
+
+          bin=$OUT_DIR/bolt$ext
+          echo ""
+          file "$bin" || true
+          du -h "$bin" || true
+          ldd "$bin" || true
+          $bin --version || true
+
+      - name: Archive binaries
+        id: artifacts
+        env:
+          PLATFORM_NAME: ${{ matrix.platform }}
+          OUT_DIR: target/${{ matrix.target }}/${{ env.PROFILE }}
+          ARCH: ${{ matrix.arch }}
+        shell: bash
+        run: |
+          if [ "$PLATFORM_NAME" == "linux" ]; then
+            # Examples: "bolt-cli-amd64-darwin.tar.gz" or "bolt-cli-arm64-linux.tar.gz"
+            tar -czvf "bolt-cli-${ARCH}-${PLATFORM}.tar.gz" -C $OUT_DIR bolt
+            echo "file_name=bolt-cli-${ARCH}-${PLATFORM}.tar.gz" >> $GITHUB_OUTPUT
+          elif [ "$PLATFORM_NAME" == "darwin" ]; then
+            # We need to use gtar here otherwise the archive is corrupt.
+            # See: https://github.com/actions/virtual-environments/issues/2619
+            gtar -czvf "bolt-cli-${ARCH}-${PLATFORM}.tar.gz" -C $OUT_DIR bolt
+            echo "file_name=bolt-cli-${ARCH}-${PLATFORM}.tar.gz" >> $GITHUB_OUTPUT
+          else
+            cd $OUT_DIR
+            7z a -tzip "bolt-cli-${ARCH}-${PLATFORM}.zip" bolt.exe
+            mv "bolt-cli-${ARCH}-${PLATFORM}.zip" ../../../
+            echo "file_name=bolt-cli-${ARCH}-${PLATFORM}.zip" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Push updated binaries to the release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ${{ steps.artifacts.outputs.file_name}}
+          asset_name: ${{ steps.artifacts.outputs.file_name}}
+          asset_content_type: application/zip
