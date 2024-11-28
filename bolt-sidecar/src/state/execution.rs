@@ -195,12 +195,7 @@ impl<C: StateFetcher> ExecutionState<C> {
             client.get_chain_id()
         )?;
 
-        // Calculate the number of account states that can be cached by diving the configured max
-        // size by the size of an account state and its key.
-        let num_accounts = limits
-            .max_account_states_size
-            .get()
-            .div_ceil(size_of::<AccountState>() + size_of::<Address>());
+        let num_accounts = calculate_max_accounts(&limits);
 
         Ok(Self {
             basefee,
@@ -584,8 +579,15 @@ pub struct StateUpdate {
     pub block_number: u64,
 }
 
+// Calculate the number of account states that can be cached by diving the configured max
+// size by the size of an account state and its key.
+fn calculate_max_accounts(limits: &LimitsOpts) -> usize {
+    limits.max_account_states_size.get().div_ceil(size_of::<AccountState>() + size_of::<Address>())
+}
+
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::{
         builder::template::StateDiff, config::limits::DEFAULT_MAX_COMMITTED_GAS,
         signer::local::LocalSigner,
@@ -609,7 +611,26 @@ mod tests {
         test_util::{create_signed_inclusion_request, default_test_transaction, launch_anvil},
     };
 
-    use super::*;
+    #[test]
+    fn test_calculate_max_accounts_default() {
+        let limits = LimitsOpts::default();
+        let expected = 16;
+
+        assert_eq!(calculate_max_accounts(&limits), expected);
+    }
+
+    #[test]
+    fn test_calculate_max_accounts_example_env() {
+        let limits = LimitsOpts {
+            max_commitments_per_slot: NonZero::new(128).unwrap(),
+            max_committed_gas_per_slot: NonZero::new(10_000_000).unwrap(),
+            min_priority_fee: 4_000_000_000,
+            max_account_states_size: NonZero::new(1024).unwrap(),
+        };
+        let expected = 16;
+
+        assert_eq!(calculate_max_accounts(&limits), expected);
+    }
 
     #[tokio::test]
     async fn test_valid_inclusion_request() -> eyre::Result<()> {
