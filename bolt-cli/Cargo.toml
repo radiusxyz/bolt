@@ -23,7 +23,7 @@ blst = "0.3.12"
 # ethereum
 ethereum-consensus = { git = "https://github.com/ralexstokes/ethereum-consensus", rev = "cf3c404" }
 lighthouse_eth2_keystore = { package = "eth2_keystore", git = "https://github.com/sigp/lighthouse", rev = "a87f19d" }
-alloy = { version = "0.6.4", features = [
+alloy = { version = "0.7.0", features = [
   "full",
   "provider-anvil-api",
   "provider-anvil-node",
