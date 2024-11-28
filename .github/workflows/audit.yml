@@ -29,8 +29,13 @@ permissions:
 jobs:
   security-audit:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        project: [bolt-sidecar, bolt-cli, bolt-boost]
+    name: Security Audit for ${{ matrix.project }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rs/audit-check@v1.2.0
+        working-directory: ${{ matrix.project }}
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
