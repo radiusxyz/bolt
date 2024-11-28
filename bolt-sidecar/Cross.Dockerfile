@@ -13,6 +13,6 @@ ARG TARGETARCH
 # Should be set by the caller when building the image
 ARG BINARY
 
-COPY ./dist/bin/$TARGETARCH/$BINARY /usr/local/bin/bolt
+COPY ./dist/bin/$TARGETARCH/$BINARY /usr/local/bin/bolt-sidecar
 
-ENTRYPOINT ["/usr/local/bin/bolt"]
+ENTRYPOINT ["/usr/local/bin/bolt-sidecar"]

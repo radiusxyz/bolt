@@ -186,7 +186,7 @@ build-and-push-image package tag:
 
     docker buildx build \
       --build-arg BINARY={{package}} \
-      --file ./scripts/cross.Dockerfile \
+      --file ./{{package}}/Cross.Dockerfile \
       --platform linux/amd64,linux/arm64 \
       --tag ghcr.io/chainbound/{{package}}:{{tag}} \
       --push .
