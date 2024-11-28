@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: bolt-sidecar
+        working-directory: ${{ github.workspace }}/bolt-sidecar
     name: Security Audit for bolt-sidecar
     steps:
       - uses: actions/checkout@v4
