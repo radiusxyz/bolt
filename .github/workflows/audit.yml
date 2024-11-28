@@ -32,10 +32,13 @@ jobs:
     strategy:
       matrix:
         project: [bolt-sidecar, bolt-cli, bolt-boost]
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}
     name: Security Audit for ${{ matrix.project }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rs/audit-check@v1.2.0
+      - uses: actions-rs/audit-check@v1
         working-directory: ${{ matrix.project }}
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
