@@ -58,17 +58,19 @@ pub fn validate_transaction(
     account_state: &AccountState,
     transaction: &PooledTransactionsElement,
 ) -> Result<(), ValidationError> {
-    // Check if the nonce is correct (should be the same as the transaction count)
-    if transaction.nonce() < account_state.transaction_count {
+    // Check if the nonce is correct (should be transaction count + 1)
+    if transaction.nonce() <= account_state.transaction_count {
         return Err(ValidationError::NonceTooLow(
-            account_state.transaction_count,
+            // Expected = transaction_count + 1
+            account_state.transaction_count + 1,
             transaction.nonce(),
         ));
     }
 
-    if transaction.nonce() > account_state.transaction_count {
+    if transaction.nonce() > account_state.transaction_count + 1 {
         return Err(ValidationError::NonceTooHigh(
-            account_state.transaction_count,
+            // Expected = transaction_count + 1
+            account_state.transaction_count + 1,
             transaction.nonce(),
         ));
     }
