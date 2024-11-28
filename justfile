@@ -176,7 +176,8 @@ build-local-bolt-boost:
 [private]
 cross-compile package target_arch release_dir:
     cd {{package}} && cargo clean && cross build --release --target {{target_arch}}
-    mkdir -p {{release_dir}} && cp {{package}}/target/{{target_arch}}/release/{{package}} {{release_dir}}
+    mkdir -p dist/bin/{{release_dir}}
+    cp {{package}}/target/{{target_arch}}/release/{{package}} dist/bin/{{release_dir}}
 
 # build and push multi-platform docker images to GHCR for a package. available: "bolt-sidecar", "bolt-boost".
 build-and-push-image package tag:
