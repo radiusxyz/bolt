@@ -34,3 +34,15 @@ for all Bolt components with the tag `v0.2.0-alpha` for both `arm64` and `amd64`
 architectures. This can take a long time.
 
 Since we use cross compilation, we recommend running this from an x86_64 linux box.
+
+## 4. Build the `bolt` CLI binaries and upload them to the release assets
+
+You can build the `bolt` CLI binaries with the `just create-bolt-cli-tarballs` recipe.
+
+This will output tarballs in `bolt-cli/dist/` that you can ultimately upload to the
+Github release assets.
+
+These will then be automatically consumed by `boltup` consumers when selecting the
+tag they want to use for their Bolt cli installation.
+
+e.g. `boltup --tag v0.3.0-alpha` will pick one of the tarballs in the `v0.3.0-alpha` release.
