@@ -228,6 +228,16 @@ pub enum EigenLayerSubcommand {
         expiry: U256,
     },
 
+    /// Deregister an EigenLayer operator from the bolt AVS.
+    Deregister {
+        /// The URL of the RPC to broadcast the transaction.
+        #[clap(long, env = "RPC_URL")]
+        rpc_url: Url,
+        /// The private key of the operator.
+        #[clap(long, env = "OPERATOR_PRIVATE_KEY")]
+        operator_private_key: B256,
+    },
+
     /// Step 3: Check your operation registration in bolt
     Status {
         /// The URL of the RPC to broadcast the transaction.
@@ -253,6 +263,17 @@ pub enum SymbioticSubcommand {
         #[clap(long, env = "OPERATOR_RPC")]
         operator_rpc: Url,
     },
+
+    /// Deregister a Symbiotic operator from bolt.
+    Deregister {
+        /// The URL of the RPC to broadcast the transaction.
+        #[clap(long, env = "RPC_URL")]
+        rpc_url: Url,
+        /// The private key of the operator.
+        #[clap(long, env = "OPERATOR_PRIVATE_KEY")]
+        operator_private_key: B256,
+    },
+
     /// Check the status of a Symbiotic operator.
     Status {
         /// The URL of the RPC to broadcast the transaction.

@@ -164,7 +164,46 @@ impl OperatorsCommand {
                         eyre::bail!("Transaction failed: {:?}", receipt)
                     }
 
-                    info!("Succesfully registered Symbiotic operator");
+                    info!("Succesfully registered EigenLayer operator");
+
+                    Ok(())
+                }
+                EigenLayerSubcommand::Deregister { rpc_url, operator_private_key } => {
+                    let signer = PrivateKeySigner::from_bytes(&operator_private_key)
+                        .wrap_err("valid private key")?;
+
+                    let provider = ProviderBuilder::new()
+                        .with_recommended_fillers()
+                        .wallet(EthereumWallet::from(signer.clone()))
+                        .on_http(rpc_url.clone());
+
+                    let chain_id = provider.get_chain_id().await?;
+                    let chain = Chain::from_id(chain_id)
+                        .unwrap_or_else(|| panic!("chain id {} not supported", chain_id));
+
+                    info!(operator = %signer.address(), ?chain, "Deregistering EigenLayer operator");
+
+                    request_confirmation();
+
+                    let deployments = deployments_for_chain(chain);
+
+                    let bolt_avs_address = deployments.bolt.eigenlayer_middleware;
+                    let bolt_eigenlayer_middleware =
+                        BoltEigenLayerMiddleware::new(bolt_avs_address, provider.clone());
+
+                    let result = bolt_eigenlayer_middleware.deregisterOperator().send().await?;
+
+                    info!(
+                        hash = ?result.tx_hash(),
+                        "deregisterOperator transaction sent, awaiting receipt..."
+                    );
+
+                    let receipt = result.get_receipt().await?;
+                    if !receipt.status() {
+                        eyre::bail!("Transaction failed: {:?}", receipt)
+                    }
+
+                    info!("Succesfully deregistered EigenLayer operator");
 
                     Ok(())
                 }
@@ -242,6 +281,46 @@ impl OperatorsCommand {
                     }
 
                     info!("Succesfully registered Symbiotic operator");
+
+                    Ok(())
+                }
+                SymbioticSubcommand::Deregister { rpc_url, operator_private_key } => {
+                    let signer = PrivateKeySigner::from_bytes(&operator_private_key)
+                        .wrap_err("valid private key")?;
+
+                    let provider = ProviderBuilder::new()
+                        .with_recommended_fillers()
+                        .wallet(EthereumWallet::from(signer.clone()))
+                        .on_http(rpc_url);
+
+                    let chain_id = provider.get_chain_id().await?;
+                    let chain = Chain::from_id(chain_id)
+                        .unwrap_or_else(|| panic!("chain id {} not supported", chain_id));
+
+                    let deployments = deployments_for_chain(chain);
+
+                    info!(operator = %signer.address(), ?chain, "Deregistering Symbiotic operator");
+
+                    request_confirmation();
+
+                    let middleware = BoltSymbioticMiddleware::new(
+                        deployments.bolt.symbiotic_middleware,
+                        provider.clone(),
+                    );
+
+                    let pending = middleware.deregisterOperator().send().await?;
+
+                    info!(
+                        hash = ?pending.tx_hash(),
+                        "deregisterOperator transaction sent, awaiting receipt..."
+                    );
+
+                    let receipt = pending.get_receipt().await?;
+                    if !receipt.status() {
+                        eyre::bail!("Transaction failed: {:?}", receipt)
+                    }
+
+                    info!("Succesfully deregistered Symbiotic operator");
 
                     Ok(())
                 }
