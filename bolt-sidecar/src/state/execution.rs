@@ -345,6 +345,10 @@ impl<C: StateFetcher> ExecutionState<C> {
                             .map(|(nonce, balance)| (nonce, balance, *slot))
                             .unwrap_or((0, U256::ZERO, 0));
 
+                        // This might be noisy but it is a critical part in validation logic and
+                        // hard to debug.
+                        trace!(?nonce_diff, ?balance_diff, ?slot, ?sender, "found diffs");
+
                         (
                             nonce_diff_acc + nonce_diff,
                             balance_diff_acc.saturating_add(balance_diff),
@@ -357,8 +361,6 @@ impl<C: StateFetcher> ExecutionState<C> {
                 debug!(%target_slot, %highest_slot_for_account, "There is a request for a higher slot");
                 return Err(ValidationError::SlotTooLow(highest_slot_for_account));
             }
-
-            trace!(nonce_diff, %balance_diff, "Applying diffs to account state");
 
             let account_state = match self.account_states.get(sender).copied() {
                 Some(account) => account,
