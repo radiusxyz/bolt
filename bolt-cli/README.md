@@ -32,10 +32,12 @@ Available commands:
 - [`delegate`](#delegate) - Generate BLS delegation messages for the Constraints API.
 - [`pubkeys`](#pubkeys) - List available BLS public keys from various key sources.
 - [`send`](#send) - Send a preconfirmation request to a Bolt sidecar.
+- [`validators`](#validators) - Subcommand for bolt validators.
+- [`operators`](#operators) - Subcommand for bolt operators.
 
 ---
 
-### `Delegate`
+### `delegate`
 
 The `delegate` command generates signed delegation messages for the Constraints API.
 To learn more about the Constraints API, please refer to the [Bolt documentation][bolt-docs].
@@ -135,7 +137,7 @@ bolt delegate \
 
 ---
 
-### `Pubkeys`
+### `pubkeys`
 
 The `pubkeys` command lists available BLS public keys from different key sources:
 
@@ -197,7 +199,7 @@ bolt pubkeys dirk --url https://localhost:9091 \
 
 ---
 
-### `Send`
+### `send`
 
 The `send` command sends a preconfirmation request to a Bolt sidecar.
 
@@ -254,6 +256,86 @@ Options:
 
 ```text
 bolt send --private-key $(openssl rand -hex 32)
+```
+
+</details>
+
+---
+
+### `validators`
+
+The `validators` subcommand contains functionality for bolt validators.
+
+<details>
+<summary>Usage</summary>
+
+```text
+❯ bolt validators --help
+Handle validators in the bolt network
+
+Usage: bolt validators <COMMAND>
+
+Commands:
+  register  Register a batch of validators
+  help      Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+```
+
+</details>
+
+---
+
+### `operators`
+
+The `operators` subcommand contains functionality for bolt operators and interacting with restaking protocols like Symbiotic and EigenLayer.
+
+<details>
+<summary>Usage</summary>
+
+```text
+❯ bolt operators --help
+Handle operators in the bolt network
+
+Usage: bolt operators <COMMAND>
+
+Commands:
+  eigenlayer  Commands to interact with EigenLayer and bolt
+  symbiotic   Commands to interact with Symbiotic and bolt
+  help        Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+
+❯ bolt operators eigenlayer --help
+Commands to interact with EigenLayer and bolt
+
+Usage: bolt operators eigenlayer <COMMAND>
+
+Commands:
+  deposit     Deposit into a strategy
+  register    Register an operator into the bolt AVS
+  deregister  Deregister an EigenLayer operator from the bolt AVS
+  status      Check the status of an operator in the bolt AVS
+  help        Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+
+❯ bolt operators symbiotic --help
+Commands to interact with Symbiotic and bolt
+
+Usage: bolt operators symbiotic <COMMAND>
+
+Commands:
+  register    Register into the bolt manager contract as a Symbiotic operator
+  deregister  Deregister a Symbiotic operator from bolt
+  status      Check the status of a Symbiotic operator
+  help        Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
 ```
 
 </details>
