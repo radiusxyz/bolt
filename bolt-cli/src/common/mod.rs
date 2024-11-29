@@ -20,6 +20,9 @@ pub mod signing;
 /// Utilities for hashing messages and custom types.
 pub mod hash;
 
+/// Utilities for working with Consensys' Web3Signer remote keystore.
+pub mod web3signer;
+
 /// Parse a BLS public key from a string
 pub fn parse_bls_public_key(delegatee_pubkey: &str) -> Result<BlsPublicKey> {
     let hex_pk = delegatee_pubkey.strip_prefix("0x").unwrap_or(delegatee_pubkey);

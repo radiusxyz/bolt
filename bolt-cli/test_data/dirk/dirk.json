@@ -1,0 +1,26 @@
+{
+  "server": {
+    "id": 212483780,
+    "name": "localhost",
+    "listen-address": "localhost:9091"
+  },
+  "certificates": {
+    "ca-cert": "file:///Users/jamessnewin/rust/bolt/bolt-cli/test_data/dirk/security/ca.crt",
+    "server-cert": "file:///Users/jamessnewin/rust/bolt/bolt-cli/test_data/dirk/security/localhost.crt",
+    "server-key": "file:///Users/jamessnewin/rust/bolt/bolt-cli/test_data/dirk/security/localhost.key"
+  },
+  "peers": {
+    "212483780": "localhost:9091"
+  },
+  "permissions": {
+    "client1": {
+      "wallet1": "All"
+    },
+    "localhost": {
+      "wallet1": "All"
+    }
+  },
+  "unlocker": {
+    "wallet-passphrases": ["file:///Users/jamessnewin/rust/bolt/bolt-cli/test_data/dirk/wallet1-pf.txt"]
+  }
+}

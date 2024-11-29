@@ -133,6 +133,18 @@ bolt delegate \
   --wallet-path wallet1 --passphrases secret
 ```
 
+4. Generating a delegation using a remote Web3Signer keystore
+
+```text
+bolt delegate \
+  --delegatee-pubkey 0x83eeddfac5e60f8fe607ee8713efb8877c295ad9f8ca075f4d8f6f2ae241a30dd57f78f6f3863a9fe0d5b5db9d550b93 \
+  --chain holesky \
+  web3-signer --url https://localhost:9000 \
+  --client-cert-path ./test_data/dirk/client1.crt \
+  --client-key-path ./test_data/dirk/client1.key \
+  --ca-cert-path ./test_data/dirk/security/ca.crt
+```
+
 </details>
 
 ---
@@ -144,6 +156,7 @@ The `pubkeys` command lists available BLS public keys from different key sources
 - Local BLS secret keys (as hex-encoded strings) via `secret-keys`
 - Local EIP-2335 filesystem keystore directories via `local-keystore`
 - Remote Dirk keystore via `dirk` (requires TLS credentials)
+- Remote Web3Keystore via `web3signer`
 
 <details>
 <summary>Usage</summary>
@@ -159,6 +172,7 @@ Commands:
   secret-keys     Use local secret keys to generate the signed messages
   local-keystore  Use an EIP-2335 filesystem keystore directory to generate the signed messages
   dirk            Use a remote DIRK keystore to generate the signed messages
+  web3signer      Use a remote web3signer keystore to generate the signed messages
   help            Print this message or the help of the given subcommand(s)
 
 Options:
@@ -193,6 +207,15 @@ bolt pubkeys dirk --url https://localhost:9091 \
   --client-key-path ./test_data/dirk/client1.key \
   --ca-cert-path ./test_data/dirk/security/ca.crt \
   --wallet-path wallet1 --passphrases secret
+```
+
+4. Listing BLS public keys from a remote Web3Signer keystore
+
+```text
+bolt pubkeys web3signer --url https://localhost:9000 \
+  --client-cert-path ./test_data/dirk/client1.crt \
+  --client-key-path ./test_data/dirk/client1.key \
+  --ca-cert-path ./test_data/dirk/security/ca.crt
 ```
 
 </details>

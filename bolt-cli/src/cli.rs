@@ -338,6 +338,13 @@ pub enum KeysSource {
         #[clap(flatten)]
         opts: DirkOpts,
     },
+
+    /// Use a remote web3signer keystore as source for the public keys.
+    Web3Signer {
+        /// The options for connecting to the web3signer keystore.
+        #[clap(flatten)]
+        opts: Web3SignerOpts,
+    },
 }
 
 #[derive(Debug, Clone, Parser)]
@@ -362,6 +369,12 @@ pub enum SecretsSource {
         /// The options for connecting to the DIRK keystore.
         #[clap(flatten)]
         opts: DirkOpts,
+    },
+
+    /// Use a remote Web3Signer keystore to generate the signed messages.
+    Web3Signer {
+        #[clap(flatten)]
+        opts: Web3SignerOpts,
     },
 }
 
@@ -409,6 +422,19 @@ pub struct DirkOpts {
     pub passphrases: Option<Vec<String>>,
 
     /// The TLS credentials for connecting to the DIRK keystore.
+    #[clap(flatten)]
+    pub tls_credentials: TlsCredentials,
+}
+
+/// Options for connecting to a Web3Signer keystore.
+#[derive(Debug, Clone, Parser)]
+pub struct Web3SignerOpts {
+    /// The URL of the Web3Signer keystore.
+    #[clap(long, env = "WEB3SIGNER_URL")]
+    pub url: String,
+
+    /// The TLS credentials for connecting to the Web3Signer keystore.
+    /// Note: it is at the users discretion to enable TLS on the Web3Signer.
     #[clap(flatten)]
     pub tls_credentials: TlsCredentials,
 }
