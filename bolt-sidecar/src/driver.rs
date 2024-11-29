@@ -296,10 +296,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         //   determine if the sidecar is the proposer for the given slot. If so, we use the
         //   validator pubkey or any of its active delegatees to sign constraints.
         let signing_pubkey = if self.unsafe_skip_consensus_checks {
-            // PERF: this is inefficient, but it's only used for testing purposes.
-            let mut ap = available_pubkeys.iter().collect::<Vec<_>>();
-            ap.sort();
-            ap.first().cloned().cloned().expect("at least one available pubkey")
+            available_pubkeys.iter().min().cloned().expect("at least one available pubkey")
         } else {
             let validator_pubkey = match self.consensus.validate_request(&inclusion_request) {
                 Ok(pubkey) => pubkey,
