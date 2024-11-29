@@ -565,13 +565,15 @@ pub struct StateUpdate {
     pub block_number: u64,
 }
 
-// From previous preconfirmations requests retrieve
-// - the nonce difference from the account state.
-// - the balance difference from the account state.
-// - the highest slot number for which the user has requested a preconfirmation.
-//
-// If the templates do not exist, or this is the first request for this sender,
-// its diffs will be zero.
+/// Calculate aggregated diffs for an account, given some block templates.
+/// 
+/// From previous preconfirmations requests retrieve
+/// - the nonce difference from the account state.
+/// - the balance difference from the account state.
+/// - the highest slot number for which the user has requested a preconfirmation.
+///
+/// If the templates do not exist, or this is the first request for this sender,
+/// its diffs will be zero.
 fn compute_diffs(
     block_templates: &HashMap<u64, BlockTemplate>,
     sender: &Address,
