@@ -1,5 +1,9 @@
 name: Security Audit
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 on:
   pull_request:
     paths: 
@@ -38,3 +42,4 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           working-directory: ${{ matrix.project }}
+          createIssues: "${{ github.ref == 'refs/heads/unstable' || github.ref == 'refs/heads/main' }}"
