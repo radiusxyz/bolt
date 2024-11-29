@@ -193,7 +193,7 @@ pub enum OperatorsSubcommand {
 
 #[derive(Debug, Clone, Parser)]
 pub enum EigenLayerSubcommand {
-    /// Step 1: Deposit into a strategy.
+    /// Deposit into a strategy.
     Deposit {
         /// The URL of the RPC to broadcast the transaction.
         #[clap(long, env = "RPC_URL")]
@@ -209,7 +209,7 @@ pub enum EigenLayerSubcommand {
         amount: U256,
     },
 
-    /// Step 2: Register into the bolt AVS.
+    /// Register an operator into the bolt AVS.
     Register {
         /// The URL of the RPC to broadcast the transaction.
         #[clap(long, env = "RPC_URL")]
@@ -238,7 +238,7 @@ pub enum EigenLayerSubcommand {
         operator_private_key: B256,
     },
 
-    /// Step 3: Check your operation registration in bolt
+    /// Check the status of an operator in the bolt AVS.
     Status {
         /// The URL of the RPC to broadcast the transaction.
         #[clap(long, env = "RPC_URL")]
