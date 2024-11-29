@@ -631,5 +631,27 @@ mod tests {
         };
 
         check_status.run().await.expect("to check operator status");
+
+        let deregister_command = OperatorsCommand {
+            subcommand: OperatorsSubcommand::Symbiotic {
+                subcommand: SymbioticSubcommand::Deregister {
+                    rpc_url: anvil_url.parse().expect("valid url"),
+                    operator_private_key: secret_key,
+                },
+            },
+        };
+
+        deregister_command.run().await.expect("to deregister operator");
+
+        let check_status = OperatorsCommand {
+            subcommand: OperatorsSubcommand::Symbiotic {
+                subcommand: SymbioticSubcommand::Status {
+                    rpc_url: anvil_url.parse().expect("valid url"),
+                    address: account,
+                },
+            },
+        };
+
+        check_status.run().await.expect("to check operator status");
     }
 }
