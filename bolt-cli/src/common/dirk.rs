@@ -351,7 +351,7 @@ mod tests {
     async fn test_dirk_multi_connection_e2e() -> eyre::Result<()> {
         let (mut dirk, mut dirk_procs) = test_util::start_multi_dirk_test_server().await?;
 
-        let accounts = dirk.list_accounts("DistributedAccount1/1".to_string()).await?;
+        let accounts = dirk.list_accounts("DistributedWallet1/1".to_string()).await?;
         println!("Dirk Accounts: {:?}", accounts);
 
         // make sure to stop the dirk servers
