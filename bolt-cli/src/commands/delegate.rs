@@ -191,24 +191,38 @@ pub async fn generate_from_dirk(
 ) -> Result<Vec<SignedMessage>> {
     // first read the accounts from the remote keystore
     let accounts = dirk.list_accounts(account_path).await?;
-    debug!("Found {} remote accounts to sign with", accounts.len());
+    debug!(
+        normal = %accounts.accounts.len(),
+        distributed = %accounts.distributed_accounts.len(),
+        "Found remote accounts to sign with",
+    );
 
-    let mut signed_messages = Vec::with_capacity(accounts.len());
+    let total_accounts = accounts.accounts.len() + accounts.distributed_accounts.len();
+    let mut signed_messages = Vec::with_capacity(total_accounts);
 
     // specify the signing domain (needs to be included in the signing request)
     let domain = B256::from(compute_domain_from_mask(chain.fork_version()));
 
-    for account in accounts {
+    // Collect all account names and pubkeys (regular and distributed accounts)
+    let all_accounts_info = accounts
+        .accounts
+        .into_iter()
+        .map(|acc| (acc.name, acc.public_key))
+        .chain(
+            accounts
+                .distributed_accounts
+                .into_iter()
+                .map(|acc| (acc.name, acc.composite_public_key)),
+        )
+        .collect::<Vec<_>>();
+
+    for (name, pubkey_bytes) in all_accounts_info {
         // for each available pubkey we control, sign a delegation message
-        let pubkey = BlsPublicKey::try_from(account.public_key.as_slice())?;
+        let pubkey = BlsPublicKey::try_from(pubkey_bytes.as_slice())?;
 
         // Note: before signing, we must unlock the account
-        if let Some(ref passphrases) = passphrases {
-            for passphrase in passphrases {
-                if dirk.unlock_account(account.name.clone(), passphrase.clone()).await? {
-                    break;
-                }
-            }
+        if let Some(passphrases) = &passphrases {
+            try_unlock_account(dirk, name.clone(), passphrases).await?;
         } else {
             bail!("A passphrase is required in order to sign messages remotely with Dirk");
         }
@@ -217,22 +231,22 @@ pub async fn generate_from_dirk(
             Action::Delegate => {
                 let message = DelegationMessage::new(pubkey.clone(), delegatee_pubkey.clone());
                 let signing_root = message.digest().into(); // Dirk does the hash tree root internally
-                let signature = dirk.request_signature(&account, signing_root, domain).await?;
+                let signature = dirk.request_signature(name.clone(), signing_root, domain).await?;
                 let signed = SignedDelegation { message, signature };
                 signed_messages.push(SignedMessage::Delegation(signed));
             }
             Action::Revoke => {
                 let message = RevocationMessage::new(pubkey.clone(), delegatee_pubkey.clone());
                 let signing_root = message.digest().into(); // Dirk does the hash tree root internally
-                let signature = dirk.request_signature(&account, signing_root, domain).await?;
+                let signature = dirk.request_signature(name.clone(), signing_root, domain).await?;
                 let signed = SignedRevocation { message, signature };
                 signed_messages.push(SignedMessage::Revocation(signed));
             }
         }
 
         // Try to lock the account back after signing
-        if let Err(err) = dirk.lock_account(account.name.clone()).await {
-            warn!("Failed to lock account after signing {}: {:?}", account.name, err);
+        if let Err(err) = dirk.lock_account(name.clone()).await {
+            warn!("Failed to lock account after signing {}: {:?}", name, err);
         }
     }
 
@@ -359,6 +373,28 @@ pub fn verify_message_signature(message: &SignedMessage, chain: Chain) -> Result
     }
 }
 
+/// Try to unlock an account using the provided passphrases
+/// If the account is unlocked, return Ok(()), otherwise return an error
+pub async fn try_unlock_account(
+    dirk: &mut Dirk,
+    account_name: String,
+    passphrases: &[String],
+) -> Result<()> {
+    let mut unlocked = false;
+    for passphrase in passphrases {
+        if dirk.unlock_account(account_name.clone(), passphrase.clone()).await? {
+            unlocked = true;
+            break;
+        }
+    }
+
+    if !unlocked {
+        bail!("Failed to unlock account {}", account_name);
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
@@ -395,17 +431,17 @@ mod tests {
         Ok(())
     }
 
-    /// Test generating signed delegations using a remote Dirk signer.
+    /// Test generating signed delegations using a remote Dirk signer (single instance).
     ///
     /// ```shell
-    /// cargo test --package bolt --bin bolt -- commands::delegate::tests::test_delegation_dirk
+    /// cargo test --package bolt --bin bolt -- commands::delegate::tests::test_delegation_dirk_single
     /// --exact --show-output --ignored --nocapture
     /// ```
     #[tokio::test]
     #[ignore = "Requires Dirk to be installed on the system"]
-    async fn test_delegation_dirk() -> eyre::Result<()> {
+    async fn test_delegation_dirk_single() -> eyre::Result<()> {
         let _ = tracing_subscriber::fmt::try_init();
-        let (mut dirk, mut dirk_proc) = dirk::test_util::start_dirk_test_server().await?;
+        let (mut dirk, mut dirk_proc) = dirk::test_util::start_single_dirk_test_server().await?;
 
         let delegatee_pubkey = "0x83eeddfac5e60f8fe607ee8713efb8877c295ad9f8ca075f4d8f6f2ae241a30dd57f78f6f3863a9fe0d5b5db9d550b93";
         let delegatee_pubkey = parse_bls_public_key(delegatee_pubkey)?;
@@ -427,6 +463,19 @@ mod tests {
 
         dirk_proc.kill()?;
 
+        Ok(())
+    }
+
+    /// Test generating signed delegations using a remote Dirk signer (multi-node instance).
+    /// This test requires multiple instances of Dirk to be running.
+    ///
+    /// ```shell
+    /// cargo test --package bolt --bin bolt -- commands::delegate::tests::test_delegation_dirk_multi
+    /// --exact --show-output --ignored --nocapture
+    /// ```
+    #[tokio::test]
+    #[ignore = "Requires Dirk to be installed on the system"]
+    async fn test_delegation_dirk_multi() -> eyre::Result<()> {
         Ok(())
     }
 }

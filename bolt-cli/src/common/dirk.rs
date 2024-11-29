@@ -9,8 +9,9 @@ use tracing::debug;
 use crate::{
     cli::TlsCredentials,
     pb::eth2_signer_api::{
-        Account, AccountManagerClient, ListAccountsRequest, ListerClient, LockAccountRequest,
-        ResponseState, SignRequest, SignRequestId, SignerClient, UnlockAccountRequest,
+        AccountManagerClient, ListAccountsRequest, ListAccountsResponse, ListerClient,
+        LockAccountRequest, ResponseState, SignRequest, SignRequestId, SignerClient,
+        UnlockAccountRequest,
     },
 };
 
@@ -44,7 +45,7 @@ impl Dirk {
     }
 
     /// List all accounts in the keystore.
-    pub async fn list_accounts(&mut self, wallet_path: String) -> Result<Vec<Account>> {
+    pub async fn list_accounts(&mut self, wallet_path: String) -> Result<ListAccountsResponse> {
         // Request all accounts in the given path. Only one path at a time
         // as done in https://github.com/wealdtech/go-eth2-wallet-dirk/blob/182f99b22b64d01e0d4ae67bf47bb055763465d7/grpc.go#L121
         let req = ListAccountsRequest { paths: vec![wallet_path] };
@@ -54,8 +55,13 @@ impl Dirk {
             bail!("Failed to list accounts: {:?}", res);
         }
 
-        debug!("{} Accounts listed successfully", res.accounts.len());
-        Ok(res.accounts)
+        debug!(
+            accounts = %res.accounts.len(),
+            distributed_accounts = %res.distributed_accounts.len(),
+            "List accounts request succeeded"
+        );
+
+        Ok(res)
     }
 
     /// Unlock an account in the keystore with the given passphrase.
@@ -104,14 +110,14 @@ impl Dirk {
     /// Request a signature from the remote signer.
     pub async fn request_signature(
         &mut self,
-        account: &Account,
+        account_name: String,
         hash: B256,
         domain: B256,
     ) -> Result<BlsSignature> {
         let req = SignRequest {
             data: hash.to_vec(),
             domain: domain.to_vec(),
-            id: Some(SignRequestId::Account(account.name.clone())),
+            id: Some(SignRequestId::Account(account_name.clone())),
         };
 
         let res = self.signer.sign(req).await?.into_inner();
@@ -126,7 +132,7 @@ impl Dirk {
         let sig = BlsSignature::try_from(res.signature.as_slice())
             .wrap_err("Failed to parse signature")?;
 
-        debug!("Signature request succeeded for account {}", account.name);
+        debug!("Signature request succeeded for account {}", account_name);
         Ok(sig)
     }
 }
@@ -173,12 +179,18 @@ pub mod test_util {
     }
 
     /// Start a DIRK test server for testing (run on localhost:9091).
+    /// This is a single instance (non distributed).
     ///
     /// Returns the DIRK client and the corresponding server process handle.
-    pub async fn start_dirk_test_server() -> eyre::Result<(Dirk, Child)> {
+    pub async fn start_single_dirk_test_server() -> eyre::Result<(Dirk, Child)> {
         try_init_tls_provider();
 
-        let test_data_dir = env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/dirk";
+        // Check if dirk is installed (in $PATH)
+        if Command::new("dirk").arg("--help").status().is_err() {
+            bail!("DIRK is not installed in $PATH");
+        }
+
+        let test_data_dir = env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/dirk_single";
 
         // read the template json file from test_data
         let template_path = test_data_dir.clone() + "/dirk.template.json";
@@ -188,17 +200,6 @@ pub mod test_util {
         let new_file = test_data_dir.clone() + "/dirk.json";
         let new_content = template.replace("$PWD", &test_data_dir);
         fs::write(new_file, new_content).wrap_err("Failed to write dirk config file")?;
-
-        // Check if dirk is installed (in $PATH)
-        if Command::new("dirk")
-            .arg("--base-dir")
-            .arg(&test_data_dir)
-            .arg("--help")
-            .status()
-            .is_err()
-        {
-            bail!("DIRK is not installed in $PATH");
-        }
 
         // Start the DIRK server in the background
         let dirk_proc = Command::new("dirk").arg("--base-dir").arg(&test_data_dir).spawn()?;
@@ -218,6 +219,67 @@ pub mod test_util {
 
         Ok((dirk, dirk_proc))
     }
+
+    /// Start a multi-node DIRK test server for testing.
+    /// This is a distributed instance with multiple nodes.
+    ///
+    /// Returns the DIRK client and the corresponding server process handles.
+    ///
+    /// NOTE: in order for the example certificates to work on your machine, you need to
+    /// modify the /etc/hosts file to include the following entry:
+    ///
+    /// ```text
+    /// 127.0.0.1       localhost localhost-1 localhost-2 localhost-3
+    /// ```
+    ///
+    /// This is because we map 3 different server certificates to localhost in order
+    /// to test the multi-node functionality of DIRK.
+    pub async fn start_multi_dirk_test_server() -> eyre::Result<(Dirk, Vec<Child>)> {
+        try_init_tls_provider();
+
+        // Check if dirk is installed (in $PATH)
+        if Command::new("dirk").arg("--help").status().is_err() {
+            bail!("DIRK is not installed in $PATH");
+        }
+
+        let test_data_dir = env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/dirk_multi";
+
+        // directories containing the individual configuration for each instance
+        let dirk_ids = ["1", "2", "3"];
+        let mut dirk_procs = Vec::new();
+
+        for dirk_id in dirk_ids {
+            // Example: /test_data/dirk_multi/1
+            let dirk_dir = test_data_dir.clone() + &format!("/{}", dirk_id);
+
+            // read the template yml file from test_data
+            let template_path = dirk_dir.clone() + "/dirk.template.yml";
+            let template = fs::read_to_string(template_path).wrap_err("Failed to read template")?;
+
+            // change the occurrence of $PWD to the current working directory in the template
+            let new_file = dirk_dir.clone() + "/dirk.yml";
+            let new_content = template.replace("$PWD", &test_data_dir);
+            fs::write(new_file, new_content).wrap_err("Failed to write dirk config file")?;
+
+            let dirk_proc = Command::new("dirk").arg("--base-dir").arg(&dirk_dir).spawn()?;
+            dirk_procs.push(dirk_proc);
+
+            // Wait for some time for each server to start up
+            tokio::time::sleep(Duration::from_secs(2)).await;
+        }
+
+        // Note: the first server is used for the client connection
+        let url = "https://localhost-1:8881".to_string();
+        let cred = TlsCredentials {
+            client_cert_path: test_data_dir.clone() + "/client/localhost.crt",
+            client_key_path: test_data_dir.clone() + "/client/localhost.key",
+            ca_cert_path: Some(test_data_dir.clone() + "/1/security/ca.crt"),
+        };
+
+        let dirk = Dirk::connect(url, cred).await?;
+
+        Ok((dirk, dirk_procs))
+    }
 }
 
 #[cfg(test)]
@@ -227,19 +289,75 @@ mod tests {
     /// Test connecting to a DIRK server and listing available accounts.
     ///
     /// ```shell
-    /// cargo test --package bolt --bin bolt -- common::dirk::tests::test_dirk_connection_e2e
+    /// cargo test --package bolt --bin bolt -- common::dirk::tests::test_dirk_single_connection_e2e
     /// --exact --show-output --ignored
     /// ```
     #[tokio::test]
     #[ignore = "Requires Dirk to be installed on the system"]
-    async fn test_dirk_connection_e2e() -> eyre::Result<()> {
-        let (mut dirk, mut dirk_proc) = test_util::start_dirk_test_server().await?;
+    async fn test_dirk_single_connection_e2e() -> eyre::Result<()> {
+        let (mut dirk, mut dirk_proc) = test_util::start_single_dirk_test_server().await?;
 
         let accounts = dirk.list_accounts("wallet1".to_string()).await?;
         println!("Dirk Accounts: {:?}", accounts);
 
         // make sure to stop the dirk server
         dirk_proc.kill()?;
+
+        Ok(())
+    }
+
+    /// Test unlocking an account in the DIRK server.
+    /// This test requires a running DIRK server.
+    ///
+    /// ```shell
+    /// cargo test --package bolt --bin bolt -- common::dirk::tests::test_unlock_account_e2e
+    /// --exact --show-output --ignored
+    /// ```
+    #[tokio::test]
+    #[ignore = "Requires Dirk to be installed on the system"]
+    async fn test_unlock_account_e2e() -> eyre::Result<()> {
+        let (mut dirk, mut dirk_proc) = test_util::start_single_dirk_test_server().await?;
+
+        let account_name = "account1".to_string();
+        let passphrase = "secret".to_string();
+
+        let unlocked = dirk.unlock_account(account_name, passphrase).await?;
+        println!("Account unlocked: {}", unlocked);
+
+        // make sure to stop the dirk server
+        dirk_proc.kill()?;
+
+        Ok(())
+    }
+
+    /// Test locking an account in the DIRK server.
+    ///
+    /// ```shell
+    /// cargo test --package bolt --bin bolt -- common::dirk::tests::test_dirk_multi_connection_e2e
+    /// --exact --show-output --ignored
+    /// ```
+    ///
+    /// NOTE: in order for the example certificates to work on your machine, you need to
+    /// modify the /etc/hosts file to include the following entry:
+    ///
+    /// ```text
+    /// 127.0.0.1       localhost localhost-1 localhost-2 localhost-3
+    /// ```
+    ///
+    /// This is because we map 3 different server certificates to localhost in order
+    /// to test the multi-node functionality of DIRK.
+    #[tokio::test]
+    #[ignore = "Requires Dirk to be installed on the system"]
+    async fn test_dirk_multi_connection_e2e() -> eyre::Result<()> {
+        let (mut dirk, mut dirk_procs) = test_util::start_multi_dirk_test_server().await?;
+
+        let accounts = dirk.list_accounts("DistributedAccount1/1".to_string()).await?;
+        println!("Dirk Accounts: {:?}", accounts);
+
+        // make sure to stop the dirk servers
+        for proc in &mut dirk_procs {
+            proc.kill()?;
+        }
 
         Ok(())
     }

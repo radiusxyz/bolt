@@ -9,7 +9,7 @@ use crate::{
         keystore::{keystore_paths, KeystoreError},
         write_to_file,
     },
-    pb::eth2_signer_api::Account,
+    pb::eth2_signer_api::ListAccountsResponse,
 };
 
 impl PubkeysCommand {
@@ -35,8 +35,8 @@ impl PubkeysCommand {
                 // Note: we don't need to unlock wallets to list pubkeys
                 let mut dirk = Dirk::connect(opts.url, opts.tls_credentials).await?;
 
-                let accounts = dirk.list_accounts(opts.wallet_path).await?;
-                let pubkeys = list_from_dirk_accounts(&accounts)?;
+                let all_accounts = dirk.list_accounts(opts.wallet_path).await?;
+                let pubkeys = list_from_dirk_accounts(all_accounts)?;
 
                 write_to_file(&self.out, &pubkeys)?;
                 println!("Pubkeys generated from Dirk and saved to {}", self.out);
@@ -80,10 +80,15 @@ pub fn list_from_keystore(keys_path: &str) -> Result<Vec<BlsPublicKey>> {
 }
 
 /// Derive public keys from the provided dirk accounts.
-pub fn list_from_dirk_accounts(accounts: &[Account]) -> Result<Vec<BlsPublicKey>> {
-    let mut pubkeys = Vec::with_capacity(accounts.len());
+pub fn list_from_dirk_accounts(accounts: ListAccountsResponse) -> Result<Vec<BlsPublicKey>> {
+    let count = accounts.accounts.len() + accounts.distributed_accounts.len();
+    let mut pubkeys = Vec::with_capacity(count);
 
-    for acc in accounts {
+    for acc in accounts.accounts {
+        let pubkey = BlsPublicKey::try_from(acc.public_key.as_slice())?;
+        pubkeys.push(pubkey);
+    }
+    for acc in accounts.distributed_accounts {
         let pubkey = BlsPublicKey::try_from(acc.public_key.as_slice())?;
         pubkeys.push(pubkey);
     }
