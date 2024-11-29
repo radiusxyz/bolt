@@ -383,7 +383,7 @@ mod tests {
         let signed_delegations = generate_from_keystore(
             &keys_path,
             keystore_secret,
-            delegatee_pubkey.clone(),
+            delegatee_pubkey,
             chain,
             Action::Delegate,
         )?;

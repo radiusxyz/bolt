@@ -164,7 +164,47 @@ impl OperatorsCommand {
                         eyre::bail!("Transaction failed: {:?}", receipt)
                     }
 
-                    info!("Succesfully registered Symbiotic operator");
+                    info!("Succesfully registered EigenLayer operator");
+
+                    Ok(())
+                }
+                EigenLayerSubcommand::Deregister { rpc_url, operator_private_key } => {
+                    let signer = PrivateKeySigner::from_bytes(&operator_private_key)
+                        .wrap_err("valid private key")?;
+                    let address = signer.address();
+
+                    let provider = ProviderBuilder::new()
+                        .with_recommended_fillers()
+                        .wallet(EthereumWallet::from(signer))
+                        .on_http(rpc_url);
+
+                    let chain_id = provider.get_chain_id().await?;
+                    let chain = Chain::from_id(chain_id)
+                        .unwrap_or_else(|| panic!("chain id {} not supported", chain_id));
+
+                    info!(operator = %address, ?chain, "Deregistering EigenLayer operator");
+
+                    request_confirmation();
+
+                    let deployments = deployments_for_chain(chain);
+
+                    let bolt_avs_address = deployments.bolt.eigenlayer_middleware;
+                    let bolt_eigenlayer_middleware =
+                        BoltEigenLayerMiddleware::new(bolt_avs_address, provider);
+
+                    let result = bolt_eigenlayer_middleware.deregisterOperator().send().await?;
+
+                    info!(
+                        hash = ?result.tx_hash(),
+                        "deregisterOperator transaction sent, awaiting receipt..."
+                    );
+
+                    let receipt = result.get_receipt().await?;
+                    if !receipt.status() {
+                        eyre::bail!("Transaction failed: {:?}", receipt)
+                    }
+
+                    info!("Succesfully deregistered EigenLayer operator");
 
                     Ok(())
                 }
@@ -245,6 +285,47 @@ impl OperatorsCommand {
 
                     Ok(())
                 }
+                SymbioticSubcommand::Deregister { rpc_url, operator_private_key } => {
+                    let signer = PrivateKeySigner::from_bytes(&operator_private_key)
+                        .wrap_err("valid private key")?;
+                    let address = signer.address();
+
+                    let provider = ProviderBuilder::new()
+                        .with_recommended_fillers()
+                        .wallet(EthereumWallet::from(signer))
+                        .on_http(rpc_url);
+
+                    let chain_id = provider.get_chain_id().await?;
+                    let chain = Chain::from_id(chain_id)
+                        .unwrap_or_else(|| panic!("chain id {} not supported", chain_id));
+
+                    let deployments = deployments_for_chain(chain);
+
+                    info!(operator = %address, ?chain, "Deregistering Symbiotic operator");
+
+                    request_confirmation();
+
+                    let middleware = BoltSymbioticMiddleware::new(
+                        deployments.bolt.symbiotic_middleware,
+                        provider,
+                    );
+
+                    let pending = middleware.deregisterOperator().send().await?;
+
+                    info!(
+                        hash = ?pending.tx_hash(),
+                        "deregisterOperator transaction sent, awaiting receipt..."
+                    );
+
+                    let receipt = pending.get_receipt().await?;
+                    if !receipt.status() {
+                        eyre::bail!("Transaction failed: {:?}", receipt)
+                    }
+
+                    info!("Succesfully deregistered Symbiotic operator");
+
+                    Ok(())
+                }
                 SymbioticSubcommand::Status { rpc_url, address } => {
                     let provider = ProviderBuilder::new().on_http(rpc_url.clone());
                     let chain_id = provider.get_chain_id().await?;
@@ -292,6 +373,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_eigenlayer_flow() {
+        let _ = tracing_subscriber::fmt().try_init();
         let mut rnd = rand::thread_rng();
         let secret_key = B256::from(rnd.gen::<[u8; 32]>());
         let wallet = PrivateKeySigner::from_bytes(&secret_key).expect("valid private key");
@@ -391,6 +473,28 @@ mod tests {
         register_operator.run().await.expect("to register operator");
 
         // 4. Check operator registration
+        let check_operator_registration = OperatorsCommand {
+            subcommand: OperatorsSubcommand::EigenLayer {
+                subcommand: EigenLayerSubcommand::Status {
+                    rpc_url: anvil_url.parse().expect("valid url"),
+                    address: account,
+                },
+            },
+        };
+
+        check_operator_registration.run().await.expect("to check operator registration");
+
+        let deregister_operator = OperatorsCommand {
+            subcommand: OperatorsSubcommand::EigenLayer {
+                subcommand: EigenLayerSubcommand::Deregister {
+                    rpc_url: anvil_url.parse().expect("valid url"),
+                    operator_private_key: secret_key,
+                },
+            },
+        };
+
+        deregister_operator.run().await.expect("to deregister operator");
+
         let check_operator_registration = OperatorsCommand {
             subcommand: OperatorsSubcommand::EigenLayer {
                 subcommand: EigenLayerSubcommand::Status {
@@ -516,6 +620,28 @@ mod tests {
         };
 
         register_into_bolt.run().await.expect("to register into bolt");
+
+        let check_status = OperatorsCommand {
+            subcommand: OperatorsSubcommand::Symbiotic {
+                subcommand: SymbioticSubcommand::Status {
+                    rpc_url: anvil_url.parse().expect("valid url"),
+                    address: account,
+                },
+            },
+        };
+
+        check_status.run().await.expect("to check operator status");
+
+        let deregister_command = OperatorsCommand {
+            subcommand: OperatorsSubcommand::Symbiotic {
+                subcommand: SymbioticSubcommand::Deregister {
+                    rpc_url: anvil_url.parse().expect("valid url"),
+                    operator_private_key: secret_key,
+                },
+            },
+        };
+
+        deregister_command.run().await.expect("to deregister operator");
 
         let check_status = OperatorsCommand {
             subcommand: OperatorsSubcommand::Symbiotic {

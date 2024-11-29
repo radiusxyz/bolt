@@ -193,7 +193,7 @@ pub enum OperatorsSubcommand {
 
 #[derive(Debug, Clone, Parser)]
 pub enum EigenLayerSubcommand {
-    /// Step 1: Deposit into a strategy.
+    /// Deposit into a strategy.
     Deposit {
         /// The URL of the RPC to broadcast the transaction.
         #[clap(long, env = "RPC_URL")]
@@ -209,7 +209,7 @@ pub enum EigenLayerSubcommand {
         amount: U256,
     },
 
-    /// Step 2: Register into the bolt AVS.
+    /// Register an operator into the bolt AVS.
     Register {
         /// The URL of the RPC to broadcast the transaction.
         #[clap(long, env = "RPC_URL")]
@@ -228,7 +228,17 @@ pub enum EigenLayerSubcommand {
         expiry: U256,
     },
 
-    /// Step 3: Check your operation registration in bolt
+    /// Deregister an EigenLayer operator from the bolt AVS.
+    Deregister {
+        /// The URL of the RPC to broadcast the transaction.
+        #[clap(long, env = "RPC_URL")]
+        rpc_url: Url,
+        /// The private key of the operator.
+        #[clap(long, env = "OPERATOR_PRIVATE_KEY")]
+        operator_private_key: B256,
+    },
+
+    /// Check the status of an operator in the bolt AVS.
     Status {
         /// The URL of the RPC to broadcast the transaction.
         #[clap(long, env = "RPC_URL")]
@@ -253,6 +263,17 @@ pub enum SymbioticSubcommand {
         #[clap(long, env = "OPERATOR_RPC")]
         operator_rpc: Url,
     },
+
+    /// Deregister a Symbiotic operator from bolt.
+    Deregister {
+        /// The URL of the RPC to broadcast the transaction.
+        #[clap(long, env = "RPC_URL")]
+        rpc_url: Url,
+        /// The private key of the operator.
+        #[clap(long, env = "OPERATOR_PRIVATE_KEY")]
+        operator_private_key: B256,
+    },
+
     /// Check the status of a Symbiotic operator.
     Status {
         /// The URL of the RPC to broadcast the transaction.

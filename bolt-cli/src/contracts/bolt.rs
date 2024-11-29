@@ -36,6 +36,11 @@ sol! {
         /// EigenLayer internally contains a mapping from `msg.sender` (our AVS contract) to the operator.
         /// The msg.sender of this call will be the operator address.
         function registerOperator(string calldata rpc, SignatureWithSaltAndExpiry calldata operatorSignature) public;
+
+        /// @notice Deregister an EigenLayer operator from working in Bolt Protocol.
+        /// @dev This requires calling the EigenLayer AVS Directory contract to deregister the operator.
+        /// EigenLayer internally contains a mapping from `msg.sender` (our AVS contract) to the operator.
+        function deregisterOperator() public;
     }
 
     #[allow(missing_docs)]
@@ -44,6 +49,10 @@ sol! {
         /// @notice Allow an operator to signal opt-in to Bolt Protocol.
         /// msg.sender must be an operator in the Symbiotic network.
         function registerOperator(string calldata rpc) public;
+
+        /// @notice Deregister a Symbiotic operator from working in Bolt Protocol.
+        /// @dev This does NOT deregister the operator from the Symbiotic network.
+        function deregisterOperator() public;
 
         /// @notice Get the collaterals and amounts staked by an operator across the supported strategies.
         ///
