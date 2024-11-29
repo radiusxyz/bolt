@@ -7,7 +7,7 @@ A simple installer script for the [bolt CLI](../bolt-cli).
 Install `boltup` by running the following command:
 
 ```sh
-curl -L https://raw.githubusercontent.com/chainbound/bolt/unstable/boltup/boltup.sh | bash
+curl -L https://raw.githubusercontent.com/chainbound/bolt/unstable/boltup/install.sh | bash
 ```
 
 After the installation is complete, you can run `boltup` to install or update the bolt CLI tool on your system.
