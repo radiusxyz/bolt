@@ -1,9 +1,5 @@
 name: Security Audit
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
 on:
   pull_request:
     paths: 
@@ -38,8 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run cargo audit
-        uses: actions-rust-lang/audit@v1
+        uses: rustsec/adit-check@v2
         with:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          workingDirectory: ${{ matrix.project }}
-          createIssues: "${{ github.ref == 'refs/heads/unstable' || github.ref == 'refs/heads/main' }}"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: ${{ matrix.project }}
