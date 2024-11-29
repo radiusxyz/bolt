@@ -118,27 +118,22 @@ impl FallbackPayloadBuilder {
         // For the timestamp, we must use the one expected by the beacon chain instead, to
         // prevent edge cases where the proposer before us has missed their slot.
         let latest_block = self.execution_rpc_client.get_block(None, true).await?;
-        trace!(num = ?latest_block.header.number, "got latest block");
 
         let withdrawals = self.get_expected_withdrawals_at_head().await?;
-        trace!(amount = ?withdrawals.len(), "got expected withdrawals");
 
         let prev_randao = self.get_prev_randao().await?;
-        trace!(randao = ?prev_randao, "got prev_randao");
 
         let parent_beacon_block_root = B256::from_slice(
             // TODO: compat: as_slice() from_slice() is necessary until we bump ethereum-consensus
             // version to match alloy's.
             self.beacon_api_client.get_beacon_block_root(BlockId::Head).await?.as_slice(),
         );
-        trace!(parent = ?parent_beacon_block_root, "got parent_beacon_block_root");
 
         let versioned_hashes = transactions
             .iter()
             .flat_map(|tx| tx.blob_versioned_hashes())
             .flatten()
             .collect::<Vec<_>>();
-        trace!(amount = ?versioned_hashes.len(), "got versioned_hashes");
 
         let base_fee = calc_next_block_base_fee(
             latest_block.header.gas_used,
@@ -197,8 +192,6 @@ impl FallbackPayloadBuilder {
                 .engine_hinter
                 .fetch_next_payload_hint(&exec_payload, &versioned_hashes, parent_beacon_block_root)
                 .await?;
-
-            trace!("engine_hint: {:?}", engine_hint);
 
             match engine_hint {
                 EngineApiHint::BlockHash(hash) => {
@@ -333,7 +326,7 @@ impl EngineHinter {
             return Err(BuilderError::InvalidEngineHint(raw_hint));
         };
 
-        trace!("raw hint: {:?}", raw_hint);
+        trace!("engine hint: {:?}", raw_hint);
 
         // Match the hint value to the corresponding header field and return it
         if raw_hint.contains("blockhash mismatch") {
