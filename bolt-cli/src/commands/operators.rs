@@ -371,6 +371,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_eigenlayer_flow() {
+        let _ = tracing_subscriber::fmt().try_init();
         let mut rnd = rand::thread_rng();
         let secret_key = B256::from(rnd.gen::<[u8; 32]>());
         let wallet = PrivateKeySigner::from_bytes(&secret_key).expect("valid private key");
@@ -470,6 +471,28 @@ mod tests {
         register_operator.run().await.expect("to register operator");
 
         // 4. Check operator registration
+        let check_operator_registration = OperatorsCommand {
+            subcommand: OperatorsSubcommand::EigenLayer {
+                subcommand: EigenLayerSubcommand::Status {
+                    rpc_url: anvil_url.parse().expect("valid url"),
+                    address: account,
+                },
+            },
+        };
+
+        check_operator_registration.run().await.expect("to check operator registration");
+
+        let deregister_operator = OperatorsCommand {
+            subcommand: OperatorsSubcommand::EigenLayer {
+                subcommand: EigenLayerSubcommand::Deregister {
+                    rpc_url: anvil_url.parse().expect("valid url"),
+                    operator_private_key: secret_key,
+                },
+            },
+        };
+
+        deregister_operator.run().await.expect("to deregister operator");
+
         let check_operator_registration = OperatorsCommand {
             subcommand: OperatorsSubcommand::EigenLayer {
                 subcommand: EigenLayerSubcommand::Status {
