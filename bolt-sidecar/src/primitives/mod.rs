@@ -160,20 +160,16 @@ impl GetPayloadResponse {
     /// Returns the block hash of the payload
     pub fn block_hash(&self) -> &Hash32 {
         match self {
-            Self::Capella(payload) => payload.block_hash(),
-            Self::Bellatrix(payload) => payload.block_hash(),
-            Self::Deneb(payload) => payload.execution_payload.block_hash(),
-            Self::Electra(payload) => payload.execution_payload.block_hash(),
+            Self::Capella(payload) | Self::Bellatrix(payload) => payload.block_hash(),
+            Self::Deneb(payload) | Self::Electra(payload) => payload.execution_payload.block_hash(),
         }
     }
 
     /// Returns the execution payload
     pub fn execution_payload(&self) -> &ExecutionPayload {
         match self {
-            Self::Capella(payload) => payload,
-            Self::Bellatrix(payload) => payload,
-            Self::Deneb(payload) => &payload.execution_payload,
-            Self::Electra(payload) => &payload.execution_payload,
+            Self::Capella(payload) | Self::Bellatrix(payload) => payload,
+            Self::Deneb(payload) | Self::Electra(payload) => &payload.execution_payload,
         }
     }
 }
@@ -181,9 +177,9 @@ impl GetPayloadResponse {
 impl From<PayloadAndBlobs> for GetPayloadResponse {
     fn from(payload_and_blobs: PayloadAndBlobs) -> Self {
         match payload_and_blobs.execution_payload.version() {
-            Fork::Phase0 => Self::Capella(payload_and_blobs.execution_payload),
-            Fork::Altair => Self::Capella(payload_and_blobs.execution_payload),
-            Fork::Capella => Self::Capella(payload_and_blobs.execution_payload),
+            Fork::Phase0 | Fork::Altair | Fork::Capella => {
+                Self::Capella(payload_and_blobs.execution_payload)
+            }
             Fork::Bellatrix => Self::Bellatrix(payload_and_blobs.execution_payload),
             Fork::Deneb => Self::Deneb(payload_and_blobs),
             Fork::Electra => Self::Electra(payload_and_blobs),
