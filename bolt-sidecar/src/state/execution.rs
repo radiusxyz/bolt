@@ -329,33 +329,8 @@ impl<C: StateFetcher> ExecutionState<C> {
         for tx in &req.txs {
             let sender = tx.sender().expect("Recovered sender");
 
-            // From previous preconfirmations requests retrieve
-            // - the nonce difference from the account state.
-            // - the balance difference from the account state.
-            // - the highest slot number for which the user has requested a preconfirmation.
-            //
-            // If the templates do not exist, or this is the first request for this sender,
-            // its diffs will be zero.
             let (nonce_diff, balance_diff, highest_slot_for_account) =
-                self.block_templates.iter().fold(
-                    (0, U256::ZERO, 0),
-                    |(nonce_diff_acc, balance_diff_acc, highest_slot), (slot, block_template)| {
-                        let (nonce_diff, balance_diff, slot) = block_template
-                            .get_diff(sender)
-                            .map(|(nonce, balance)| (nonce, balance, *slot))
-                            .unwrap_or((0, U256::ZERO, 0));
-
-                        // This might be noisy but it is a critical part in validation logic and
-                        // hard to debug.
-                        trace!(?nonce_diff, ?balance_diff, ?slot, ?sender, "found diffs");
-
-                        (
-                            nonce_diff_acc + nonce_diff,
-                            balance_diff_acc.saturating_add(balance_diff),
-                            u64::max(highest_slot, slot),
-                        )
-                    },
-                );
+                compute_diffs(&self.block_templates, sender);
 
             if target_slot < highest_slot_for_account {
                 debug!(%target_slot, %highest_slot_for_account, "There is a request for a higher slot");
@@ -586,8 +561,42 @@ pub struct StateUpdate {
     pub block_number: u64,
 }
 
+/// Calculate aggregated diffs for an account, given some block templates.
+///
+/// From previous preconfirmations requests retrieve
+/// - the nonce difference from the account state.
+/// - the balance difference from the account state.
+/// - the highest slot number for which the user has requested a preconfirmation.
+///
+/// If the templates do not exist, or this is the first request for this sender,
+/// its diffs will be zero.
+fn compute_diffs(
+    block_templates: &HashMap<u64, BlockTemplate>,
+    sender: &Address,
+) -> (u64, U256, u64) {
+    block_templates.iter().fold(
+        (0, U256::ZERO, 0),
+        |(nonce_diff_acc, balance_diff_acc, highest_slot), (slot, block_template)| {
+            let (nonce_diff, balance_diff, current_slot) = block_template
+                .get_diff(sender)
+                .map(|(nonce, balance)| (nonce, balance, *slot))
+                .unwrap_or((0, U256::ZERO, 0));
+            // This might be noisy but it is a critical part in validation logic and
+            // hard to debug.
+            trace!(?nonce_diff, ?balance_diff, ?slot, ?sender, "found diffs");
+
+            (
+                nonce_diff_acc + nonce_diff,
+                balance_diff_acc.saturating_add(balance_diff),
+                u64::max(highest_slot, current_slot),
+            )
+        },
+    )
+}
+
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::{
         builder::template::StateDiff, config::limits::DEFAULT_MAX_COMMITTED_GAS,
         signer::local::LocalSigner,
@@ -611,7 +620,41 @@ mod tests {
         test_util::{create_signed_inclusion_request, default_test_transaction, launch_anvil},
     };
 
-    use super::*;
+    #[test]
+    fn test_compute_diff_no_templates() {
+        let block_templates = HashMap::new();
+        let sender = Address::random();
+
+        let (nonce_diff, balance_diff, highest_slot) = compute_diffs(&block_templates, &sender);
+
+        assert_eq!(nonce_diff, 0);
+        assert_eq!(balance_diff, U256::ZERO);
+        assert_eq!(highest_slot, 0);
+    }
+
+    #[test]
+    fn test_compute_diff_single_template() {
+        // Create a single StateDiff entry
+        let sender = Address::random();
+        let nonce = 1;
+        let balance_diff = U256::from(2);
+        let mut diffs = HashMap::new();
+        diffs.insert(sender, (nonce, balance_diff));
+
+        // Insert StateDiff entry
+        let state_diff = StateDiff { diffs };
+
+        // Create BlockTemplate with StateDiff
+        let mut block_templates = HashMap::new();
+        let block_template = BlockTemplate { state_diff, signed_constraints_list: vec![] };
+        block_templates.insert(10, block_template);
+
+        let (nonce_diff, balance_diff, highest_slot) = compute_diffs(&block_templates, &sender);
+
+        assert_eq!(nonce_diff, 1);
+        assert_eq!(balance_diff, U256::from(2));
+        assert_eq!(highest_slot, 10);
+    }
 
     #[tokio::test]
     async fn test_valid_inclusion_request() -> eyre::Result<()> {
