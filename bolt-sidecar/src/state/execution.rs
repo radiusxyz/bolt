@@ -633,17 +633,19 @@ mod tests {
 
     #[test]
     fn test_compute_diff_single_template() {
-        let mut block_templates = HashMap::new();
+        // Create a single StateDiff entry
         let sender = Address::random();
-
+        let nonce = 1;
+        let balance_diff = U256::from(2);
         let mut diffs = HashMap::new();
-        diffs.insert(sender.clone(), (1, U256::from(2)));
+        diffs.insert(sender, (nonce, balance_diff));
 
-        let mut state_diff = StateDiff::default();
-        state_diff.diffs = diffs.clone();
+        // Insert StateDiff entry
+        let state_diff = StateDiff { diffs };
 
+        // Create BlockTemplate with StateDiff
+        let mut block_templates = HashMap::new();
         let block_template = BlockTemplate { state_diff, signed_constraints_list: vec![] };
-
         block_templates.insert(10, block_template);
 
         let (nonce_diff, balance_diff, highest_slot) = compute_diffs(&block_templates, &sender);
