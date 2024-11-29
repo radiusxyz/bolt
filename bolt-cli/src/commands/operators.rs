@@ -171,17 +171,18 @@ impl OperatorsCommand {
                 EigenLayerSubcommand::Deregister { rpc_url, operator_private_key } => {
                     let signer = PrivateKeySigner::from_bytes(&operator_private_key)
                         .wrap_err("valid private key")?;
+                    let address = signer.address();
 
                     let provider = ProviderBuilder::new()
                         .with_recommended_fillers()
-                        .wallet(EthereumWallet::from(signer.clone()))
-                        .on_http(rpc_url.clone());
+                        .wallet(EthereumWallet::from(signer))
+                        .on_http(rpc_url);
 
                     let chain_id = provider.get_chain_id().await?;
                     let chain = Chain::from_id(chain_id)
                         .unwrap_or_else(|| panic!("chain id {} not supported", chain_id));
 
-                    info!(operator = %signer.address(), ?chain, "Deregistering EigenLayer operator");
+                    info!(operator = %address, ?chain, "Deregistering EigenLayer operator");
 
                     request_confirmation();
 
@@ -189,7 +190,7 @@ impl OperatorsCommand {
 
                     let bolt_avs_address = deployments.bolt.eigenlayer_middleware;
                     let bolt_eigenlayer_middleware =
-                        BoltEigenLayerMiddleware::new(bolt_avs_address, provider.clone());
+                        BoltEigenLayerMiddleware::new(bolt_avs_address, provider);
 
                     let result = bolt_eigenlayer_middleware.deregisterOperator().send().await?;
 
@@ -287,10 +288,11 @@ impl OperatorsCommand {
                 SymbioticSubcommand::Deregister { rpc_url, operator_private_key } => {
                     let signer = PrivateKeySigner::from_bytes(&operator_private_key)
                         .wrap_err("valid private key")?;
+                    let address = signer.address();
 
                     let provider = ProviderBuilder::new()
                         .with_recommended_fillers()
-                        .wallet(EthereumWallet::from(signer.clone()))
+                        .wallet(EthereumWallet::from(signer))
                         .on_http(rpc_url);
 
                     let chain_id = provider.get_chain_id().await?;
@@ -299,13 +301,13 @@ impl OperatorsCommand {
 
                     let deployments = deployments_for_chain(chain);
 
-                    info!(operator = %signer.address(), ?chain, "Deregistering Symbiotic operator");
+                    info!(operator = %address, ?chain, "Deregistering Symbiotic operator");
 
                     request_confirmation();
 
                     let middleware = BoltSymbioticMiddleware::new(
                         deployments.bolt.symbiotic_middleware,
-                        provider.clone(),
+                        provider,
                     );
 
                     let pending = middleware.deregisterOperator().send().await?;
