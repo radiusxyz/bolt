@@ -332,10 +332,6 @@ impl<C: StateFetcher> ExecutionState<C> {
             let (nonce_diff, balance_diff, highest_slot_for_account) =
                 compute_diffs(&self.block_templates, sender);
 
-            // This might be noisy but it is a critical part in validation logic and
-            // hard to debug.
-            trace!(?nonce_diff, ?balance_diff, ?slot, ?sender, "found diffs");
-
             if target_slot < highest_slot_for_account {
                 debug!(%target_slot, %highest_slot_for_account, "There is a request for a higher slot");
                 return Err(ValidationError::SlotTooLow(highest_slot_for_account));
@@ -566,7 +562,7 @@ pub struct StateUpdate {
 }
 
 /// Calculate aggregated diffs for an account, given some block templates.
-/// 
+///
 /// From previous preconfirmations requests retrieve
 /// - the nonce difference from the account state.
 /// - the balance difference from the account state.
@@ -585,6 +581,9 @@ fn compute_diffs(
                 .get_diff(sender)
                 .map(|(nonce, balance)| (nonce, balance, *slot))
                 .unwrap_or((0, U256::ZERO, 0));
+            // This might be noisy but it is a critical part in validation logic and
+            // hard to debug.
+            trace!(?nonce_diff, ?balance_diff, ?slot, ?sender, "found diffs");
 
             (
                 nonce_diff_acc + nonce_diff,
