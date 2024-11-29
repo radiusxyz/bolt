@@ -42,4 +42,3 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           working-directory: ${{ matrix.project }}
-          createIssues: "${{ github.ref == 'refs/heads/unstable' || github.ref == 'refs/heads/main' }}"
