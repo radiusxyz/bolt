@@ -84,30 +84,16 @@ pub enum BuilderApiError {
 impl IntoResponse for BuilderApiError {
     fn into_response(self) -> Response {
         match self {
-            Self::FailedRegisteringValidators(error) => {
-                (StatusCode::from_u16(error.code).unwrap(), Json(error)).into_response()
-            }
-            Self::FailedGettingHeader(error) => {
-                (StatusCode::from_u16(error.code).unwrap(), Json(error)).into_response()
-            }
-            Self::FailedGettingPayload(error) => {
-                (StatusCode::from_u16(error.code).unwrap(), Json(error)).into_response()
-            }
-            Self::FailedSubmittingConstraints(error) => {
-                (StatusCode::from_u16(error.code).unwrap(), Json(error)).into_response()
-            }
-            Self::FailedDelegating(error) => {
-                (StatusCode::from_u16(error.code).unwrap(), Json(error)).into_response()
-            }
+            Self::FailedRegisteringValidators(error) |
+            Self::FailedGettingHeader(error) |
+            Self::FailedGettingPayload(error) |
+            Self::FailedSubmittingConstraints(error) |
+            Self::FailedDelegating(error) |
             Self::FailedRevoking(error) => {
                 (StatusCode::from_u16(error.code).unwrap(), Json(error)).into_response()
             }
-            Self::AxumError(err) => {
-                (StatusCode::BAD_REQUEST, err.to_string()).into_response()
-            }
-            Self::JsonError(err) => {
-                (StatusCode::BAD_REQUEST, err.to_string()).into_response()
-            }
+            Self::AxumError(err) => (StatusCode::BAD_REQUEST, err.to_string()).into_response(),
+            Self::JsonError(err) => (StatusCode::BAD_REQUEST, err.to_string()).into_response(),
             Self::FailedToFetchLocalPayload(_) => {
                 (StatusCode::NO_CONTENT, self.to_string()).into_response()
             }
@@ -121,15 +107,11 @@ impl IntoResponse for BuilderApiError {
                 StatusCode::GATEWAY_TIMEOUT.canonical_reason().unwrap(),
             )
                 .into_response(),
-            Self::InvalidFork(err) => {
-                (StatusCode::BAD_REQUEST, Json(err)).into_response()
-            }
+            Self::InvalidFork(err) => (StatusCode::BAD_REQUEST, Json(err)).into_response(),
             Self::LocalPayloadIntegrity(err) => {
                 (StatusCode::BAD_REQUEST, err.to_string()).into_response()
             }
-            Self::Generic(err) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, Json(err)).into_response()
-            }
+            Self::Generic(err) => (StatusCode::INTERNAL_SERVER_ERROR, Json(err)).into_response(),
         }
     }
 }
