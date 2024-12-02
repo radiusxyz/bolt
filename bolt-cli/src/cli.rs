@@ -175,11 +175,11 @@ pub enum ValidatorsSubcommand {
         rpc_url: Url,
 
         /// The path to the JSON pubkeys file, containing an array of BLS public keys.
-        #[clap(long, env = "PUBKEYS_PATH", conflicts_with = "PUBKEYS")]
+        #[clap(long, env = "PUBKEYS_PATH", conflicts_with = "pubkeys")]
         pubkeys_path: Option<PathBuf>,
 
         /// The validator public key to check the status of.
-        #[clap(long, env = "PUBKEYS", conflicts_with = "PUBKEYS_PATH")]
+        #[clap(long, env = "PUBKEYS", conflicts_with = "pubkeys_path")]
         pubkeys: Vec<FixedBytes<48>>,
     },
 }
