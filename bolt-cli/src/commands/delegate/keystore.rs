@@ -62,3 +62,41 @@ pub fn generate_from_keystore(
 
     Ok(signed_messages)
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        cli::{Action, Chain},
+        commands::delegate::verify_message_signature,
+        common::{keystore, parse_bls_public_key},
+    };
+
+    use super::generate_from_keystore;
+
+    #[test]
+    fn test_delegation_keystore_signer_lighthouse() -> eyre::Result<()> {
+        // Read the keystore from test_data
+        let keys_path = env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/lighthouse/validators";
+        let secrets_path = env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/lighthouse/secrets";
+
+        let keystore_secret = keystore::KeystoreSecret::from_directory(&secrets_path)?;
+
+        let delegatee_pubkey = "0x83eeddfac5e60f8fe607ee8713efb8877c295ad9f8ca075f4d8f6f2ae241a30dd57f78f6f3863a9fe0d5b5db9d550b93";
+        let delegatee_pubkey = parse_bls_public_key(delegatee_pubkey)?;
+        let chain = Chain::Mainnet;
+
+        let signed_delegations = generate_from_keystore(
+            &keys_path,
+            keystore_secret,
+            delegatee_pubkey.clone(),
+            chain,
+            Action::Delegate,
+        )?;
+
+        let signed_message = signed_delegations.first().expect("to get signed delegation");
+
+        verify_message_signature(signed_message, chain)?;
+
+        Ok(())
+    }
+}

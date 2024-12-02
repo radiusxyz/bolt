@@ -15,6 +15,9 @@ use crate::{
     },
 };
 
+/// Module to work with Dirk distributed accounts.
+pub mod distributed;
+
 /// Test utilities for the DIRK client.
 #[cfg(test)]
 pub mod test_util;
@@ -27,7 +30,7 @@ pub mod test_util;
 /// - `AccountManager`: Manage accounts in the keystore (lock and unlock accounts).
 ///
 /// Reference: https://github.com/attestantio/dirk
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Dirk {
     lister: ListerClient<Channel>,
     signer: SignerClient<Channel>,
@@ -143,7 +146,7 @@ impl Dirk {
         let req = SignRequest {
             data: hash.to_vec(),
             domain: domain.to_vec(),
-            id: Some(SignRequestId::Account(account_name.clone())),
+            id: Some(SignRequestId::Account(account_name)),
         };
 
         let res = self.signer.sign(req).await?.into_inner();
@@ -158,7 +161,7 @@ impl Dirk {
         let sig = BlsSignature::try_from(res.signature.as_slice())
             .wrap_err("Failed to parse signature")?;
 
-        debug!("Signature request succeeded for account {}", account_name);
+        debug!("Dirk Signature request succeeded");
         Ok(sig)
     }
 }

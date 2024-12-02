@@ -119,16 +119,6 @@ pub enum SignedMessage {
     Revocation(SignedRevocation),
 }
 
-impl SignedMessage {
-    /// Get the message signature
-    pub fn signature(&self) -> &BlsSignature {
-        match self {
-            Self::Delegation(signed_delegation) => &signed_delegation.signature,
-            Self::Revocation(signed_revocation) => &signed_revocation.signature,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct SignedDelegation {
     pub message: DelegationMessage,
@@ -214,95 +204,5 @@ pub fn verify_message_signature(message: &SignedMessage, chain: Chain) -> Result
             // Verify the signature
             verify_commit_boost_root(signer_pubkey, digest, &blst_sig, &chain)
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{
-        cli::{Action, Chain, DirkOpts},
-        common::{
-            dirk::{self},
-            keystore, parse_bls_public_key,
-        },
-    };
-
-    use super::{
-        dirk::generate_from_dirk, keystore::generate_from_keystore, verify_message_signature,
-    };
-
-    #[test]
-    fn test_delegation_keystore_signer_lighthouse() -> eyre::Result<()> {
-        // Read the keystore from test_data
-        let keys_path = env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/lighthouse/validators";
-        let secrets_path = env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/lighthouse/secrets";
-
-        let keystore_secret = keystore::KeystoreSecret::from_directory(&secrets_path)?;
-
-        let delegatee_pubkey = "0x83eeddfac5e60f8fe607ee8713efb8877c295ad9f8ca075f4d8f6f2ae241a30dd57f78f6f3863a9fe0d5b5db9d550b93";
-        let delegatee_pubkey = parse_bls_public_key(delegatee_pubkey)?;
-        let chain = Chain::Mainnet;
-
-        let signed_delegations = generate_from_keystore(
-            &keys_path,
-            keystore_secret,
-            delegatee_pubkey.clone(),
-            chain,
-            Action::Delegate,
-        )?;
-
-        let signed_message = signed_delegations.first().expect("to get signed delegation");
-
-        verify_message_signature(signed_message, chain)?;
-
-        Ok(())
-    }
-
-    /// Test generating signed delegations using a remote Dirk signer (single instance).
-    ///
-    /// ```shell
-    /// cargo test --package bolt --bin bolt -- commands::delegate::tests::test_delegation_dirk_single
-    /// --exact --show-output --ignored --nocapture
-    /// ```
-    #[tokio::test]
-    #[ignore = "Requires Dirk to be installed on the system"]
-    async fn test_delegation_dirk_single() -> eyre::Result<()> {
-        let _ = tracing_subscriber::fmt::try_init();
-        let (url, cred, mut dirk_proc) = dirk::test_util::start_single_dirk_test_server().await?;
-
-        let delegatee_pubkey = "0x83eeddfac5e60f8fe607ee8713efb8877c295ad9f8ca075f4d8f6f2ae241a30dd57f78f6f3863a9fe0d5b5db9d550b93";
-        let delegatee_pubkey = parse_bls_public_key(delegatee_pubkey)?;
-        let chain = Chain::Mainnet;
-
-        let opts = DirkOpts {
-            url,
-            wallet_path: "wallet1".to_string(),
-            tls_credentials: cred,
-            passphrases: Some(vec!["secret".to_string()]),
-        };
-
-        let signed_delegations =
-            generate_from_dirk(opts, delegatee_pubkey.clone(), chain, Action::Delegate).await?;
-
-        let signed_message = signed_delegations.first().expect("to get signed delegation");
-
-        verify_message_signature(signed_message, chain)?;
-
-        dirk_proc.kill()?;
-
-        Ok(())
-    }
-
-    /// Test generating signed delegations using a remote Dirk signer (multi-node instance).
-    /// This test requires multiple instances of Dirk to be running.
-    ///
-    /// ```shell
-    /// cargo test --package bolt --bin bolt -- commands::delegate::tests::test_delegation_dirk_multi
-    /// --exact --show-output --ignored --nocapture
-    /// ```
-    #[tokio::test]
-    #[ignore = "Requires Dirk to be installed on the system"]
-    async fn test_delegation_dirk_multi() -> eyre::Result<()> {
-        Ok(())
     }
 }
