@@ -89,7 +89,7 @@ pub fn list_from_dirk_accounts(accounts: ListAccountsResponse) -> Result<Vec<Bls
         pubkeys.push(pubkey);
     }
     for acc in accounts.distributed_accounts {
-        let pubkey = BlsPublicKey::try_from(acc.public_key.as_slice())?;
+        let pubkey = BlsPublicKey::try_from(acc.composite_public_key.as_slice())?;
         pubkeys.push(pubkey);
     }
 

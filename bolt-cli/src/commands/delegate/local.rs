@@ -6,7 +6,7 @@ use crate::{
     common::signing::compute_commit_boost_signing_root,
 };
 
-use super::{
+use super::types::{
     DelegationMessage, RevocationMessage, SignedDelegation, SignedMessage, SignedRevocation,
 };
 

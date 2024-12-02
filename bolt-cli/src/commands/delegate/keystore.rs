@@ -11,7 +11,7 @@ use crate::{
     },
 };
 
-use super::{
+use super::types::{
     DelegationMessage, RevocationMessage, SignedDelegation, SignedMessage, SignedRevocation,
 };
 
@@ -67,7 +67,6 @@ pub fn generate_from_keystore(
 mod tests {
     use crate::{
         cli::{Action, Chain},
-        commands::delegate::verify_message_signature,
         common::{keystore, parse_bls_public_key},
     };
 
@@ -95,7 +94,7 @@ mod tests {
 
         let signed_message = signed_delegations.first().expect("to get signed delegation");
 
-        verify_message_signature(signed_message, chain)?;
+        signed_message.verify_signature(chain)?;
 
         Ok(())
     }

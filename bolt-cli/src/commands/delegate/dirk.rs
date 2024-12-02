@@ -5,14 +5,13 @@ use tracing::{debug, warn};
 
 use crate::{
     cli::{Action, Chain, DirkOpts},
-    commands::delegate::verify_message_signature,
     common::{
         dirk::{distributed::DistributedDirkAccount, Dirk},
         signing::compute_domain_from_mask,
     },
 };
 
-use super::{
+use super::types::{
     DelegationMessage, RevocationMessage, SignedDelegation, SignedMessage, SignedRevocation,
 };
 
@@ -101,11 +100,11 @@ pub async fn generate_from_dirk(
             }
         };
 
-        // TODO: rm from here, already done downstream
-        // Sanity check: verify the aggregated signature early to debug aggregate signature issues
-        if let Err(err) = verify_message_signature(&signed_message, chain) {
+        // Sanity check: verify the recovered signature early to debug aggregate signature issues
+        // Note: this is done twice (here and in the main loop) to help debug sharded signatures
+        if let Err(err) = signed_message.verify_signature(chain) {
             bail!(
-                "Failed to verify aggregated signature for distributed account '{}': {:?}",
+                "Failed to verify recovered signature for distributed account '{}': {:?}",
                 name,
                 err
             );
@@ -131,7 +130,7 @@ pub async fn generate_from_dirk(
 mod tests {
     use crate::{
         cli::{Action, Chain, DirkOpts},
-        commands::delegate::{dirk::generate_from_dirk, verify_message_signature},
+        commands::delegate::dirk::generate_from_dirk,
         common::{dirk, parse_bls_public_key},
     };
 
@@ -163,7 +162,7 @@ mod tests {
 
         let signed_message = signed_delegations.first().expect("to get signed delegation");
 
-        verify_message_signature(signed_message, chain)?;
+        signed_message.verify_signature(chain)?;
 
         dirk_proc.kill()?;
 
@@ -180,6 +179,32 @@ mod tests {
     #[tokio::test]
     #[ignore = "Requires Dirk to be installed on the system"]
     async fn test_delegation_dirk_multi() -> eyre::Result<()> {
+        let _ = tracing_subscriber::fmt::try_init();
+        let (url, cred, mut dirk_procs) = dirk::test_util::start_multi_dirk_test_server().await?;
+
+        let delegatee_pubkey = "0x83eeddfac5e60f8fe607ee8713efb8877c295ad9f8ca075f4d8f6f2ae241a30dd57f78f6f3863a9fe0d5b5db9d550b93";
+        let delegatee_pubkey = parse_bls_public_key(delegatee_pubkey)?;
+        let chain = Chain::Mainnet;
+
+        let opts = DirkOpts {
+            url,
+            // Use the distributed wallet path for the multi-node test
+            wallet_path: "DistributedWallet1/1".to_string(),
+            tls_credentials: cred,
+            passphrases: Some(vec!["secret".to_string()]),
+        };
+
+        let signed_delegations =
+            generate_from_dirk(opts, delegatee_pubkey.clone(), chain, Action::Delegate).await?;
+
+        let signed_message = signed_delegations.first().expect("to get signed delegation");
+
+        signed_message.verify_signature(chain)?;
+
+        for dirk_proc in &mut dirk_procs {
+            dirk_proc.kill()?;
+        }
+
         Ok(())
     }
 }
