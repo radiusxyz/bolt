@@ -143,8 +143,9 @@ pub struct ExecutionState<C> {
     /// The blob basefee at the head block.
     blob_basefee: u128,
     /// The cached account states. This should never be read directly. These only contain the
-    /// canonical account states at the head block, not the intermediate states. As such the
-    /// entries should only be modified when receiving a new head.
+    /// canonical account states at the head block, not the intermediate states.
+    ///
+    /// INVARIANT: the entries are modified only when receiving a new head.
     account_states: AccountStateCache,
     /// The block templates by target SLOT NUMBER.
     /// We have multiple block templates because in rare cases we might have multiple
@@ -505,20 +506,25 @@ impl<C: StateFetcher> ExecutionState<C> {
     /// transactions by checking the nonce and balance of the account after applying the state
     /// diffs.
     fn refresh_templates(&mut self) {
-        for (address, mut account_state) in self.account_states.iter().map(|(a, (s, _))| (*a, *s)) {
-            trace!(%address, ?account_state, "Refreshing template...");
+        for (address, (account_state, _)) in self.account_states.iter() {
+            trace!(%address, ?account_state, "Refreshing templates...");
+
+            // `expected_account_state` is the account state after applying the state diff,
+            // that is the account state we expect after applying all transactions in a block template
+            let (address, mut expected_account_state) = (*address, *account_state);
+
             // Iterate over all block templates and apply the state diff
             for template in self.block_templates.values_mut() {
                 // Retain only signed constraints where transactions are still valid based on the
                 // canonical account states.
-                template.retain(address, account_state);
+                template.retain(address, expected_account_state);
 
                 // Update the account state with the remaining state diff for the next iteration.
                 if let Some((nonce_diff, balance_diff)) = template.get_diff(&address) {
                     // Nonce will always be increased
-                    account_state.transaction_count += nonce_diff;
+                    expected_account_state.transaction_count += nonce_diff;
                     // Balance will always be decreased
-                    account_state.balance -= balance_diff;
+                    expected_account_state.balance -= balance_diff;
                 }
             }
         }
