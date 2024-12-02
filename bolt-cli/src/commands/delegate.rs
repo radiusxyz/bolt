@@ -1,9 +1,11 @@
+use std::collections::HashMap;
+
 use alloy::{
     primitives::B256,
     signers::k256::sha2::{Digest, Sha256},
 };
 use ethereum_consensus::crypto::{
-    PublicKey as BlsPublicKey, SecretKey as BlsSecretKey, Signature as BlsSignature,
+    aggregate, PublicKey as BlsPublicKey, SecretKey as BlsSecretKey, Signature as BlsSignature,
 };
 use eyre::{bail, Result};
 use lighthouse_eth2_keystore::Keystore;
@@ -11,7 +13,7 @@ use serde::Serialize;
 use tracing::{debug, warn};
 
 use crate::{
-    cli::{Action, Chain, DelegateCommand, SecretsSource},
+    cli::{Action, Chain, DelegateCommand, DirkOpts, SecretsSource},
     common::{
         dirk::Dirk,
         keystore::{keystore_paths, KeystoreError, KeystoreSecret},
@@ -66,18 +68,9 @@ impl DelegateCommand {
                 println!("Signed delegation messages generated and saved to {}", self.out);
             }
             SecretsSource::Dirk { opts } => {
-                let mut dirk = Dirk::connect(opts.url, opts.tls_credentials).await?;
-
                 let delegatee_pubkey = parse_bls_public_key(&self.delegatee_pubkey)?;
-                let signed_messages = generate_from_dirk(
-                    &mut dirk,
-                    delegatee_pubkey,
-                    opts.wallet_path,
-                    opts.passphrases,
-                    self.chain,
-                    self.action,
-                )
-                .await?;
+                let signed_messages =
+                    generate_from_dirk(opts, delegatee_pubkey, self.chain, self.action).await?;
                 debug!("Signed {} messages with Dirk", signed_messages.len());
 
                 // Verify signatures
@@ -180,77 +173,180 @@ pub fn generate_from_keystore(
     Ok(signed_messages)
 }
 
-/// Generate signed delegations/revocations using a remote Dirk signer
+/// Generate signed delegations/revocations using remote Dirk signers
 pub async fn generate_from_dirk(
-    dirk: &mut Dirk,
+    opts: DirkOpts,
     delegatee_pubkey: BlsPublicKey,
-    account_path: String,
-    passphrases: Option<Vec<String>>,
     chain: Chain,
     action: Action,
 ) -> Result<Vec<SignedMessage>> {
-    // first read the accounts from the remote keystore
-    let accounts = dirk.list_accounts(account_path).await?;
+    // read the accounts from the remote Dirk signer at the provided URL
+    let mut dirk = Dirk::connect(opts.url.clone(), opts.tls_credentials.clone()).await?;
+    let accounts = dirk.list_accounts(opts.wallet_path).await?;
     debug!(
-        normal = %accounts.accounts.len(),
+        regular = %accounts.accounts.len(),
         distributed = %accounts.distributed_accounts.len(),
-        "Found remote accounts to sign with",
+        "Found remote accounts"
     );
+
+    // specify the signing domain (it needs to be included in the signing requests)
+    let domain = B256::from(compute_domain_from_mask(chain.fork_version()));
 
     let total_accounts = accounts.accounts.len() + accounts.distributed_accounts.len();
     let mut signed_messages = Vec::with_capacity(total_accounts);
 
-    // specify the signing domain (needs to be included in the signing request)
-    let domain = B256::from(compute_domain_from_mask(chain.fork_version()));
+    // regular and distributed account work differently.
+    // - For regular accounts, we can sign the message directly
+    // - For distributed accounts, we need to:
+    //    - Look into the account's participants and threshold configuration
+    //    - Connect to at least `threshold` nodes individually
+    //    - Sign the message on each node
+    //    - Aggregate the signatures
 
-    // Collect all account names and pubkeys (regular and distributed accounts)
-    let all_accounts_info = accounts
-        .accounts
-        .into_iter()
-        .map(|acc| (acc.name, acc.public_key))
-        .chain(
-            accounts
-                .distributed_accounts
-                .into_iter()
-                .map(|acc| (acc.name, acc.composite_public_key)),
-        )
-        .collect::<Vec<_>>();
+    for regular in accounts.accounts {
+        let name = regular.name.clone();
+        let validator_pubkey = BlsPublicKey::try_from(regular.public_key.as_slice())?;
 
-    for (name, pubkey_bytes) in all_accounts_info {
-        // for each available pubkey we control, sign a delegation message
-        let pubkey = BlsPublicKey::try_from(pubkey_bytes.as_slice())?;
-
-        // Note: before signing, we must unlock the account
-        if let Some(passphrases) = &passphrases {
-            try_unlock_account(dirk, name.clone(), passphrases).await?;
+        if let Some(passphrases) = &opts.passphrases {
+            dirk.try_unlock_account_with_passphrases(name.clone(), passphrases).await?;
         } else {
             bail!("A passphrase is required in order to sign messages remotely with Dirk");
         }
 
-        match action {
-            Action::Delegate => {
-                let message = DelegationMessage::new(pubkey.clone(), delegatee_pubkey.clone());
-                let signing_root = message.digest().into(); // Dirk does the hash tree root internally
-                let signature = dirk.request_signature(name.clone(), signing_root, domain).await?;
-                let signed = SignedDelegation { message, signature };
-                signed_messages.push(SignedMessage::Delegation(signed));
-            }
-            Action::Revoke => {
-                let message = RevocationMessage::new(pubkey.clone(), delegatee_pubkey.clone());
-                let signing_root = message.digest().into(); // Dirk does the hash tree root internally
-                let signature = dirk.request_signature(name.clone(), signing_root, domain).await?;
-                let signed = SignedRevocation { message, signature };
-                signed_messages.push(SignedMessage::Revocation(signed));
-            }
-        }
+        let signed = create_and_sign_message(
+            &mut dirk,
+            name.clone(),
+            action,
+            domain,
+            validator_pubkey,
+            delegatee_pubkey.clone(),
+        )
+        .await?;
 
         // Try to lock the account back after signing
         if let Err(err) = dirk.lock_account(name.clone()).await {
             warn!("Failed to lock account after signing {}: {:?}", name, err);
         }
+
+        signed_messages.push(signed);
+    }
+
+    let mut dirk_conns = HashMap::<String, Dirk>::new();
+    dirk_conns.insert(opts.url, dirk);
+
+    for distributed in accounts.distributed_accounts {
+        let name = distributed.name.clone();
+        let validator_pubkey = BlsPublicKey::try_from(distributed.composite_public_key.as_slice())?;
+        let threshold = distributed.signing_threshold as usize;
+        let mut participant_signatures = Vec::new();
+
+        for participant in distributed.participants {
+            // Note: the Dirk endpoint address must be parsed as "https://name:port".
+            // Sauce: https://github.com/wealdtech/go-eth2-wallet-dirk/blob/263190301ef3352fbda43f91363145f175a12cf6/grpc.go#L1706
+            let addr = format!("https://{}:{}", participant.name, participant.port);
+
+            // grab a connection to the participant instance. If it doesn't exist, create a new one
+            let conn = if let Some(conn) = dirk_conns.get_mut(&addr) {
+                conn
+            } else {
+                let new_conn = Dirk::connect(addr.clone(), opts.tls_credentials.clone()).await?;
+                dirk_conns.insert(addr.clone(), new_conn);
+                dirk_conns.get_mut(&addr).unwrap()
+            };
+
+            if let Some(passphrases) = &opts.passphrases {
+                conn.try_unlock_account_with_passphrases(name.clone(), passphrases).await?;
+            } else {
+                bail!("A passphrase is required in order to sign messages remotely with Dirk");
+            }
+
+            let signed = create_and_sign_message(
+                conn,
+                name.clone(),
+                action,
+                domain,
+                validator_pubkey.clone(),
+                delegatee_pubkey.clone(),
+            )
+            .await?;
+
+            let participant_signature = signed.signature().clone();
+            participant_signatures.push(participant_signature);
+
+            // Try to lock the account back after signing
+            if let Err(err) = conn.lock_account(name.clone()).await {
+                warn!("Failed to lock account after signing {}: {:?}", name, err);
+            }
+        }
+
+        // Check that we have at least the minimum threshold of signatures
+        let sigs = participant_signatures.into_iter().take(threshold).collect::<Vec<_>>();
+        if sigs.len() < threshold {
+            bail!(
+                "Failed to get enough signatures for distributed account '{}'. Got {}, expected at least {}",
+                name,
+                sigs.len(),
+                threshold
+            );
+        }
+
+        // Aggregate the signatures
+        let signature = aggregate(&sigs)?;
+        let final_message = match action {
+            Action::Delegate => {
+                let message = DelegationMessage::new(validator_pubkey, delegatee_pubkey.clone());
+                SignedMessage::Delegation(SignedDelegation { message, signature })
+            }
+            Action::Revoke => {
+                let message = RevocationMessage::new(validator_pubkey, delegatee_pubkey.clone());
+                SignedMessage::Revocation(SignedRevocation { message, signature })
+            }
+        };
+
+        // Sanity check: verify the aggregated signature
+        verify_message_signature(&final_message, chain)?;
+
+        // Add the final message to the list of signed messages
+        signed_messages.push(final_message);
+    }
+
+    // Sanity check: count the total number of signed messages
+    if signed_messages.len() != total_accounts {
+        bail!(
+            "Failed to sign messages for all accounts. Expected {}, got {}",
+            total_accounts,
+            signed_messages.len()
+        );
     }
 
     Ok(signed_messages)
+}
+
+/// Create and sign a message using the remote Dirk signer
+async fn create_and_sign_message(
+    dirk: &mut Dirk,
+    account_name: String,
+    action: Action,
+    domain: B256,
+    validator_pubkey: BlsPublicKey,
+    delegatee_pubkey: BlsPublicKey,
+) -> Result<SignedMessage> {
+    match action {
+        Action::Delegate => {
+            let message = DelegationMessage::new(validator_pubkey, delegatee_pubkey);
+            let signing_root = message.digest().into(); // Dirk does the hash tree root internally
+            let signature = dirk.request_signature(account_name, signing_root, domain).await?;
+            let signed = SignedDelegation { message, signature };
+            Ok(SignedMessage::Delegation(signed))
+        }
+        Action::Revoke => {
+            let message = RevocationMessage::new(validator_pubkey, delegatee_pubkey);
+            let signing_root = message.digest().into(); // Dirk does the hash tree root internally
+            let signature = dirk.request_signature(account_name, signing_root, domain).await?;
+            let signed = SignedRevocation { message, signature };
+            Ok(SignedMessage::Revocation(signed))
+        }
+    }
 }
 
 /// Event types that can be emitted by the validator pubkey to
@@ -283,6 +379,16 @@ enum SignedMessageAction {
 pub enum SignedMessage {
     Delegation(SignedDelegation),
     Revocation(SignedRevocation),
+}
+
+impl SignedMessage {
+    /// Get the message signature
+    pub fn signature(&self) -> &BlsSignature {
+        match self {
+            Self::Delegation(signed_delegation) => &signed_delegation.signature,
+            Self::Revocation(signed_revocation) => &signed_revocation.signature,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -373,33 +479,14 @@ pub fn verify_message_signature(message: &SignedMessage, chain: Chain) -> Result
     }
 }
 
-/// Try to unlock an account using the provided passphrases
-/// If the account is unlocked, return Ok(()), otherwise return an error
-pub async fn try_unlock_account(
-    dirk: &mut Dirk,
-    account_name: String,
-    passphrases: &[String],
-) -> Result<()> {
-    let mut unlocked = false;
-    for passphrase in passphrases {
-        if dirk.unlock_account(account_name.clone(), passphrase.clone()).await? {
-            unlocked = true;
-            break;
-        }
-    }
-
-    if !unlocked {
-        bail!("Failed to unlock account {}", account_name);
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use crate::{
-        cli::{Action, Chain},
-        common::{dirk, keystore, parse_bls_public_key},
+        cli::{Action, Chain, DirkOpts},
+        common::{
+            dirk::{self},
+            keystore, parse_bls_public_key,
+        },
     };
 
     use super::{generate_from_dirk, generate_from_keystore, verify_message_signature};
@@ -441,21 +528,21 @@ mod tests {
     #[ignore = "Requires Dirk to be installed on the system"]
     async fn test_delegation_dirk_single() -> eyre::Result<()> {
         let _ = tracing_subscriber::fmt::try_init();
-        let (mut dirk, mut dirk_proc) = dirk::test_util::start_single_dirk_test_server().await?;
+        let (url, cred, mut dirk_proc) = dirk::test_util::start_single_dirk_test_server().await?;
 
         let delegatee_pubkey = "0x83eeddfac5e60f8fe607ee8713efb8877c295ad9f8ca075f4d8f6f2ae241a30dd57f78f6f3863a9fe0d5b5db9d550b93";
         let delegatee_pubkey = parse_bls_public_key(delegatee_pubkey)?;
         let chain = Chain::Mainnet;
 
-        let signed_delegations = generate_from_dirk(
-            &mut dirk,
-            delegatee_pubkey.clone(),
-            "wallet1".to_string(),
-            Some(vec!["secret".to_string()]),
-            chain,
-            Action::Delegate,
-        )
-        .await?;
+        let opts = DirkOpts {
+            url,
+            wallet_path: "wallet1".to_string(),
+            tls_credentials: cred,
+            passphrases: Some(vec!["secret".to_string()]),
+        };
+
+        let signed_delegations =
+            generate_from_dirk(opts, delegatee_pubkey.clone(), chain, Action::Delegate).await?;
 
         let signed_message = signed_delegations.first().expect("to get signed delegation");
 
