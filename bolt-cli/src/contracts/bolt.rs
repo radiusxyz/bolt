@@ -1,9 +1,11 @@
 use alloy::sol;
+use serde::Serialize;
 
 sol! {
     #[allow(missing_docs)]
     #[sol(rpc)]
     interface BoltValidators {
+        #[derive(Debug, Serialize)]
         struct ValidatorInfo {
             bytes20 pubkeyHash;
             uint32 maxCommittedGasLimit;
