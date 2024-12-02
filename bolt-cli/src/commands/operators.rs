@@ -377,8 +377,7 @@ mod tests {
         let secret_key = s1.to_bytes();
         let s2 = PrivateKeySigner::random();
 
-        let mut wallet = EthereumWallet::new(s1);
-        wallet.register_signer(s2);
+        let wallet = EthereumWallet::new(s1);
 
         let rpc_url = "https://holesky.drpc.org";
         let anvil = Anvil::default().fork(rpc_url).spawn();
@@ -410,7 +409,7 @@ mod tests {
             .await
             .expect("to set storage");
 
-        let random_address = provider.signer_addresses().nth(1).expect("second signer");
+        let random_address = s2.address();
 
         // 1. Register the operator into EigenLayer. This should be done by the operator using the
         //    EigenLayer CLI, but we do it here for testing purposes.
@@ -478,7 +477,10 @@ mod tests {
         // 4. Check operator registration
         let check_operator_registration = OperatorsCommand {
             subcommand: OperatorsSubcommand::EigenLayer {
-                subcommand: EigenLayerSubcommand::Status { rpc_url: anvil_url, address: account },
+                subcommand: EigenLayerSubcommand::Status {
+                    rpc_url: anvil_url.clone(),
+                    address: account,
+                },
             },
         };
 
@@ -487,7 +489,7 @@ mod tests {
         let deregister_operator = OperatorsCommand {
             subcommand: OperatorsSubcommand::EigenLayer {
                 subcommand: EigenLayerSubcommand::Deregister {
-                    rpc_url: anvil_url.parse().expect("valid url"),
+                    rpc_url: anvil_url.clone(),
                     operator_private_key: secret_key,
                 },
             },
@@ -497,10 +499,7 @@ mod tests {
 
         let check_operator_registration = OperatorsCommand {
             subcommand: OperatorsSubcommand::EigenLayer {
-                subcommand: EigenLayerSubcommand::Status {
-                    rpc_url: anvil_url.parse().expect("valid url"),
-                    address: account,
-                },
+                subcommand: EigenLayerSubcommand::Status { rpc_url: anvil_url, address: account },
             },
         };
 
@@ -636,7 +635,7 @@ mod tests {
         let deregister_command = OperatorsCommand {
             subcommand: OperatorsSubcommand::Symbiotic {
                 subcommand: SymbioticSubcommand::Deregister {
-                    rpc_url: anvil_url.parse().expect("valid url"),
+                    rpc_url: anvil_url.clone(),
                     operator_private_key: secret_key,
                 },
             },
@@ -646,10 +645,7 @@ mod tests {
 
         let check_status = OperatorsCommand {
             subcommand: OperatorsSubcommand::Symbiotic {
-                subcommand: SymbioticSubcommand::Status {
-                    rpc_url: anvil_url.parse().expect("valid url"),
-                    address: account,
-                },
+                subcommand: SymbioticSubcommand::Status { rpc_url: anvil_url, address: account },
             },
         };
 
