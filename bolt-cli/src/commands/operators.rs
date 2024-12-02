@@ -350,8 +350,6 @@ impl OperatorsCommand {
 
 #[cfg(test)]
 mod tests {
-    use std::process::{Command, Output};
-
     use crate::{
         cli::{
             Chain, EigenLayerSubcommand, OperatorsCommand, OperatorsSubcommand, SymbioticSubcommand,
@@ -364,26 +362,30 @@ mod tests {
     };
     use alloy::{
         network::EthereumWallet,
+        node_bindings::Anvil,
         primitives::{address, keccak256, utils::parse_units, Address, B256, U256},
-        providers::{ext::AnvilApi, Provider, ProviderBuilder, WalletProvider},
+        providers::{ext::AnvilApi, ProviderBuilder, WalletProvider},
         signers::local::PrivateKeySigner,
         sol_types::SolValue,
     };
-    use rand::Rng;
+    use reqwest::Url;
+    use std::process::{Command, Output};
 
     #[tokio::test]
     async fn test_eigenlayer_flow() {
-        let _ = tracing_subscriber::fmt().try_init();
-        let mut rnd = rand::thread_rng();
-        let secret_key = B256::from(rnd.gen::<[u8; 32]>());
-        let wallet = PrivateKeySigner::from_bytes(&secret_key).expect("valid private key");
+        let s1 = PrivateKeySigner::random();
+        let secret_key = s1.to_bytes();
+        let s2 = PrivateKeySigner::random();
+
+        let wallet = EthereumWallet::new(s1);
 
         let rpc_url = "https://holesky.drpc.org";
+        let anvil = Anvil::default().fork(rpc_url).spawn();
+        let anvil_url = Url::parse(&anvil.endpoint()).expect("valid URL");
         let provider = ProviderBuilder::new()
             .with_recommended_fillers()
-            .wallet(EthereumWallet::from(wallet))
-            .on_anvil_with_config(|anvil| anvil.fork(rpc_url));
-        let anvil_url = provider.client().transport().url();
+            .wallet(wallet)
+            .on_http(anvil_url.clone());
 
         let account = provider.default_signer_address();
 
@@ -407,7 +409,7 @@ mod tests {
             .await
             .expect("to set storage");
 
-        let random_address = Address::from(rnd.gen::<[u8; 20]>());
+        let random_address = s2.address();
 
         // 1. Register the operator into EigenLayer. This should be done by the operator using the
         //    EigenLayer CLI, but we do it here for testing purposes.
@@ -446,7 +448,7 @@ mod tests {
         let deposit_into_strategy = OperatorsCommand {
             subcommand: OperatorsSubcommand::EigenLayer {
                 subcommand: EigenLayerSubcommand::Deposit {
-                    rpc_url: anvil_url.parse().expect("valid url"),
+                    rpc_url: anvil_url.clone(),
                     operator_private_key: secret_key,
                     strategy: EigenLayerStrategy::WEth,
                     amount: U256::from(1),
@@ -461,7 +463,7 @@ mod tests {
         let register_operator = OperatorsCommand {
             subcommand: OperatorsSubcommand::EigenLayer {
                 subcommand: EigenLayerSubcommand::Register {
-                    rpc_url: anvil_url.parse().expect("valid url"),
+                    rpc_url: anvil_url.clone(),
                     operator_private_key: secret_key,
                     operator_rpc: "https://bolt.chainbound.io/rpc".parse().expect("valid url"),
                     salt: B256::ZERO,
@@ -476,7 +478,7 @@ mod tests {
         let check_operator_registration = OperatorsCommand {
             subcommand: OperatorsSubcommand::EigenLayer {
                 subcommand: EigenLayerSubcommand::Status {
-                    rpc_url: anvil_url.parse().expect("valid url"),
+                    rpc_url: anvil_url.clone(),
                     address: account,
                 },
             },
@@ -487,7 +489,7 @@ mod tests {
         let deregister_operator = OperatorsCommand {
             subcommand: OperatorsSubcommand::EigenLayer {
                 subcommand: EigenLayerSubcommand::Deregister {
-                    rpc_url: anvil_url.parse().expect("valid url"),
+                    rpc_url: anvil_url.clone(),
                     operator_private_key: secret_key,
                 },
             },
@@ -497,10 +499,7 @@ mod tests {
 
         let check_operator_registration = OperatorsCommand {
             subcommand: OperatorsSubcommand::EigenLayer {
-                subcommand: EigenLayerSubcommand::Status {
-                    rpc_url: anvil_url.parse().expect("valid url"),
-                    address: account,
-                },
+                subcommand: EigenLayerSubcommand::Status { rpc_url: anvil_url, address: account },
             },
         };
 
@@ -513,16 +512,17 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires Symbiotic CLI installed"]
     async fn test_symbiotic_flow() {
-        let mut rnd = rand::thread_rng();
-        let secret_key = B256::from(rnd.gen::<[u8; 32]>());
-        let wallet = PrivateKeySigner::from_bytes(&secret_key).expect("valid private key");
+        let s1 = PrivateKeySigner::random();
+        let secret_key = s1.to_bytes();
+        let wallet = EthereumWallet::new(s1);
 
-        let rpc_url = "https://rpc-holesky.bolt.chainbound.io/rpc";
+        let rpc_url = "https://holesky.drpc.org";
+        let anvil = Anvil::default().fork(rpc_url).spawn();
+        let anvil_url = Url::parse(&anvil.endpoint()).expect("valid URL");
         let provider = ProviderBuilder::new()
             .with_recommended_fillers()
-            .wallet(EthereumWallet::from(wallet))
-            .on_anvil_with_config(|anvil| anvil.fork(rpc_url));
-        let anvil_url = provider.client().transport().url();
+            .wallet(wallet)
+            .on_http(anvil_url.clone());
 
         let account = provider.default_signer_address();
 
@@ -552,7 +552,7 @@ mod tests {
             .arg("--chain")
             .arg("holesky")
             .arg("--provider")
-            .arg(anvil_url)
+            .arg(anvil_url.to_string())
             .arg("register-operator")
             .arg("--private-key")
             .arg(secret_key.to_string())
@@ -566,7 +566,7 @@ mod tests {
             .arg("--chain")
             .arg("holesky")
             .arg("--provider")
-            .arg(anvil_url)
+            .arg(anvil_url.to_string())
             .arg("opt-in-network")
             .arg("--private-key")
             .arg(secret_key.to_string())
@@ -583,7 +583,7 @@ mod tests {
             .arg("--chain")
             .arg("holesky")
             .arg("--provider")
-            .arg(anvil_url)
+            .arg(anvil_url.to_string())
             .arg("opt-in-vault")
             .arg("--private-key")
             .arg(secret_key.to_string())
@@ -598,7 +598,7 @@ mod tests {
             .arg("--chain")
             .arg("holesky")
             .arg("--provider")
-            .arg(anvil_url)
+            .arg(anvil_url.to_string())
             .arg("deposit")
             .arg("--private-key")
             .arg(secret_key.to_string())
@@ -612,7 +612,7 @@ mod tests {
         let register_into_bolt = OperatorsCommand {
             subcommand: OperatorsSubcommand::Symbiotic {
                 subcommand: SymbioticSubcommand::Register {
-                    rpc_url: anvil_url.parse().expect("valid url"),
+                    rpc_url: anvil_url.clone(),
                     operator_private_key: secret_key,
                     operator_rpc: "https://bolt.chainbound.io".parse().expect("valid url"),
                 },
@@ -624,7 +624,7 @@ mod tests {
         let check_status = OperatorsCommand {
             subcommand: OperatorsSubcommand::Symbiotic {
                 subcommand: SymbioticSubcommand::Status {
-                    rpc_url: anvil_url.parse().expect("valid url"),
+                    rpc_url: anvil_url.clone(),
                     address: account,
                 },
             },
@@ -635,7 +635,7 @@ mod tests {
         let deregister_command = OperatorsCommand {
             subcommand: OperatorsSubcommand::Symbiotic {
                 subcommand: SymbioticSubcommand::Deregister {
-                    rpc_url: anvil_url.parse().expect("valid url"),
+                    rpc_url: anvil_url.clone(),
                     operator_private_key: secret_key,
                 },
             },
@@ -645,10 +645,7 @@ mod tests {
 
         let check_status = OperatorsCommand {
             subcommand: OperatorsSubcommand::Symbiotic {
-                subcommand: SymbioticSubcommand::Status {
-                    rpc_url: anvil_url.parse().expect("valid url"),
-                    address: account,
-                },
+                subcommand: SymbioticSubcommand::Status { rpc_url: anvil_url, address: account },
             },
         };
 

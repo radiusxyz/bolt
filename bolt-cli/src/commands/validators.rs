@@ -83,18 +83,21 @@ impl ValidatorsCommand {
 #[cfg(test)]
 mod tests {
     use alloy::{
+        node_bindings::Anvil,
         primitives::{Address, B256, U256},
-        providers::{ext::AnvilApi, Provider, ProviderBuilder},
+        providers::{ext::AnvilApi, ProviderBuilder},
         signers::k256::ecdsa::SigningKey,
     };
+    use reqwest::Url;
 
     use crate::cli::{ValidatorsCommand, ValidatorsSubcommand};
 
     #[tokio::test]
     async fn test_register_validators() {
         let rpc_url = "https://holesky.drpc.org";
-        let provider = ProviderBuilder::new().on_anvil_with_config(|anvil| anvil.fork(rpc_url));
-        let anvil_url = provider.client().transport().url();
+        let anvil = Anvil::default().fork(rpc_url).spawn();
+        let anvil_url = Url::parse(&anvil.endpoint()).expect("valid URL");
+        let provider = ProviderBuilder::new().on_http(anvil_url.clone());
 
         let mut rnd = rand::thread_rng();
         let secret_key = SigningKey::random(&mut rnd);
@@ -108,7 +111,7 @@ mod tests {
                 admin_private_key: B256::try_from(secret_key.to_bytes().as_slice()).unwrap(),
                 authorized_operator: account,
                 pubkeys_path: "./test_data/pubkeys.json".parse().unwrap(),
-                rpc_url: anvil_url.parse().unwrap(),
+                rpc_url: anvil_url,
             },
         };
 
