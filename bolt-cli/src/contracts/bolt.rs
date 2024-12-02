@@ -1,15 +1,29 @@
 use alloy::sol;
+use serde::Serialize;
 
 sol! {
     #[allow(missing_docs)]
     #[sol(rpc)]
     interface BoltValidators {
+        #[derive(Debug, Serialize)]
+        struct ValidatorInfo {
+            bytes20 pubkeyHash;
+            uint32 maxCommittedGasLimit;
+            address authorizedOperator;
+            address controller;
+        }
+
         /// @notice Register a batch of Validators and authorize a Collateral Provider and Operator for them
         /// @dev This function allows anyone to register a list of Validators.
         /// @param pubkeyHashes List of BLS public key hashes for the Validators to be registered
         /// @param maxCommittedGasLimit The maximum gas that the Validator can commit for preconfirmations
         /// @param authorizedOperator The address of the authorized operator
         function batchRegisterValidatorsUnsafe(bytes20[] calldata pubkeyHashes, uint32 maxCommittedGasLimit, address authorizedOperator);
+
+        /// @notice Get a validator by its BLS public key hash
+        /// @param pubkeyHash BLS public key hash of the validator
+        /// @return ValidatorInfo struct
+        function getValidatorByPubkeyHash(bytes20 pubkeyHash) public view returns (ValidatorInfo memory);
 
         error KeyNotFound();
         error InvalidQuery();
