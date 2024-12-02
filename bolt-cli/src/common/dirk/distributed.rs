@@ -1,10 +1,11 @@
 use alloy::primitives::B256;
-use ethereum_consensus::crypto::{aggregate, PublicKey as BlsPublicKey, Signature as BlsSignature};
+use ethereum_consensus::crypto::{PublicKey as BlsPublicKey, Signature as BlsSignature};
 use eyre::{bail, Result};
-use tracing::warn;
+use tracing::{debug, warn};
 
 use crate::{
     cli::TlsCredentials,
+    common::dirk::recover_signature::recover_signature_from_shards,
     pb::eth2_signer_api::{self, Endpoint},
 };
 
@@ -46,10 +47,10 @@ impl DistributedDirkAccount {
         hash: B256,
         domain: B256,
     ) -> Result<BlsSignature> {
-        let mut signatures = Vec::with_capacity(self.participants.len());
+        let mut signatures_with_ids = Vec::with_capacity(self.participants.len());
 
         for participant in &self.participants {
-            if signatures.len() >= self.threshold {
+            if signatures_with_ids.len() >= self.threshold {
                 break;
             }
 
@@ -67,17 +68,23 @@ impl DistributedDirkAccount {
                 }
             };
 
-            signatures.push(signature);
+            signatures_with_ids.push((signature, participant.id));
         }
 
-        println!("Got {} signatures: {:?}", signatures.len(), signatures);
+        debug!("Received {} signatures from the distributed account", signatures_with_ids.len());
 
-        if signatures.len() < self.threshold {
-            bail!("Insufficient signatures: got {}, expected {}", signatures.len(), self.threshold);
+        if signatures_with_ids.len() < self.threshold {
+            bail!(
+                "Insufficient signatures: got {}, expected {}",
+                signatures_with_ids.len(),
+                self.threshold
+            );
         }
 
-        let agg_signature = aggregate(&signatures)?;
-        println!("Aggregated signature: {:?}", agg_signature);
+        let (sigs, ids): (Vec<BlsSignature>, Vec<u64>) = signatures_with_ids.into_iter().unzip();
+        let Some(agg_signature) = recover_signature_from_shards(&sigs, &ids) else {
+            bail!("Failed to recover the combined signature from partial signatures");
+        };
 
         Ok(agg_signature)
     }

@@ -15,6 +15,9 @@ use crate::{
     },
 };
 
+/// Utility to recover a threshold signature from partial signature shards.
+mod recover_signature;
+
 /// Module to work with Dirk distributed accounts.
 pub mod distributed;
 

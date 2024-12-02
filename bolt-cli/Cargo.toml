@@ -19,6 +19,7 @@ prost = "0.13.3"
 
 # crypto
 blst = "0.3.12"
+bls12_381 = "0.4"
 
 # ethereum
 ethereum-consensus = { git = "https://github.com/ralexstokes/ethereum-consensus", rev = "cf3c404" }
