@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use alloy::primitives::{Address, B256, U256};
+use alloy::primitives::{Address, FixedBytes, B256, U256};
 use clap::{
     builder::styling::{AnsiColor, Color, Style},
     Parser, Subcommand, ValueEnum,
@@ -167,6 +167,20 @@ pub enum ValidatorsSubcommand {
         /// The private key to sign the transactions with.
         #[clap(long, env = "ADMIN_PRIVATE_KEY")]
         admin_private_key: B256,
+    },
+    /// Check the status of a validator (batch).
+    Status {
+        /// The URL of the RPC to broadcast the transaction.
+        #[clap(long, env = "RPC_URL")]
+        rpc_url: Url,
+
+        /// The path to the JSON pubkeys file, containing an array of BLS public keys.
+        #[clap(long, env = "PUBKEYS_PATH", conflicts_with = "PUBKEYS")]
+        pubkeys_path: Option<PathBuf>,
+
+        /// The validator public key to check the status of.
+        #[clap(long, env = "PUBKEYS", conflicts_with = "PUBKEYS_PATH")]
+        pubkeys: Vec<FixedBytes<48>>,
     },
 }
 

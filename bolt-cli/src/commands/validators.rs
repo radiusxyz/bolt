@@ -5,7 +5,7 @@ use alloy::{
 };
 use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
 use eyre::Context;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::{
     cli::{Chain, ValidatorsCommand, ValidatorsSubcommand},
@@ -73,6 +73,46 @@ impl ValidatorsCommand {
                 }
 
                 info!("Successfully registered validators into bolt");
+
+                Ok(())
+            }
+            ValidatorsSubcommand::Status { rpc_url, pubkeys_path, pubkeys } => {
+                let provider = ProviderBuilder::new().on_http(rpc_url);
+                let chain_id = provider.get_chain_id().await?;
+                let chain = Chain::from_id(chain_id)
+                    .unwrap_or_else(|| panic!("chain id {} not supported", chain_id));
+                let registry = deployments_for_chain(chain).bolt.validators;
+
+                let mut bls_pubkeys = Vec::new();
+
+                if let Some(pubkeys_path) = pubkeys_path {
+                    let pubkeys_file = std::fs::File::open(&pubkeys_path)?;
+                    let keys: Vec<BlsPublicKey> = serde_json::from_reader(pubkeys_file)?;
+                    bls_pubkeys.extend(keys);
+                }
+
+                for bytes in pubkeys {
+                    let key = BlsPublicKey::try_from(bytes.as_ref())?;
+                    bls_pubkeys.push(key);
+                }
+
+                info!(pubkeys = bls_pubkeys.len(), %registry, ?chain, "Checking status of validators");
+
+                let pubkey_hashes: Vec<_> = bls_pubkeys.iter().map(compress_bls_pubkey).collect();
+
+                let bolt_validators = BoltValidators::new(registry, provider);
+
+                for (hash, pubkey) in pubkey_hashes.iter().zip(bls_pubkeys.iter()) {
+                    match bolt_validators.getValidatorByPubkeyHash(*hash).call().await.map(|v| v._0)
+                    {
+                        Ok(info) => {
+                            info!(%pubkey, operator = %info.authorizedOperator, controller = %info.controller, gas_limit = info.maxCommittedGasLimit, "Validator registered");
+                        }
+                        Err(_e) => {
+                            warn!(%pubkey, "Validator not registered");
+                        }
+                    }
+                }
 
                 Ok(())
             }
