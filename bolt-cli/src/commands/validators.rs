@@ -134,6 +134,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_register_validators() {
+        let _ = tracing_subscriber::fmt::try_init();
+
         let rpc_url = "https://holesky.drpc.org";
         let anvil = Anvil::default().fork(rpc_url).spawn();
         let anvil_url = Url::parse(&anvil.endpoint()).expect("valid URL");
@@ -151,7 +153,17 @@ mod tests {
                 admin_private_key: B256::try_from(secret_key.to_bytes().as_slice()).unwrap(),
                 authorized_operator: account,
                 pubkeys_path: "./test_data/pubkeys.json".parse().unwrap(),
+                rpc_url: anvil_url.clone(),
+            },
+        };
+
+        command.run().await.expect("run command");
+
+        let command = ValidatorsCommand {
+            subcommand: ValidatorsSubcommand::Status {
                 rpc_url: anvil_url,
+                pubkeys_path: Some("./test_data/pubkeys.json".parse().unwrap()),
+                pubkeys: Vec::new(),
             },
         };
 
