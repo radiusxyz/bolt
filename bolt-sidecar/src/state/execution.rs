@@ -142,9 +142,9 @@ pub struct ExecutionState<C> {
     basefee: u128,
     /// The blob basefee at the head block.
     blob_basefee: u128,
-    /// The cached account states. This should never be read directly.
-    /// These only contain the canonical account states at the head block,
-    /// not the intermediate states.
+    /// The cached account states. This should never be read directly. These only contain the
+    /// canonical account states at the head block, not the intermediate states. As such the
+    /// entries should only be modified when receiving a new head.
     account_states: AccountStateCache,
     /// The block templates by target SLOT NUMBER.
     /// We have multiple block templates because in rare cases we might have multiple
@@ -612,6 +612,7 @@ mod tests {
         signers::local::PrivateKeySigner,
     };
     use fetcher::{StateClient, StateFetcher};
+    use tracing::info;
 
     use crate::{
         crypto::SignableBLS,
@@ -1266,6 +1267,69 @@ mod tests {
             state.validate_request(&mut request).await,
             Err(ValidationError::InsufficientBalance)
         ));
+
+        Ok(())
+    }
+
+    /// Sends two inclusion request for the same target slot during two different slots, and makes
+    /// sure the nonces are checked correctly.
+    #[tokio::test]
+    async fn test_subsequent_inclusion_request() -> eyre::Result<()> {
+        let _ = tracing_subscriber::fmt::try_init();
+
+        let anvil = launch_anvil();
+        let client = StateClient::new(anvil.endpoint_url());
+
+        let mut state = ExecutionState::new(client.clone(), LimitsOpts::default()).await?;
+
+        let sender = anvil.addresses().first().unwrap();
+        let sender_pk = anvil.keys().first().unwrap();
+
+        // initialize the state by updating the head once
+        let slot = client.get_head().await?;
+        info!(?slot);
+        state.update_head(None, slot).await?;
+
+        // 1. Send an inclusion request at `slot` with `target_slot`.
+        let target_slot = 32;
+        let tx = default_test_transaction(*sender, None).with_gas_price(ETH_TO_WEI / 1_000_000);
+
+        let mut request = create_signed_inclusion_request(&[tx], sender_pk, target_slot).await?;
+        let inclusion_request = request.clone();
+
+        let request_validation = state.validate_request(&mut request).await;
+        println!("request validation = {:?}", request_validation);
+        assert!(request_validation.is_ok());
+
+        let bls_signer = LocalSigner::random();
+        let message = ConstraintsMessage::build(Default::default(), inclusion_request);
+        let signature = bls_signer.sign_commit_boost_root(message.digest()).unwrap();
+        let signed_constraints = SignedConstraints { message, signature };
+
+        state.add_constraint(target_slot, signed_constraints);
+
+        assert_eq!(state.get_block_template(target_slot).unwrap().transactions_len(), 1);
+
+        // Update the head to next slot
+        state.update_head(None, slot + 1).await?;
+
+        // 2. Send an inclusion request at `slot + 1` with `target_slot`.
+        let tx = default_test_transaction(*sender, Some(1)).with_gas_price(ETH_TO_WEI / 1_000_000);
+        let mut request = create_signed_inclusion_request(&[tx], sender_pk, target_slot).await?;
+        let inclusion_request = request.clone();
+
+        let request_validation = state.validate_request(&mut request).await;
+        println!("request validation = {:?}", request_validation);
+        assert!(request_validation.is_ok());
+
+        let bls_signer = LocalSigner::random();
+        let message = ConstraintsMessage::build(Default::default(), inclusion_request);
+        let signature = bls_signer.sign_commit_boost_root(message.digest()).unwrap();
+        let signed_constraints = SignedConstraints { message, signature };
+
+        state.add_constraint(target_slot, signed_constraints);
+
+        assert_eq!(state.get_block_template(target_slot).unwrap().transactions_len(), 2);
 
         Ok(())
     }
