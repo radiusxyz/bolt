@@ -505,16 +505,16 @@ impl<C: StateFetcher> ExecutionState<C> {
     /// transactions by checking the nonce and balance of the account after applying the state
     /// diffs.
     fn refresh_templates(&mut self) {
-        for (address, (account_state, _)) in self.account_states.iter_mut() {
+        for (address, mut account_state) in self.account_states.iter().map(|(a, (s, _))| (*a, *s)) {
             trace!(%address, ?account_state, "Refreshing template...");
             // Iterate over all block templates and apply the state diff
             for template in self.block_templates.values_mut() {
                 // Retain only signed constraints where transactions are still valid based on the
                 // canonical account states.
-                template.retain(*address, *account_state);
+                template.retain(address, account_state);
 
                 // Update the account state with the remaining state diff for the next iteration.
-                if let Some((nonce_diff, balance_diff)) = template.get_diff(address) {
+                if let Some((nonce_diff, balance_diff)) = template.get_diff(&address) {
                     // Nonce will always be increased
                     account_state.transaction_count += nonce_diff;
                     // Balance will always be decreased
