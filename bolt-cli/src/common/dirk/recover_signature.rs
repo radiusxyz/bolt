@@ -49,6 +49,9 @@ fn signatures_to_g2_projective(signatures: &[BlsSignature]) -> Option<Vec<G2Proj
 /// # Returns
 ///
 /// * `Option<G2Projective>` - The recovered signature if successful, `None` otherwise.
+///
+/// The Lagrange interpolation follows the reference implementation in C here:
+/// https://github.com/herumi/mcl/blob/328e26f45ba565d031f9570e68e3d61836a17d7c/include/mcl/lagrange.hpp#L16
 fn recover_signature_inner(
     partial_signatures: &[G2Projective],
     identifiers: &[Scalar],
