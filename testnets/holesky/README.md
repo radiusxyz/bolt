@@ -77,7 +77,7 @@ client implementations to download and run them.
 >    Sidecar API.
 > 2. the node and the validator client will always prefer the builder payload,
 >    and try to use the builder API. For instance, in Lighthouse this can be
->    done by setting the `builder-fallback-disabled-checks` flag and the
+>    done by setting the `builder-fallback-disable-checks` flag and the
 >    `builder-boost-factor` to a large value like `18446744073709551615`
 >    (`2**64 - 1`).
 >
