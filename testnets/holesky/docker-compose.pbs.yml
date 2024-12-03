@@ -51,7 +51,7 @@ services:
       ]
 
   beacon:
-    image: sigp/lighthouse:latest
+    image: sigp/lighthouse:v5.3.0
     restart: unless-stopped
     volumes:
       - "chaindata:/var/lib/chaindata"
