@@ -13,10 +13,7 @@ use ssz::Decode;
 use thiserror::Error;
 use tracing::{debug, error, info};
 
-use crate::{
-    crypto::{bls::BLS_DST_PREFIX, ecdsa::SignerECDSA},
-    primitives::commitment::ECDSASignatureExt,
-};
+use crate::crypto::{bls::BLS_DST_PREFIX, ecdsa::SignerECDSA};
 
 use super::SignerResult;
 
@@ -105,7 +102,8 @@ impl CommitBoostSigner {
 
     /// Verify the ECDSA signature of the object with the given public key.
     pub fn verify_ecdsa(&self, data: &[u8; 32], sig: &Signature, pubkey: &EcdsaPublicKey) -> bool {
-        let sig = secp256k1::ecdsa::Signature::from_str(&sig.to_hex()).expect("signature is valid");
+        let sig_hex = hex::encode(sig.as_bytes());
+        let sig = secp256k1::ecdsa::Signature::from_str(&sig_hex).expect("signature is valid");
         let pubkey =
             secp256k1::PublicKey::from_slice(pubkey.as_ref()).expect("public key is valid");
         secp256k1::Secp256k1::new()

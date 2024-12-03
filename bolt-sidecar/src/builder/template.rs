@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use alloy::primitives::{Address, TxHash, U256};
+use alloy::{
+    consensus::Transaction,
+    primitives::{Address, TxHash, U256},
+};
 use ethereum_consensus::{
     crypto::{KzgCommitment, KzgProof},
     deneb::mainnet::{Blob, BlobsBundle},

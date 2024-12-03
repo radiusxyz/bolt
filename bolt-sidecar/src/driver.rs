@@ -1,6 +1,10 @@
 use std::{fmt, sync::Arc, time::Instant};
 
-use alloy::{rpc::types::beacon::events::HeadEvent, signers::local::PrivateKeySigner};
+use alloy::{
+    consensus::{Transaction, TxType},
+    rpc::types::beacon::events::HeadEvent,
+    signers::local::PrivateKeySigner,
+};
 use beacon_api_client::mainnet::Client as BeaconClient;
 use ethereum_consensus::{
     clock::{self, SlotStream, SystemTimeProvider},
@@ -28,7 +32,7 @@ use crate::{
     crypto::{SignableBLS, SignerECDSA},
     primitives::{
         commitment::SignedCommitment, read_signed_delegations_from_file, CommitmentRequest,
-        ConstraintsMessage, FetchPayloadRequest, SignedConstraints, TransactionExt,
+        ConstraintsMessage, FetchPayloadRequest, SignedConstraints,
     },
     signer::{keystore::KeystoreSigner, local::LocalSigner, CommitBoostSigner, SignerBLS},
     state::{fetcher::StateFetcher, ConsensusState, ExecutionState, HeadTracker, StateClient},
@@ -340,7 +344,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         // For more information, check out the constraints API docs:
         // https://docs.boltprotocol.xyz/technical-docs/api/builder#constraints
         for tx in &inclusion_request.txs {
-            let tx_type = tx.tx_type();
+            let tx_type = TxType::try_from(tx.ty()).expect("valid tx type");
             let message =
                 ConstraintsMessage::from_tx(signing_pubkey.clone(), target_slot, tx.clone());
             let digest = message.digest();

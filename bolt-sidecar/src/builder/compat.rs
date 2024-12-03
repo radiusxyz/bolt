@@ -1,4 +1,5 @@
 use alloy::{
+    consensus::BlockHeader,
     eips::{eip2718::Encodable2718, eip4895::Withdrawal},
     primitives::{Address, Bloom, B256, U256},
     rpc::types::{
@@ -99,7 +100,7 @@ pub(crate) fn to_alloy_execution_payload(
         .unwrap_or_default();
 
     AlloyExecutionPayload::V3(ExecutionPayloadV3 {
-        blob_gas_used: block.blob_gas_used(),
+        blob_gas_used: block.blob_gas_used().unwrap_or_default(),
         excess_blob_gas: block.excess_blob_gas.unwrap_or_default(),
         payload_inner: ExecutionPayloadV2 {
             payload_inner: ExecutionPayloadV1 {
@@ -107,7 +108,7 @@ pub(crate) fn to_alloy_execution_payload(
                 block_hash,
                 block_number: block.number,
                 extra_data: block.extra_data.clone(),
-                transactions: block.raw_transactions(),
+                transactions: block.encoded_2718_transactions(),
                 fee_recipient: block.header.beneficiary,
                 gas_limit: block.gas_limit,
                 gas_used: block.gas_used,
@@ -161,7 +162,7 @@ pub(crate) fn to_consensus_execution_payload(value: &SealedBlock) -> ConsensusEx
         block_hash: to_bytes32(hash),
         transactions: TryFrom::try_from(transactions).unwrap(),
         withdrawals: TryFrom::try_from(withdrawals).unwrap(),
-        blob_gas_used: value.blob_gas_used(),
+        blob_gas_used: value.blob_gas_used().unwrap_or_default(),
         excess_blob_gas: value.excess_blob_gas.unwrap_or_default(),
     };
     ConsensusExecutionPayload::Deneb(payload)

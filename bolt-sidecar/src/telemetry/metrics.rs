@@ -1,7 +1,7 @@
 use std::time::Duration;
 
+use alloy::consensus::TxType;
 use metrics::{counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram};
-use reth_primitives::TxType;
 
 use crate::primitives::transaction::tx_type_str;
 

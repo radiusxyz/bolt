@@ -27,18 +27,18 @@ ssz_rs = { git = "https://github.com/ralexstokes/ssz-rs", rev = "ec3073e" }
 ethereum_ssz = "0.5"
 
 # alloy
-alloy = { version = "0.6.4", features = [
+alloy = { version = "0.7.2", features = [
   "full",
   "provider-trace-api",
   "rpc-types-beacon",
   "rpc-types-engine",
 ] }
-alloy-rpc-types-engine = { version = "0.6.4", default-features = false, features = [
+alloy-rpc-types-engine = { version = "0.7.2", default-features = false, features = [
   "jwt",
 ] }
 
 # reth
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", version = "1.1.1" }
+reth-primitives = { git = "https://github.com/paradigmxyz/reth", version = "1.1.2" }
 
 reqwest = "0.12"
 ethereum-consensus = { git = "https://github.com/ralexstokes/ethereum-consensus", rev = "cf3c404" }
@@ -79,7 +79,7 @@ commit-boost = { git = "https://github.com/Commit-Boost/commit-boost-client", re
 cb-common = { git = "https://github.com/Commit-Boost/commit-boost-client", rev = "45ce8f1" }
 
 [dev-dependencies]
-alloy-node-bindings = "0.6.4"                                # must match alloy version
+alloy-node-bindings = "0.7.2"                                # must match alloy version
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [package.metadata.cargo-machete]
@@ -95,6 +95,7 @@ harness = false
 [[bin]]
 name = "bolt-sidecar"
 path = "bin/sidecar.rs"
+
 
 [lints.clippy]
 explicit_iter_loop = "warn"
