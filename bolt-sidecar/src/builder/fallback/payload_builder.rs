@@ -6,10 +6,13 @@ use alloy::{
 };
 use reth_primitives::{proofs, BlockBody, SealedBlock, SealedHeader, TransactionSigned};
 
-use super::{engine_hinter::EngineHinter, DEFAULT_EXTRA_DATA};
+use super::{
+    engine_hinter::{EngineHinter, EngineHinterContext},
+    DEFAULT_EXTRA_DATA,
+};
 
 use crate::{
-    builder::{compat::to_alloy_execution_payload, BeaconApi, BuilderError},
+    builder::{BeaconApi, BuilderError},
     client::RpcClient,
     config::Opts,
 };
@@ -34,24 +37,6 @@ pub struct FallbackPayloadBuilder {
     engine_hinter: EngineHinter,
     slot_time: u64,
     genesis_time: u64,
-}
-
-/// Lightweight context struct to hold the necessary values for
-/// building a sealed block. Some of this data is fetched from the
-/// beacon chain, while others are calculated locally or from the
-/// transactions themselves.
-#[derive(Debug, Default)]
-struct PayloadBuilderContext {
-    extra_data: Bytes,
-    base_fee: u64,
-    blob_gas_used: u64,
-    excess_blob_gas: u64,
-    prev_randao: B256,
-    fee_recipient: Address,
-    transactions_root: B256,
-    withdrawals_root: B256,
-    parent_beacon_block_root: B256,
-    block_timestamp: u64,
 }
 
 impl FallbackPayloadBuilder {
@@ -83,10 +68,10 @@ impl FallbackPayloadBuilder {
         // For the timestamp, we must use the one expected by the beacon chain instead, to
         // prevent edge cases where the proposer before us has missed their slot and therefore
         // the timestamp of the previous block is too far in the past.
-        let latest_block = self.execution_api.get_block(None, true).await?;
+        let head_block = self.execution_api.get_block(None, true).await?;
 
         // Fetch the execution client info from the engine API in order to know what hint
-        // types the engine hinter can parse.
+        // types the engine hinter can parse from the engine API responses.
         let engine_info = self.engine_hinter.engine_client_info().await?;
 
         // Fetch required head info from the beacon chain
@@ -94,7 +79,12 @@ impl FallbackPayloadBuilder {
         let withdrawals = self.beacon_api.get_expected_withdrawals_at_head().await?;
         let prev_randao = self.beacon_api.get_prev_randao().await?;
 
-        let versioned_hashes = transactions
+        // The next block timestamp must be calculated manually rather than relying on the
+        // previous execution block, to cover the edge case where any previous slots have
+        // been missed by the proposers immediately before us.
+        let block_timestamp = self.genesis_time + (target_slot * self.slot_time);
+
+        let blob_versioned_hashes = transactions
             .iter()
             .flat_map(|tx| tx.blob_versioned_hashes())
             .flatten()
@@ -102,26 +92,21 @@ impl FallbackPayloadBuilder {
             .collect::<Vec<_>>();
 
         let base_fee = calc_next_block_base_fee(
-            latest_block.header.gas_used,
-            latest_block.header.gas_limit,
-            latest_block.header.base_fee_per_gas.unwrap_or_default(),
+            head_block.header.gas_used,
+            head_block.header.gas_limit,
+            head_block.header.base_fee_per_gas.unwrap_or_default(),
             BaseFeeParams::ethereum(),
         );
 
         let excess_blob_gas = calc_excess_blob_gas(
-            latest_block.header.excess_blob_gas.unwrap_or_default(),
-            latest_block.header.blob_gas_used.unwrap_or_default(),
+            head_block.header.excess_blob_gas.unwrap_or_default(),
+            head_block.header.blob_gas_used.unwrap_or_default(),
         );
 
         let blob_gas_used =
             transactions.iter().fold(0, |acc, tx| acc + tx.blob_gas_used().unwrap_or_default());
 
-        // We must calculate the next block timestamp manually rather than rely on the
-        // previous execution block, to cover the edge case where any previous slots have
-        // been missed by the proposers immediately before us.
-        let block_timestamp = self.genesis_time + (target_slot * self.slot_time);
-
-        let ctx = PayloadBuilderContext {
+        let ctx = EngineHinterContext {
             base_fee,
             blob_gas_used,
             excess_blob_gas,
@@ -131,69 +116,61 @@ impl FallbackPayloadBuilder {
             fee_recipient: self.fee_recipient,
             transactions_root: proofs::calculate_transaction_root(transactions),
             withdrawals_root: proofs::calculate_withdrawals_root(&withdrawals),
-            block_timestamp,
-        };
-
-        let body = BlockBody {
-            ommers: Vec::new(),
             transactions: transactions.to_vec(),
-            withdrawals: Some(Withdrawals::new(withdrawals)),
+            blob_versioned_hashes,
+            block_timestamp,
+            withdrawals,
+            head_block,
+            // start the context with empty hints
+            hints: Default::default(),
         };
 
-        let mut hints = Hints::default();
-        let max_iterations = 20;
-        let mut i = 0;
-        loop {
-            let header = build_header_with_hints_and_context(&latest_block, &hints, &ctx);
+        self.engine_hinter.fetch_next_payload_from_hints(ctx).await
 
-            let sealed_hash = header.hash_slow();
-            let sealed_header = SealedHeader::new(header, sealed_hash);
-            let sealed_block = SealedBlock::new(sealed_header, body.clone());
+        // let body = BlockBody {
+        //     ommers: Vec::new(),
+        //     transactions: transactions.to_vec(),
+        //     withdrawals: Some(Withdrawals::new(withdrawals)),
+        // };
 
-            let block_hash = hints.block_hash.unwrap_or(sealed_block.hash());
+        // let header = build_header_with_hints_and_context(&head_block, &hints, &ctx);
 
-            let exec_payload = to_alloy_execution_payload(&sealed_block, block_hash);
+        // let sealed_hash = header.hash_slow();
+        // let sealed_header = SealedHeader::new(header, sealed_hash);
+        // let sealed_block = SealedBlock::new(sealed_header, body.clone());
 
-            let engine_hint = self
-                .engine_hinter
-                .fetch_next_payload_hint(&exec_payload, &versioned_hashes, parent_beacon_block_root)
-                .await?;
+        // let block_hash = hints.block_hash.unwrap_or(sealed_block.hash());
 
-            // match engine_hint {
-            //     EngineApiHint::BlockHash(hash) => {
-            //         trace!("Should not receive block hash hint {:?}", hash);
-            //         hints.block_hash = Some(hash)
-            //     }
+        // let exec_payload = to_alloy_execution_payload(&sealed_block, block_hash);
 
-            //     EngineApiHint::GasUsed(gas) => {
-            //         hints.gas_used = Some(gas);
-            //         hints.block_hash = None;
-            //     }
-            //     EngineApiHint::StateRoot(hash) => {
-            //         hints.state_root = Some(hash);
-            //         hints.block_hash = None
-            //     }
-            //     EngineApiHint::ReceiptsRoot(hash) => {
-            //         hints.receipts_root = Some(hash);
-            //         hints.block_hash = None
-            //     }
-            //     EngineApiHint::LogsBloom(bloom) => {
-            //         hints.logs_bloom = Some(bloom);
-            //         hints.block_hash = None
-            //     }
+        // fetch_hints
 
-            //     EngineApiHint::ValidPayload => return Ok(sealed_block),
-            // }
+        // loop {
+        // match engine_hint {
+        //     EngineApiHint::BlockHash(hash) => {
+        //         trace!("Should not receive block hash hint {:?}", hash);
+        //         hints.block_hash = Some(hash)
+        //     }
 
-            if i > max_iterations {
-                return Err(BuilderError::Custom(
-                    "Too many iterations: Failed to fetch all missing header values from geth error messages"
-                        .to_string(),
-                ));
-            }
+        //     EngineApiHint::GasUsed(gas) => {
+        //         hints.gas_used = Some(gas);
+        //         hints.block_hash = None;
+        //     }
+        //     EngineApiHint::StateRoot(hash) => {
+        //         hints.state_root = Some(hash);
+        //         hints.block_hash = None
+        //     }
+        //     EngineApiHint::ReceiptsRoot(hash) => {
+        //         hints.receipts_root = Some(hash);
+        //         hints.block_hash = None
+        //     }
+        //     EngineApiHint::LogsBloom(bloom) => {
+        //         hints.logs_bloom = Some(bloom);
+        //         hints.block_hash = None
+        //     }
 
-            i += 1;
-        }
+        //     EngineApiHint::ValidPayload => return Ok(sealed_block),
+        // }
     }
 }
 

@@ -1,17 +1,19 @@
 use alloy::{
     consensus::EMPTY_OMMER_ROOT_HASH,
-    primitives::{Bloom, B256, B64, U256},
-    rpc::types::Block,
+    primitives::{Address, Bloom, Bytes, B256, B64, U256},
+    rpc::types::{Block, Withdrawal, Withdrawals},
 };
 use alloy_rpc_types_engine::{ClientCode, ClientVersionV1, ExecutionPayload, JwtSecret};
 use hex::FromHex;
 use reqwest::Url;
-use reth_primitives::Header as RethHeader;
+use reth_primitives::{
+    BlockBody, Header as RethHeader, SealedBlock, SealedHeader, TransactionSigned,
+};
 use tracing::trace;
 
-use crate::builder::BuilderError;
+use crate::builder::{compat::to_alloy_execution_payload, BuilderError};
 
-use super::secret_to_bearer_header;
+use super::{engine_hints::parse_hint_from_engine_response, secret_to_bearer_header};
 
 /// The [EngineHinter] is responsible for gathering "hints" from the
 /// engine API error responses to complete the sealed block.
@@ -25,6 +27,29 @@ pub struct EngineHinter {
     client: reqwest::Client,
     jwt_hex: String,
     engine_rpc_url: Url,
+}
+
+/// Context holding the necessary values for
+/// building a sealed block. Some of this data is fetched from the
+/// beacon chain, while others are calculated locally or from the
+/// transactions themselves.
+#[derive(Debug)]
+pub struct EngineHinterContext {
+    pub extra_data: Bytes,
+    pub base_fee: u64,
+    pub blob_gas_used: u64,
+    pub excess_blob_gas: u64,
+    pub prev_randao: B256,
+    pub fee_recipient: Address,
+    pub transactions_root: B256,
+    pub withdrawals_root: B256,
+    pub parent_beacon_block_root: B256,
+    pub blob_versioned_hashes: Vec<B256>,
+    pub block_timestamp: u64,
+    pub transactions: Vec<TransactionSigned>,
+    pub withdrawals: Vec<Withdrawal>,
+    pub head_block: Block,
+    pub hints: Hints,
 }
 
 /// The collection of hints that can be fetched from the engine API
@@ -61,25 +86,87 @@ impl EngineHinter {
         Self { client: reqwest::Client::new(), jwt_hex, engine_rpc_url }
     }
 
+    /// Collect hints from the engine API to complete the sealed block.
+    /// This method will keep fetching hints until the payload is valid.
+    pub async fn fetch_next_payload_from_hints(
+        &self,
+        ctx: EngineHinterContext,
+    ) -> Result<SealedBlock, BuilderError> {
+        // TODO: move this somewhere more appropriate
+        let el_client_code = self.engine_client_info().await?[0].code;
+
+        let body = BlockBody {
+            ommers: Vec::new(),
+            transactions: ctx.transactions.clone(),
+            withdrawals: Some(Withdrawals::new(ctx.withdrawals.clone())),
+        };
+
+        let header = build_header_from_context(&ctx);
+        let sealed_hash = header.hash_slow();
+        let sealed_header = SealedHeader::new(header, sealed_hash);
+        let sealed_block = SealedBlock::new(sealed_header, body.clone());
+        let block_hash = ctx.hints.block_hash.unwrap_or(sealed_block.hash());
+
+        // build the new execution payload with the sealed block and hash
+        let exec_payload = to_alloy_execution_payload(&sealed_block, sealed_hash);
+
+        // fetch the next hint from the engine API
+        let hint = self.next_hint(&exec_payload, &ctx, el_client_code).await?;
+
+        todo!()
+    }
+
     /// Yield the next hint from the engine API to complete the sealed block.
     ///
     /// Returns `Ok(None)` if the payload is valid and no more hints are needed.
-    pub async fn next_hint(&self) -> Result<Option<EngineApiHint>, BuilderError> {
-        // 1. Fetch the execution client info from the engine API
-        let el_client_info = self.engine_client_info().await?;
+    async fn next_hint(
+        &self,
+        exec_payload: &ExecutionPayload,
+        ctx: &EngineHinterContext,
+        el_client_code: ClientCode,
+    ) -> Result<EngineApiHint, BuilderError> {
+        let raw_response = self
+            .engine_new_payload(
+                exec_payload,
+                &ctx.blob_versioned_hashes,
+                ctx.parent_beacon_block_root,
+            )
+            .await?;
 
-        // 2. Fetch the next payload hint from the engine API's `newPayloadV3` method
-        let raw_payload_response =
-            self.engine_new_payload(exec_payload, versioned_hashes, parent_beacon_root).await?;
+        // Parse the hint from the engine API response, based on the client info
+        let Some(hint) = parse_hint_from_engine_response(el_client_code, &raw_response) else {
+            if raw_response.contains("\"status\":\"VALID\"") {
+                return Ok(EngineApiHint::ValidPayload);
+            }
 
-        // 3. Parse the hint from the engine API response, based on the client info
-        parse_hint_from_engine_response(&el_client_info)
+            // TODO: clean up
+            return Err(BuilderError::Custom(
+                "Unexpected: failed to parse any hint from engine response".to_string(),
+            ));
+        };
+
+        // Match the hint value to the corresponding header field and return it
+        if hint.contains("blockhash mismatch") {
+            return Ok(EngineApiHint::BlockHash(B256::from_hex(hint)?));
+        } else if hint.contains("invalid gas used") {
+            return Ok(EngineApiHint::GasUsed(hint.parse()?));
+        } else if hint.contains("invalid merkle root") {
+            return Ok(EngineApiHint::StateRoot(B256::from_hex(hint)?));
+        } else if hint.contains("invalid receipt root hash") {
+            return Ok(EngineApiHint::ReceiptsRoot(B256::from_hex(hint)?));
+        } else if hint.contains("invalid bloom") {
+            return Ok(EngineApiHint::LogsBloom(Bloom::from_hex(&hint)?));
+        };
+
+        Err(BuilderError::Custom(
+            "Unexpected: failed to parse any hint from engine response".to_string(),
+        ))
     }
 }
 
 impl EngineHinter {
     /// Fetch the next payload hint from the engine API to complete the sealed block.
-    pub async fn fetch_next_payload_hint(
+    async fn fetch_next_payload_hint(
         &self,
         exec_payload: &ExecutionPayload,
         versioned_hashes: &[B256],
@@ -118,7 +205,7 @@ impl EngineHinter {
     }
 
     /// Perform an engine API `newPayloadV3` request and return the stringified response.
-    pub async fn engine_new_payload(
+    async fn engine_new_payload(
         &self,
         exec_payload: &ExecutionPayload,
         versioned_hashes: &[B256],
@@ -179,19 +266,15 @@ impl EngineHinter {
 }
 
 /// Build a header with the given hints and context values.
-fn build_header_with_hints_and_context(
-    latest_block: &Block,
-    hints: &Hints,
-    context: &Context,
-) -> RethHeader {
+fn build_header_from_context(context: &EngineHinterContext) -> RethHeader {
     // Use the available hints, or default to an empty value if not present.
-    let gas_used = hints.gas_used.unwrap_or_default();
-    let receipts_root = hints.receipts_root.unwrap_or_default();
-    let logs_bloom = hints.logs_bloom.unwrap_or_default();
-    let state_root = hints.state_root.unwrap_or_default();
+    let gas_used = context.hints.gas_used.unwrap_or_default();
+    let receipts_root = context.hints.receipts_root.unwrap_or_default();
+    let logs_bloom = context.hints.logs_bloom.unwrap_or_default();
+    let state_root = context.hints.state_root.unwrap_or_default();
 
     RethHeader {
-        parent_hash: latest_block.header.hash,
+        parent_hash: context.head_block.header.hash,
         ommers_hash: EMPTY_OMMER_ROOT_HASH,
         beneficiary: context.fee_recipient,
         state_root,
@@ -200,8 +283,8 @@ fn build_header_with_hints_and_context(
         withdrawals_root: Some(context.withdrawals_root),
         logs_bloom,
         difficulty: U256::ZERO,
-        number: latest_block.header.number + 1,
-        gas_limit: latest_block.header.gas_limit,
+        number: context.head_block.header.number + 1,
+        gas_limit: context.head_block.header.gas_limit,
         gas_used,
         timestamp: context.block_timestamp,
         mix_hash: context.prev_randao,
