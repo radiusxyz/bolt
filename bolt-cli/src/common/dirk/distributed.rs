@@ -57,8 +57,6 @@ impl DistributedDirkAccount {
             let url = participant_url(participant);
             let mut conn = Dirk::connect(url.clone(), self.credentials.clone()).await?;
 
-            // TODO: might have to unlock the account here
-
             // Every remote signer must sign the same message
             let signature = match conn.request_signature(account_name.clone(), hash, domain).await {
                 Ok(signature) => signature,

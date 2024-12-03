@@ -28,7 +28,7 @@ pub async fn start_single_dirk_test_server() -> eyre::Result<(String, TlsCredent
         bail!("DIRK is not installed in $PATH");
     }
 
-    let test_data_dir = env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/dirk_single";
+    let test_data_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/dirk_single").to_string();
 
     // read the template json file from test_data
     let template_path = test_data_dir.clone() + "/dirk.template.json";
@@ -69,8 +69,8 @@ pub async fn start_single_dirk_test_server() -> eyre::Result<(String, TlsCredent
 /// 127.0.0.1       localhost localhost-1 localhost-2 localhost-3
 /// ```
 ///
-/// This is because we map 3 different server certificates to localhost in order
-/// to test the multi-node functionality of DIRK.
+/// This is because we need to map 3 different server certificates to localhost
+/// to simulate multiple servers with their own hostnames.
 pub async fn start_multi_dirk_test_server() -> eyre::Result<(String, TlsCredentials, Vec<Child>)> {
     try_init_tls_provider();
 
@@ -79,7 +79,7 @@ pub async fn start_multi_dirk_test_server() -> eyre::Result<(String, TlsCredenti
         bail!("DIRK is not installed in $PATH");
     }
 
-    let test_data_dir = env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/dirk_multi";
+    let test_data_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/dirk_single").to_string();
 
     // directories containing the individual configuration for each instance
     let dirk_ids = ["1", "2", "3"];
