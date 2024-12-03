@@ -205,7 +205,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             clock::from_system_time(genesis_time, opts.chain.slot_time(), SLOTS_PER_EPOCH)
                 .into_stream();
 
-        let local_builder = LocalBuilder::new(opts, beacon_client.clone(), genesis_time);
+        let local_builder = LocalBuilder::new(opts, genesis_time);
         let head_tracker = HeadTracker::start(beacon_client.clone());
 
         let consensus = ConsensusState::new(
