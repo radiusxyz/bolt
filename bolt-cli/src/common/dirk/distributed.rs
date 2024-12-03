@@ -1,6 +1,7 @@
 use alloy::primitives::B256;
 use ethereum_consensus::crypto::{PublicKey as BlsPublicKey, Signature as BlsSignature};
 use eyre::{bail, Result};
+use futures::{stream, StreamExt};
 use tracing::{debug, warn};
 
 use crate::{
@@ -47,26 +48,41 @@ impl DistributedDirkAccount {
         hash: B256,
         domain: B256,
     ) -> Result<BlsSignature> {
-        let mut signatures_with_ids = Vec::with_capacity(self.participants.len());
+        let mut futures = Vec::with_capacity(self.participants.len());
 
         for participant in &self.participants {
-            if signatures_with_ids.len() >= self.threshold {
-                break;
-            }
+            let cred = self.credentials.clone();
+            let account_name = account_name.clone();
+            futures.push(async move {
+                let url = participant_url(participant);
+                let Ok(mut conn) = Dirk::connect(url.clone(), cred).await else {
+                    warn!("Failed to connect to remote signer at {}", url);
+                    return None;
+                };
 
-            let url = participant_url(participant);
-            let mut conn = Dirk::connect(url.clone(), self.credentials.clone()).await?;
-
-            // Every remote signer must sign the same message
-            let signature = match conn.request_signature(account_name.clone(), hash, domain).await {
-                Ok(signature) => signature,
-                Err(err) => {
-                    warn!(?err, "Failed to sign message with remote signer at {}", url);
-                    continue;
+                // Every remote signer must sign the same message
+                match conn.request_signature(account_name, hash, domain).await {
+                    Ok(signature) => Some((signature, participant.id)),
+                    Err(err) => {
+                        warn!(?err, "Failed to sign message with remote signer at {}", url);
+                        None
+                    }
                 }
-            };
+            });
+        }
 
-            signatures_with_ids.push((signature, participant.id));
+        // Buffer the futures to process up to 8 at a time (to avoid overwhelming Dirk servers)
+        let mut signatures_with_ids = Vec::with_capacity(self.threshold);
+        let mut futures_stream = stream::iter(futures.into_iter()).buffer_unordered(8);
+
+        // Short-circuit when we have enough signatures to reach the threshold
+        while let Some(result) = futures_stream.next().await {
+            if let Some(signature_with_id) = result {
+                signatures_with_ids.push(signature_with_id);
+                if signatures_with_ids.len() >= self.threshold {
+                    break;
+                }
+            }
         }
 
         debug!("Received {} signatures from the distributed account", signatures_with_ids.len());

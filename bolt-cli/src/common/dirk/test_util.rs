@@ -79,7 +79,7 @@ pub async fn start_multi_dirk_test_server() -> eyre::Result<(String, TlsCredenti
         bail!("DIRK is not installed in $PATH");
     }
 
-    let test_data_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/dirk_single").to_string();
+    let test_data_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/dirk_multi").to_string();
 
     // directories containing the individual configuration for each instance
     let dirk_ids = ["1", "2", "3"];
