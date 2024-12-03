@@ -1,0 +1,27 @@
+server:
+  id: 2
+  name: localhost-2
+  listen-address: 0.0.0.0:8882
+certificates:
+  ca-cert: file://$PWD/2/security/ca.crt
+  server-cert: file://$PWD/2/security/localhost-2.crt
+  server-key: file://$PWD/2/security/localhost-2.key
+storage-path: $PWD/2/storage
+stores:
+  - name: Local
+    type: filesystem
+    location: $PWD/2/wallets
+peers:
+  1: localhost-1:8881
+  2: localhost-2:8882
+  3: localhost-3:8883
+unlocker:
+  account-passphrases:
+    - secret
+process:
+  generation-passphrase: secret
+permissions:
+  client1:
+    DistributedWallet1: All
+  localhost:
+    DistributedWallet1: All

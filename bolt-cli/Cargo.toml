@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 # async
 tokio = { version = "1.41.0", features = ["full"] }
+futures = "0.3.31"
 
 # cli
 clap = { version = "4.5.4", features = ["derive", "env"] }
@@ -19,6 +20,7 @@ prost = "0.13.3"
 
 # crypto
 blst = "0.3.12"
+bls12_381 = "0.8.0"
 
 # ethereum
 ethereum-consensus = { git = "https://github.com/ralexstokes/ethereum-consensus", rev = "cf3c404" }
@@ -41,7 +43,7 @@ rand = "0.8.5"
 
 [dev-dependencies]
 tempfile = "3.13.0"
-alloy-node-bindings = "0.6.3"
+alloy-node-bindings = "0.7.0"
 
 [build-dependencies]
 tonic-build = "0.12.3"
