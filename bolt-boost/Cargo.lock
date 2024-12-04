@@ -1132,8 +1132,8 @@ dependencies = [
 
 [[package]]
 name = "cb-common"
-version = "0.3.0"
-source = "git+https://github.com/commit-boost/commit-boost-client?tag=v0.3.0#d511c267243b3371f4d47604aebe6a20dbbd0e79"
+version = "0.3.1"
+source = "git+https://github.com/commit-boost/commit-boost-client?tag=v0.3.1#1dc63e2494a145718261a64baf90331adaef6d29"
 dependencies = [
  "alloy",
  "axum",
@@ -1163,8 +1163,8 @@ dependencies = [
 
 [[package]]
 name = "cb-metrics"
-version = "0.3.0"
-source = "git+https://github.com/commit-boost/commit-boost-client?tag=v0.3.0#d511c267243b3371f4d47604aebe6a20dbbd0e79"
+version = "0.3.1"
+source = "git+https://github.com/commit-boost/commit-boost-client?tag=v0.3.1#1dc63e2494a145718261a64baf90331adaef6d29"
 dependencies = [
  "axum",
  "cb-common",
@@ -1177,8 +1177,8 @@ dependencies = [
 
 [[package]]
 name = "cb-pbs"
-version = "0.3.0"
-source = "git+https://github.com/commit-boost/commit-boost-client?tag=v0.3.0#d511c267243b3371f4d47604aebe6a20dbbd0e79"
+version = "0.3.1"
+source = "git+https://github.com/commit-boost/commit-boost-client?tag=v0.3.1#1dc63e2494a145718261a64baf90331adaef6d29"
 dependencies = [
  "alloy",
  "async-trait",
