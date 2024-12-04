@@ -3,12 +3,15 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use alloy_rpc_types_engine::{Claims, JwtSecret};
 use axum::http::HeaderValue;
 
+/// Fallback block builder for when the PBS stack doesn't yield a valid block.
 pub mod payload_builder;
 pub use payload_builder::FallbackPayloadBuilder;
 
+/// Engine hinter for parsing hints from execution clients engine API responses.
 mod engine_hinter;
 pub use engine_hinter::EngineHinter;
 
+/// Utilities for parsing engine hints from different execution clients types.
 mod engine_hints;
 
 /// Extra-data payload field used for locally built blocks, decoded in UTF-8.

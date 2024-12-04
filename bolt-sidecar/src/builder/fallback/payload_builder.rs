@@ -1,10 +1,9 @@
 use alloy::{
     consensus::Transaction,
     eips::{calc_excess_blob_gas, calc_next_block_base_fee, eip1559::BaseFeeParams},
-    primitives::{Address, Bytes, B256},
-    rpc::types::Withdrawals,
+    primitives::{Address, Bytes},
 };
-use reth_primitives::{proofs, BlockBody, SealedBlock, SealedHeader, TransactionSigned};
+use reth_primitives::{proofs, SealedBlock, TransactionSigned};
 
 use super::{
     engine_hinter::{EngineHinter, EngineHinterContext},
@@ -44,14 +43,16 @@ impl FallbackPayloadBuilder {
     pub fn new(opts: &Opts, genesis_time: u64) -> Self {
         let engine_hinter =
             EngineHinter::new(opts.engine_jwt_hex.0.clone(), opts.engine_api_url.clone());
+
         let beacon_api = BeaconApi::new(opts.beacon_api_url.clone());
+        let execution_api = RpcClient::new(opts.execution_api_url.clone());
 
         Self {
-            engine_hinter,
             extra_data: DEFAULT_EXTRA_DATA.into(),
             fee_recipient: opts.fee_recipient,
-            execution_api: RpcClient::new(opts.execution_api_url.clone()),
             slot_time: opts.chain.slot_time(),
+            engine_hinter,
+            execution_api,
             genesis_time,
             beacon_api,
         }
@@ -72,7 +73,7 @@ impl FallbackPayloadBuilder {
 
         // Fetch the execution client info from the engine API in order to know what hint
         // types the engine hinter can parse from the engine API responses.
-        let engine_info = self.engine_hinter.engine_client_info().await?;
+        let el_client_code = self.engine_hinter.engine_client_info().await?[0].code;
 
         // Fetch required head info from the beacon chain
         let parent_beacon_block_root = self.beacon_api.get_parent_beacon_block_root().await?;
@@ -121,56 +122,14 @@ impl FallbackPayloadBuilder {
             block_timestamp,
             withdrawals,
             head_block,
+            el_client_code,
             // start the context with empty hints
             hints: Default::default(),
         };
 
-        self.engine_hinter.fetch_next_payload_from_hints(ctx).await
-
-        // let body = BlockBody {
-        //     ommers: Vec::new(),
-        //     transactions: transactions.to_vec(),
-        //     withdrawals: Some(Withdrawals::new(withdrawals)),
-        // };
-
-        // let header = build_header_with_hints_and_context(&head_block, &hints, &ctx);
-
-        // let sealed_hash = header.hash_slow();
-        // let sealed_header = SealedHeader::new(header, sealed_hash);
-        // let sealed_block = SealedBlock::new(sealed_header, body.clone());
-
-        // let block_hash = hints.block_hash.unwrap_or(sealed_block.hash());
-
-        // let exec_payload = to_alloy_execution_payload(&sealed_block, block_hash);
-
-        // fetch_hints
-
-        // loop {
-        // match engine_hint {
-        //     EngineApiHint::BlockHash(hash) => {
-        //         trace!("Should not receive block hash hint {:?}", hash);
-        //         hints.block_hash = Some(hash)
-        //     }
-
-        //     EngineApiHint::GasUsed(gas) => {
-        //         hints.gas_used = Some(gas);
-        //         hints.block_hash = None;
-        //     }
-        //     EngineApiHint::StateRoot(hash) => {
-        //         hints.state_root = Some(hash);
-        //         hints.block_hash = None
-        //     }
-        //     EngineApiHint::ReceiptsRoot(hash) => {
-        //         hints.receipts_root = Some(hash);
-        //         hints.block_hash = None
-        //     }
-        //     EngineApiHint::LogsBloom(bloom) => {
-        //         hints.logs_bloom = Some(bloom);
-        //         hints.block_hash = None
-        //     }
-
-        //     EngineApiHint::ValidPayload => return Ok(sealed_block),
-        // }
+        // Use the engine API to fetch the missing value for the payload, until we have
+        // all the necessary data to consider it valid and seal the block.
+        self.engine_hinter.fetch_payload_from_hints(ctx).await
     }
 }
 

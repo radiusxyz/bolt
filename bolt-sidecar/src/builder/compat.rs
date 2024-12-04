@@ -168,16 +168,6 @@ pub(crate) fn to_consensus_execution_payload(value: &SealedBlock) -> ConsensusEx
     ConsensusExecutionPayload::Deneb(payload)
 }
 
-/// Compatibility: convert a Withdrawal from ethereum-consensus to alloy::primitives
-pub(crate) fn to_alloy_withdrawal(value: ethereum_consensus::capella::Withdrawal) -> Withdrawal {
-    Withdrawal {
-        index: value.index as u64,
-        validator_index: value.validator_index as u64,
-        address: Address::from_slice(value.address.as_ref()),
-        amount: value.amount,
-    }
-}
-
 /// Compatibility: convert a withdrawal from alloy::primitives to ethereum-consensus
 pub(crate) fn to_consensus_withdrawal(
     value: &Withdrawal,

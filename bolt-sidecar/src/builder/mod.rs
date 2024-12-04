@@ -1,4 +1,5 @@
 use alloy::primitives::U256;
+use alloy_rpc_types_engine::ClientCode;
 use ethereum_consensus::{
     crypto::{KzgCommitment, PublicKey},
     deneb::mainnet::ExecutionPayloadHeader,
@@ -26,6 +27,7 @@ pub use fallback::FallbackPayloadBuilder;
 pub mod template;
 pub use template::BlockTemplate;
 
+/// Minimal beacon node API client implementation.
 pub mod beacon;
 pub use beacon::BeaconApi;
 
@@ -64,6 +66,10 @@ pub enum BuilderError {
     InvalidEngineHint(String),
     #[error("Beacon API error: {0}")]
     BeaconApi(#[from] beacon::BeaconApiError),
+    #[error("Unsupported engine hint: {0}")]
+    UnsupportedEngineHint(String),
+    #[error("Unsupported engine client: {0}")]
+    UnsupportedEngineClient(ClientCode),
     #[error("Failed to build payload: {0}")]
     Custom(String),
 }
