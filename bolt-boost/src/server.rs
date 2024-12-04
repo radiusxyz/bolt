@@ -443,7 +443,11 @@ async fn send_one_get_header(
         return Ok((start_request_time, None));
     }
 
-    let get_header_response: GetHeaderWithProofsResponse = serde_json::from_slice(&response_bytes)?;
+    let get_header_response: GetHeaderWithProofsResponse = serde_json::from_slice(&response_bytes)
+        .map_err(|e| PbsError::JsonDecode {
+            err: e,
+            raw: String::from_utf8(response_bytes.to_vec()).unwrap_or("Invalid UTF-8".to_string()),
+        })?;
 
     debug!(
         latency = ?request_latency,
