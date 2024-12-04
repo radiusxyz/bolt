@@ -39,6 +39,7 @@ This document provides instructions for running Bolt on the Holesky testnet.
     * [Using a private key directly](#using-a-private-key-directly)
     * [Using a ERC-2335 Keystore](#using-a-erc-2335-keystore)
   * [Avoid restarting the beacon node](#avoid-restarting-the-beacon-node)
+  * [Vouch configuration](#vouch-configuration)
 
 <!-- vim-markdown-toc -->
 
