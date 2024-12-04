@@ -123,7 +123,6 @@ pub mod test_util {
         time::Duration,
     };
 
-    use super::*;
     use crate::cli::TlsCredentials;
     use eyre::{bail, Ok};
 
@@ -169,7 +168,7 @@ pub mod test_util {
         tokio::time::sleep(Duration::from_secs(5)).await;
 
         // TLS client test data.
-        let client_tls_dir = env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/dirk";
+        let client_tls_dir = env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/dirk_single";
 
         // TLS credentials.
         let credentials = TlsCredentials {

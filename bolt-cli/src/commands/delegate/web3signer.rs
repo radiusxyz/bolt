@@ -66,11 +66,11 @@ pub async fn generate_from_web3signer(
 #[cfg(test)]
 mod tests {
     use crate::{
-        cli::Chain,
+        cli::{Action, Chain, Web3SignerOpts},
+        commands::delegate::web3signer::generate_from_web3signer,
         common::{parse_bls_public_key, web3signer::test_util::start_web3signer_test_server},
     };
 
-    use super::*;
     /// Test generating signed delegations using a remote Web3Signer signer.
     ///
     /// ```shell
