@@ -39,6 +39,7 @@ This document provides instructions for running Bolt on the Holesky testnet.
     * [Using a private key directly](#using-a-private-key-directly)
     * [Using a ERC-2335 Keystore](#using-a-erc-2335-keystore)
   * [Avoid restarting the beacon node](#avoid-restarting-the-beacon-node)
+  * [Vouch configuration](#vouch-configuration)
 
 <!-- vim-markdown-toc -->
 
@@ -1123,3 +1124,12 @@ the restart by following this steps when starting the Bolt sidecar:
    using another port
 3. Set the `--constraints-api-url` flag (or `BOLT_SIDECAR_CONSTRAINTS_API_URL`
    env) to point to the Bolt MEV-Boost instance.
+
+## Vouch configuration
+
+If you are using [Vouch](https://www.attestant.io/posts/introducing-vouch/) as validator client,
+you will need to tweak its configuration to make sure that it doesn't fetch blocks from PBS relays directly,
+otherwise your validators might propose a block that does not adhere to the signed constraints from the Bolt sidecar.
+
+In particular, you need to [disable external MEV relays](https://github.com/attestantio/vouch/blob/master/docs/blockrelay.md#without-mev-relays),
+and make sure that your beacon node is pointing to the bolt sidecar.
