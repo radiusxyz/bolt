@@ -3,6 +3,7 @@ services:
     image: ghcr.io/chainbound/bolt-sidecar:v0.3.0-alpha.rc2
     container_name: bolt-sidecar-holesky
     restart: unless-stopped
+    env_file: ./bolt-sidecar.env
     ports:
       # NOTE: to read these envs, it is necessary to provide them via `--env-file` or having them already set.
       - "${BOLT_SIDECAR_PORT:-8017}:${BOLT_SIDECAR_PORT:-8017}" # This port should be opened on your firewall!
