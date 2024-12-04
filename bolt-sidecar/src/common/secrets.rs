@@ -6,6 +6,7 @@ use std::{
 };
 
 use alloy::{hex, signers::k256::ecdsa::SigningKey};
+use alloy_rpc_types_engine::JwtSecret;
 use blst::min_pk::SecretKey;
 use rand::{Rng, RngCore};
 use serde::{Deserialize, Deserializer};
@@ -101,12 +102,21 @@ impl Deref for EcdsaSecretKeyWrapper {
 
 /// A warpper for JWT secret key.
 #[derive(Debug, Clone)]
-pub struct JwtSecretConfig(pub String);
+pub struct JwtSecretConfig(pub JwtSecret);
+
+impl JwtSecretConfig {
+    /// Convert the JWT secret to hex string.
+    pub fn to_hex(&self) -> String {
+        hex::encode_prefixed(self.0.as_bytes())
+    }
+}
 
 impl Default for JwtSecretConfig {
     fn default() -> Self {
         let random_bytes: [u8; 32] = rand::thread_rng().gen();
         let secret = hex::encode(random_bytes);
+        let secret = JwtSecret::from_hex(secret.as_str()).expect("valid hex bytes");
+
         Self(secret)
     }
 }
@@ -125,8 +135,7 @@ impl From<&str> for JwtSecretConfig {
         };
 
         assert!(jwt.len() == 64, "Engine JWT secret must be a 32 byte hex string");
-
-        Self(jwt)
+        Self(JwtSecret::from_hex(jwt.as_str()).expect("Invalid JWT secret hex bytes"))
     }
 }
 
@@ -137,18 +146,5 @@ impl<'de> Deserialize<'de> for JwtSecretConfig {
     {
         let jwt = String::deserialize(deserializer)?;
         Ok(Self::from(jwt.as_str()))
-    }
-}
-
-impl Deref for JwtSecretConfig {
-    type Target = str;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Display for JwtSecretConfig {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{}", self.0)
     }
 }

@@ -19,7 +19,7 @@ use crate::builder::{fallback::engine_hinter::EngineApiHint, BuilderError};
 pub fn parse_nethermind_engine_error_hint(
     error: &str,
 ) -> Result<Option<EngineApiHint>, BuilderError> {
-    // TODO
+    dbg!(&error);
 
     Ok(None)
 }

@@ -1,17 +1,24 @@
+use std::ops::Deref;
+
 use alloy::{
     consensus::EMPTY_OMMER_ROOT_HASH,
     primitives::{Address, Bloom, Bytes, B256, B64, U256},
     rpc::types::{Block, Withdrawal, Withdrawals},
 };
-use alloy_rpc_types_engine::{ClientCode, ClientVersionV1, ExecutionPayload, JwtSecret};
+use alloy_provider::ext::EngineApi;
+use alloy_rpc_types_engine::{ClientCode, ExecutionPayloadV3, JwtSecret, PayloadStatusEnum};
 use reqwest::Url;
 use reth_primitives::{
     BlockBody, Header as RethHeader, SealedBlock, SealedHeader, TransactionSigned,
 };
+use tracing::debug;
 
-use crate::builder::{compat::to_alloy_execution_payload, BuilderError};
+use crate::{
+    builder::{compat::to_alloy_execution_payload, BuilderError},
+    client::EngineClient,
+};
 
-use super::{engine_hints::parse_hint_from_engine_response, secret_to_bearer_header};
+use super::engine_hints::parse_hint_from_engine_response;
 
 /// The [EngineHinter] is responsible for gathering "hints" from the
 /// engine API error responses to complete the sealed block.
@@ -19,18 +26,24 @@ use super::{engine_hints::parse_hint_from_engine_response, secret_to_bearer_head
 /// Since error messages are not overly standardized across execution clients,
 /// we need to know which execution client is being used to properly parse the hints.
 ///
-/// This can be done automatically by querying the EL `eth_g`
+/// This can be done by querying the EL `engine_getClientVersionV1` method.
 #[derive(Debug)]
 pub struct EngineHinter {
-    client: reqwest::Client,
-    jwt_hex: String,
-    engine_rpc_url: Url,
+    engine_client: EngineClient,
+}
+
+impl Deref for EngineHinter {
+    type Target = EngineClient;
+
+    fn deref(&self) -> &Self::Target {
+        &self.engine_client
+    }
 }
 
 impl EngineHinter {
     /// Create a new [EngineHinter] instance with the given JWT and engine RPC URL.
-    pub fn new(jwt_hex: String, engine_rpc_url: Url) -> Self {
-        Self { client: reqwest::Client::new(), jwt_hex, engine_rpc_url }
+    pub fn new(jwt_secret: JwtSecret, engine_rpc_url: Url) -> Self {
+        Self { engine_client: EngineClient::new_http(engine_rpc_url, jwt_secret) }
     }
 
     /// Collect hints from the engine API to complete the sealed block.
@@ -48,8 +61,10 @@ impl EngineHinter {
         // Loop until we get a valid payload from the engine API. On each iteration,
         // we build a new block header with the hints from the context and fetch the next hint.
         let max_iterations = 20;
-        let mut iterations = 0;
+        let mut iteration = 0;
         loop {
+            debug!(%iteration, "Fetching hint from engine API");
+
             // Build a new block header using the hints from the context
             let header = ctx.build_block_header_with_hints();
 
@@ -62,15 +77,15 @@ impl EngineHinter {
             let exec_payload = to_alloy_execution_payload(&sealed_block, block_hash);
 
             // fetch the next hint from the engine API and add it to the context
-            let hint = self.next_hint(&exec_payload, &ctx).await?;
+            let hint = self.next_hint(exec_payload, &ctx).await?;
             ctx.hints.populate_new(hint);
 
             if matches!(hint, EngineApiHint::ValidPayload) {
                 return Ok(sealed_block);
             }
 
-            iterations += 1;
-            if iterations >= max_iterations {
+            iteration += 1;
+            if iteration >= max_iterations {
                 return Err(BuilderError::Custom(
                     "Failed to get a valid payload after 20 iterations".to_string(),
                 ));
@@ -84,90 +99,33 @@ impl EngineHinter {
     /// Returns Ok([EngineApiHint::ValidPayload]) if the payload is valid.
     async fn next_hint(
         &self,
-        exec_payload: &ExecutionPayload,
+        exec_payload: ExecutionPayloadV3,
         ctx: &EngineHinterContext,
     ) -> Result<EngineApiHint, BuilderError> {
-        let raw_response = self
-            .engine_new_payload(
+        let payload_status = self
+            .engine_client
+            .new_payload_v3(
                 exec_payload,
-                &ctx.blob_versioned_hashes,
+                ctx.blob_versioned_hashes.clone(),
                 ctx.parent_beacon_block_root,
             )
             .await?;
 
-        // Parse the hint from the engine API response, based on the EL client code
-        let Some(hint) = parse_hint_from_engine_response(ctx.el_client_code, &raw_response)? else {
-            // Short-circuit if the payload is valid
-            if raw_response.contains("\"status\":\"VALID\"") {
-                return Ok(EngineApiHint::ValidPayload);
+        let validation_error = match payload_status.status {
+            PayloadStatusEnum::Valid => return Ok(EngineApiHint::ValidPayload),
+            PayloadStatusEnum::Invalid { validation_error } => validation_error,
+            PayloadStatusEnum::Syncing | PayloadStatusEnum::Accepted => {
+                return Err(BuilderError::UnexpectedPayloadStatus(payload_status.status))
             }
+        };
 
-            return Err(BuilderError::Custom(
-                "Unexpected: failed to parse any hint from engine response".to_string(),
-            ));
+        // Parse the hint from the engine API response, based on the EL client code
+        let Some(hint) = parse_hint_from_engine_response(ctx.el_client_code, &validation_error)?
+        else {
+            return Err(BuilderError::FailedToParseHintsFromEngine);
         };
 
         Ok(hint)
-    }
-
-    /// Perform an engine API `newPayloadV3` request and return the stringified response.
-    async fn engine_new_payload(
-        &self,
-        exec_payload: &ExecutionPayload,
-        versioned_hashes: &[B256],
-        parent_beacon_root: B256,
-    ) -> Result<String, BuilderError> {
-        let auth_jwt = secret_to_bearer_header(&JwtSecret::from_hex(&self.jwt_hex)?);
-
-        let body = format!(
-            r#"{{"id":1,"jsonrpc":"2.0","method":"engine_newPayloadV3","params":[{}, {}, "{:?}"]}}"#,
-            serde_json::to_string(&exec_payload)?,
-            serde_json::to_string(&versioned_hashes)?,
-            parent_beacon_root
-        );
-
-        Ok(self
-            .client
-            .post(self.engine_rpc_url.as_str())
-            .header("Content-Type", "application/json")
-            .header("Authorization", auth_jwt)
-            .body(body)
-            .send()
-            .await?
-            .text()
-            .await?)
-    }
-
-    /// Fetch the client info from the engine API.
-    pub async fn engine_client_info(&self) -> Result<Vec<ClientVersionV1>, BuilderError> {
-        let auth_jwt = secret_to_bearer_header(&JwtSecret::from_hex(&self.jwt_hex)?);
-
-        // When calling the `engine_getClientVersionV1` method, the `params` field must contain
-        // a `ClientVersionV1` object containing the beacon client info to be shared with the EL.
-        // Ref: <https://github.com/ethereum/execution-apis/blob/main/src/engine/identification.md#clientversionv1>
-        // TODO: use accurate info from the CL connection instead of mocking this
-        let cl_info = ClientVersionV1 {
-            code: ClientCode::LH,
-            name: "BoltSidecar".to_string(),
-            version: format!("v{}", env!("CARGO_PKG_VERSION")),
-            commit: "deadbeef".to_string(),
-        };
-
-        let body = format!(
-            r#"{{"id":1,"jsonrpc":"2.0","method":"engine_getClientVersionV1","params":[{}]}}"#,
-            serde_json::to_string(&cl_info)?
-        );
-
-        Ok(self
-            .client
-            .post(self.engine_rpc_url.as_str())
-            .header("Content-Type", "application/json")
-            .header("Authorization", auth_jwt)
-            .body(body)
-            .send()
-            .await?
-            .json()
-            .await?)
     }
 }
 

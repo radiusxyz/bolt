@@ -1,5 +1,5 @@
 use alloy::primitives::U256;
-use alloy_rpc_types_engine::ClientCode;
+use alloy_rpc_types_engine::{ClientCode, PayloadStatusEnum};
 use ethereum_consensus::{
     crypto::{KzgCommitment, PublicKey},
     deneb::mainnet::ExecutionPayloadHeader,
@@ -26,10 +26,6 @@ pub use fallback::FallbackPayloadBuilder;
 /// response from all relays.
 pub mod template;
 pub use template::BlockTemplate;
-
-/// Minimal beacon node API client implementation.
-pub mod beacon;
-pub use beacon::BeaconApi;
 
 /// Builder payload signing utilities
 pub mod signature;
@@ -65,7 +61,13 @@ pub enum BuilderError {
     #[error("Failed to parse hint from engine response: {0}")]
     InvalidEngineHint(String),
     #[error("Beacon API error: {0}")]
-    BeaconApi(#[from] beacon::BeaconApiError),
+    BeaconApi(#[from] crate::client::beacon::BeaconClientError),
+    #[error("Failed to build payload due to invalid transactions: {0}")]
+    InvalidTransactions(String),
+    #[error("Got an unexpected response from engine_newPayload query: {0}")]
+    UnexpectedPayloadStatus(PayloadStatusEnum),
+    #[error("Failed to parse any hints from engine API validation error")]
+    FailedToParseHintsFromEngine,
     #[error("Unsupported engine hint: {0}")]
     UnsupportedEngineHint(String),
     #[error("Unsupported engine client: {0}")]

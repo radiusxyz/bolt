@@ -4,6 +4,7 @@ use alloy::{
     primitives::{Address, Bytes},
 };
 use reth_primitives::{proofs, SealedBlock, TransactionSigned};
+use tracing::debug;
 
 use super::{
     engine_hinter::{EngineHinter, EngineHinterContext},
@@ -11,8 +12,8 @@ use super::{
 };
 
 use crate::{
-    builder::{BeaconApi, BuilderError},
-    client::RpcClient,
+    builder::BuilderError,
+    client::{BeaconClient, ExecutionClient},
     config::Opts,
 };
 
@@ -31,8 +32,8 @@ use crate::{
 pub struct FallbackPayloadBuilder {
     extra_data: Bytes,
     fee_recipient: Address,
-    beacon_api: BeaconApi,
-    execution_api: RpcClient,
+    beacon_api: BeaconClient,
+    execution_api: ExecutionClient,
     engine_hinter: EngineHinter,
     slot_time: u64,
     genesis_time: u64,
@@ -41,11 +42,10 @@ pub struct FallbackPayloadBuilder {
 impl FallbackPayloadBuilder {
     /// Create a new fallback payload builder
     pub fn new(opts: &Opts, genesis_time: u64) -> Self {
-        let engine_hinter =
-            EngineHinter::new(opts.engine_jwt_hex.0.clone(), opts.engine_api_url.clone());
+        let engine_hinter = EngineHinter::new(opts.engine_jwt_hex.0, opts.engine_api_url.clone());
 
-        let beacon_api = BeaconApi::new(opts.beacon_api_url.clone());
-        let execution_api = RpcClient::new(opts.execution_api_url.clone());
+        let beacon_api = BeaconClient::new(opts.beacon_api_url.clone());
+        let execution_api = ExecutionClient::new(opts.execution_api_url.clone());
 
         Self {
             extra_data: DEFAULT_EXTRA_DATA.into(),
@@ -70,10 +70,12 @@ impl FallbackPayloadBuilder {
         // prevent edge cases where the proposer before us has missed their slot and therefore
         // the timestamp of the previous block is too far in the past.
         let head_block = self.execution_api.get_block(None, true).await?;
+        debug!(num = %head_block.header.number, "Fetched head block");
 
         // Fetch the execution client info from the engine API in order to know what hint
         // types the engine hinter can parse from the engine API responses.
-        let el_client_code = self.engine_hinter.engine_client_info().await?[0].code;
+        let el_client_code = self.engine_hinter.engine_client_version().await?[0].code;
+        debug!(client = %el_client_code.client_name(), "Fetched execution client info");
 
         // Fetch required head info from the beacon chain
         let parent_beacon_block_root = self.beacon_api.get_parent_beacon_block_root().await?;
@@ -141,6 +143,7 @@ mod tests {
         eips::eip2718::{Decodable2718, Encodable2718},
         network::{EthereumWallet, TransactionBuilder},
         primitives::{hex, Address},
+        providers::{Provider, ProviderBuilder},
         signers::{k256::ecdsa::SigningKey, local::PrivateKeySigner},
     };
     use beacon_api_client::mainnet::Client as BeaconClient;
@@ -154,15 +157,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_build_fallback_payload() -> eyre::Result<()> {
-        let _ = tracing_subscriber::fmt::try_init();
+        if tracing_subscriber::fmt::try_init().is_err() {
+            eprintln!("Failed to initialize logger");
+        };
 
-        let Some(cfg) = get_test_config().await else {
+        let Some(mut cfg) = get_test_config().await else {
             warn!("Skipping test: missing test config");
             return Ok(());
         };
 
+        // Set the engine to either geth or nethermind
+        // ge: remotebeast:48551, nm: remotesmol:58551
+        // cfg.engine_api_url = "http://remotesmol:58551".parse()?;
+
         let raw_sk = std::env::var("PRIVATE_KEY")?;
 
+        let provider = ProviderBuilder::new().on_http(cfg.execution_api_url.clone());
         let beacon_client = BeaconClient::new(cfg.beacon_api_url.clone());
         let genesis_time = beacon_client.get_genesis_details().await?.genesis_time;
         let builder = FallbackPayloadBuilder::new(&cfg, genesis_time);
@@ -172,7 +182,8 @@ mod tests {
         let wallet = EthereumWallet::from(signer);
 
         let addy = Address::from_private_key(&sk);
-        let tx = default_test_transaction(addy, Some(3)).with_chain_id(1);
+        let nonce = provider.get_transaction_count(addy).await?;
+        let tx = default_test_transaction(addy, Some(nonce)).with_chain_id(17000);
         let tx_signed = tx.build(&wallet).await?;
         let raw_encoded = tx_signed.encoded_2718();
         let tx_signed_reth = TransactionSigned::decode_2718(&mut raw_encoded.as_slice())?;

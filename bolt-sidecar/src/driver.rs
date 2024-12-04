@@ -5,7 +5,6 @@ use alloy::{
     rpc::types::beacon::events::HeadEvent,
     signers::local::PrivateKeySigner,
 };
-use beacon_api_client::mainnet::Client as BeaconClient;
 use ethereum_consensus::{
     clock::{self, SlotStream, SystemTimeProvider},
     phase0::mainnet::SLOTS_PER_EPOCH,
@@ -26,7 +25,7 @@ use crate::{
     },
     builder::payload_fetcher::LocalPayloadFetcher,
     chain_io::BoltManager,
-    client::ConstraintsClient,
+    client::{BeaconClient, ConstraintsClient},
     common::backoff::retry_with_backoff,
     config::Opts,
     crypto::{SignableBLS, SignerECDSA},

@@ -3,34 +3,63 @@ use std::ops::{Deref, DerefMut};
 use alloy::{
     eips::BlockNumberOrTag,
     primitives::{Address, Bytes, TxHash, B256, U256, U64},
+    providers::{ProviderBuilder, RootProvider},
     rpc::{
-        client::{self as alloyClient, ClientBuilder},
+        client::{BatchRequest, ClientBuilder},
         types::{Block, FeeHistory, TransactionReceipt},
     },
     transports::{http::Http, TransportErrorKind, TransportResult},
 };
-
 use futures::{stream::FuturesUnordered, StreamExt};
 use reqwest::{Client, Url};
 
 use crate::primitives::AccountState;
 
-/// An HTTP-based JSON-RPC client that supports batching.
-/// Implements all methods that are relevant to Bolt state.
+/// An HTTP-based JSON-RPC execution client provider that supports batching.
+///
+/// This struct is a wrapper over an inner [`RootProvider`] and extends it with
+/// methods that are relevant to the Bolt state.
 #[derive(Clone, Debug)]
-pub struct RpcClient(alloyClient::RpcClient<Http<Client>>);
+pub struct ExecutionClient {
+    /// The custom RPC client that allows us to add custom batching and extend the provider.
+    rpc: alloy::rpc::client::RpcClient<Http<Client>>,
+    /// The inner provider that implements all the JSON-RPC methods, that can be
+    /// easily used via dereferencing this struct.
+    inner: RootProvider<Http<Client>>,
+}
 
-impl RpcClient {
+impl Deref for ExecutionClient {
+    type Target = RootProvider<Http<Client>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl DerefMut for ExecutionClient {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}
+
+impl ExecutionClient {
     /// Create a new `RpcClient` with the given URL.
     pub fn new<U: Into<Url>>(url: U) -> Self {
-        let client = ClientBuilder::default().http(url.into());
+        let url = url.into();
+        let rpc = ClientBuilder::default().http(url.clone());
+        let inner = ProviderBuilder::new().on_http(url);
 
-        Self(client)
+        Self { rpc, inner }
+    }
+
+    /// Create a new batch request.
+    pub fn new_batch(&self) -> BatchRequest<'_, Http<Client>> {
+        self.rpc.new_batch()
     }
 
     /// Get the chain ID.
     pub async fn get_chain_id(&self) -> TransportResult<u64> {
-        let chain_id: String = self.0.request("eth_chainId", ()).await?;
+        let chain_id: String = self.rpc.request("eth_chainId", ()).await?;
         let chain_id = chain_id
             .get(2..)
             .ok_or(TransportErrorKind::Custom("not hex prefixed result".into()))?;
@@ -48,7 +77,7 @@ impl RpcClient {
         let tag = block_number.map_or(BlockNumberOrTag::Latest, BlockNumberOrTag::Number);
 
         let fee_history: FeeHistory =
-            self.0.request("eth_feeHistory", (U64::from(1), tag, &[] as &[f64])).await?;
+            self.rpc.request("eth_feeHistory", (U64::from(1), tag, &[] as &[f64])).await?;
 
         let Some(base_fee) = fee_history.latest_block_base_fee() else {
             return Err(TransportErrorKind::Custom("Base fee not found".into()).into());
@@ -65,14 +94,14 @@ impl RpcClient {
         let tag = block_number.map_or(BlockNumberOrTag::Latest, BlockNumberOrTag::Number);
         let reward_percentiles: Vec<f64> = vec![];
         let fee_history: FeeHistory =
-            self.0.request("eth_feeHistory", (block_count, tag, &reward_percentiles)).await?;
+            self.rpc.request("eth_feeHistory", (block_count, tag, &reward_percentiles)).await?;
 
         Ok(fee_history.latest_block_blob_base_fee().unwrap_or(0))
     }
 
     /// Get the latest block number
     pub async fn get_head(&self) -> TransportResult<u64> {
-        let result: U64 = self.0.request("eth_blockNumber", ()).await?;
+        let result: U64 = self.rpc.request("eth_blockNumber", ()).await?;
 
         Ok(result.to())
     }
@@ -83,7 +112,7 @@ impl RpcClient {
         address: &Address,
         block_number: Option<u64>,
     ) -> TransportResult<AccountState> {
-        let mut batch = self.0.new_batch();
+        let mut batch = self.rpc.new_batch();
 
         let tag = block_number.map_or(BlockNumberOrTag::Latest, BlockNumberOrTag::Number);
 
@@ -110,13 +139,13 @@ impl RpcClient {
     pub async fn get_block(&self, block_number: Option<u64>, full: bool) -> TransportResult<Block> {
         let tag = block_number.map_or(BlockNumberOrTag::Latest, BlockNumberOrTag::Number);
 
-        self.0.request("eth_getBlockByNumber", (tag, full)).await
+        self.rpc.request("eth_getBlockByNumber", (tag, full)).await
     }
 
     /// Send a raw transaction to the network.
     #[allow(unused)]
     pub async fn send_raw_transaction(&self, raw: Bytes) -> TransportResult<B256> {
-        self.0.request("eth_sendRawTransaction", [raw]).await
+        self.rpc.request("eth_sendRawTransaction", [raw]).await
     }
 
     /// Get the receipts for a list of transaction hashes.
@@ -124,7 +153,7 @@ impl RpcClient {
         &self,
         hashes: &[TxHash],
     ) -> TransportResult<Vec<Option<TransactionReceipt>>> {
-        let mut batch = self.0.new_batch();
+        let mut batch = self.rpc.new_batch();
 
         let futs = FuturesUnordered::new();
 
@@ -147,20 +176,6 @@ impl RpcClient {
     }
 }
 
-impl Deref for RpcClient {
-    type Target = alloyClient::RpcClient<Http<Client>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for RpcClient {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -179,7 +194,7 @@ mod tests {
     async fn test_rpc_client() {
         let anvil = launch_anvil();
         let anvil_url = Url::from_str(&anvil.endpoint()).unwrap();
-        let client = RpcClient::new(anvil_url);
+        let client = ExecutionClient::new(anvil_url);
 
         let addr = anvil.addresses().first().unwrap();
 
@@ -195,7 +210,7 @@ mod tests {
     #[ignore]
     async fn test_get_receipts() {
         let _ = tracing_subscriber::fmt().try_init();
-        let client = RpcClient::new(Url::from_str("http://localhost:8545").unwrap());
+        let client = ExecutionClient::new(Url::from_str("http://localhost:8545").unwrap());
 
         let _receipts = client
             .get_receipts(&[
@@ -223,7 +238,7 @@ mod tests {
     async fn test_smart_contract_code() -> eyre::Result<()> {
         dotenv().ok();
         let rpc_url = Url::parse(std::env::var("RPC_URL").unwrap().as_str())?;
-        let rpc_client = RpcClient::new(rpc_url);
+        let rpc_client = ExecutionClient::new(rpc_url);
 
         // random deployed smart contract address
         let addr = Address::from_str("0xBA12222222228d8Ba445958a75a0704d566BF2C8")?;

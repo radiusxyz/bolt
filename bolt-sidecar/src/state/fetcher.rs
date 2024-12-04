@@ -10,7 +10,7 @@ use futures::{stream::FuturesOrdered, StreamExt};
 use reqwest::Url;
 use tracing::error;
 
-use crate::{client::RpcClient, primitives::AccountState};
+use crate::{client::ExecutionClient, primitives::AccountState};
 
 use super::execution::StateUpdate;
 
@@ -60,14 +60,17 @@ pub trait StateFetcher {
 /// A basic state fetcher that uses an RPC client to fetch state updates.
 #[derive(Clone, Debug)]
 pub struct StateClient {
-    client: RpcClient,
+    client: ExecutionClient,
     retry_backoff: Duration,
 }
 
 impl StateClient {
     /// Create a new `StateClient` with the given URL and maximum retries.
     pub fn new<U: Into<Url>>(url: U) -> Self {
-        Self { client: RpcClient::new(url), retry_backoff: Duration::from_millis(RETRY_BACKOFF_MS) }
+        Self {
+            client: ExecutionClient::new(url),
+            retry_backoff: Duration::from_millis(RETRY_BACKOFF_MS),
+        }
     }
 }
 
@@ -224,7 +227,7 @@ impl StateFetcher for StateClient {
 
 #[cfg(test)]
 impl StateClient {
-    pub fn inner(&self) -> &RpcClient {
+    pub fn inner(&self) -> &ExecutionClient {
         &self.client
     }
 }

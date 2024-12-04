@@ -13,7 +13,10 @@ use ssz::Decode;
 use thiserror::Error;
 use tracing::{debug, error, info};
 
-use crate::crypto::{bls::BLS_DST_PREFIX, ecdsa::SignerECDSA};
+use crate::{
+    common::secrets::JwtSecretConfig,
+    crypto::{bls::BLS_DST_PREFIX, ecdsa::SignerECDSA},
+};
 
 use super::SignerResult;
 
@@ -41,9 +44,10 @@ pub enum CommitBoostError {
 #[allow(unused)]
 impl CommitBoostSigner {
     /// Create a new [CommitBoostSigner] instance
-    pub fn new(signer_url: Url, jwt: &str) -> SignerResult<Self> {
+    pub fn new(signer_url: Url, jwt: &JwtSecretConfig) -> SignerResult<Self> {
         let socket_addr = parse_address_from_url(signer_url).map_err(CommitBoostError::Other)?;
-        let signer_client = SignerClient::new(socket_addr, jwt).map_err(CommitBoostError::Other)?;
+        let signer_client =
+            SignerClient::new(socket_addr, &jwt.to_hex()).map_err(CommitBoostError::Other)?;
 
         let client = Self {
             signer_client,
@@ -215,7 +219,8 @@ mod test {
             warn!("skipping test: commit-boost inputs are not set");
             return Ok(());
         };
-        let signer = CommitBoostSigner::new(signer_server_address.parse()?, &jwt_hex).unwrap();
+        let jwt = JwtSecretConfig::from(jwt_hex.as_str());
+        let signer = CommitBoostSigner::new(signer_server_address.parse()?, &jwt).unwrap();
 
         // Generate random data for the test
         let mut rng = rand::thread_rng();
@@ -242,7 +247,8 @@ mod test {
             warn!("skipping test: commit-boost inputs are not set");
             return Ok(());
         };
-        let signer = CommitBoostSigner::new(signer_server_address.parse()?, &jwt_hex).unwrap();
+        let jwt = JwtSecretConfig::from(jwt_hex.as_str());
+        let signer = CommitBoostSigner::new(signer_server_address.parse()?, &jwt).unwrap();
         let pubkey = signer.get_proxy_ecdsa_pubkey();
 
         // Generate random data for the test

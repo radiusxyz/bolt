@@ -24,7 +24,7 @@ pub fn parse_hint_from_engine_response(
         ClientCode::NM => nethermind::parse_nethermind_engine_error_hint(error),
 
         _ => {
-            error!("No engine hint parser found for client {}", client.client_name());
+            error!("Unsupported fallback execution client: {}", client.client_name());
             Err(BuilderError::UnsupportedEngineClient(client))
         }
     }

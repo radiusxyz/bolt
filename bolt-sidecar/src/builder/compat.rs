@@ -2,14 +2,9 @@ use alloy::{
     consensus::BlockHeader,
     eips::{eip2718::Encodable2718, eip4895::Withdrawal},
     primitives::{Address, Bloom, B256, U256},
-    rpc::types::{
-        engine::{
-            ExecutionPayload as AlloyExecutionPayload, ExecutionPayloadV1, ExecutionPayloadV2,
-            ExecutionPayloadV3,
-        },
-        Withdrawals,
-    },
+    rpc::types::Withdrawals,
 };
+use alloy_rpc_types_engine::{ExecutionPayloadV1, ExecutionPayloadV2, ExecutionPayloadV3};
 use ethereum_consensus::{
     bellatrix::mainnet::Transaction,
     capella::spec,
@@ -81,7 +76,7 @@ pub(crate) fn to_execution_payload_header(
 pub(crate) fn to_alloy_execution_payload(
     block: &SealedBlock,
     block_hash: B256,
-) -> AlloyExecutionPayload {
+) -> ExecutionPayloadV3 {
     let alloy_withdrawals = block
         .body
         .withdrawals
@@ -99,7 +94,7 @@ pub(crate) fn to_alloy_execution_payload(
         })
         .unwrap_or_default();
 
-    AlloyExecutionPayload::V3(ExecutionPayloadV3 {
+    ExecutionPayloadV3 {
         blob_gas_used: block.blob_gas_used().unwrap_or_default(),
         excess_blob_gas: block.excess_blob_gas.unwrap_or_default(),
         payload_inner: ExecutionPayloadV2 {
@@ -121,7 +116,7 @@ pub(crate) fn to_alloy_execution_payload(
             },
             withdrawals: alloy_withdrawals,
         },
-    })
+    }
 }
 
 /// Compatibility: convert a sealed block into an ethereum-consensus execution payload

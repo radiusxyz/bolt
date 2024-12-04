@@ -43,5 +43,10 @@ pub fn parse_geth_engine_error_hint(error: &str) -> Result<Option<EngineApiHint>
         return Ok(Some(EngineApiHint::LogsBloom(Bloom::from_hex(&raw_hint_value)?)));
     };
 
+    // Match some error message that we don't know how to handle
+    if error.contains("could not apply tx") {
+        return Err(BuilderError::InvalidTransactions(error.to_string()));
+    }
+
     Err(BuilderError::UnsupportedEngineHint(error.to_string()))
 }

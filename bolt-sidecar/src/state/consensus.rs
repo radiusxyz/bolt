@@ -3,7 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use beacon_api_client::{mainnet::Client, ProposerDuty};
+use beacon_api_client::ProposerDuty;
 use ethereum_consensus::{crypto::PublicKey as BlsPublicKey, phase0::mainnet::SLOTS_PER_EPOCH};
 use tokio::join;
 use tracing::debug;
@@ -50,7 +50,7 @@ struct Epoch {
 /// including validating commitment requests and updating the state based on the latest slot.
 pub struct ConsensusState {
     /// The beacon API client to fetch data from the beacon chain.
-    beacon_api_client: Client,
+    beacon_api_client: BeaconClient,
     /// The current epoch and associated proposer duties.
     epoch: Epoch,
     // Timestamp of when the latest slot was received
