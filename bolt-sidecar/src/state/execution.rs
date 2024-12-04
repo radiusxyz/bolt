@@ -1,10 +1,10 @@
 use alloy::{
-    consensus::BlobTransactionValidationError,
+    consensus::{BlobTransactionValidationError, EnvKzgSettings, Transaction},
     eips::eip4844::MAX_BLOBS_PER_BLOCK,
     primitives::{Address, U256},
     transports::TransportError,
 };
-use reth_primitives::{revm_primitives::EnvKzgSettings, PooledTransactionsElement};
+use reth_primitives::PooledTransactionsElement;
 use std::{collections::HashMap, ops::Deref};
 use thiserror::Error;
 use tracing::{debug, error, trace, warn};
@@ -398,16 +398,16 @@ impl<C: StateFetcher> ExecutionState<C> {
                 let max_blob_basefee = calculate_max_basefee(self.blob_basefee, slot_diff)
                     .ok_or(ValidationError::MaxBaseFeeCalcOverflow)?;
 
-                debug!(%max_blob_basefee, blob_basefee = blob_transaction.transaction.tx.max_fee_per_blob_gas, "Validating blob basefee");
-                if blob_transaction.transaction.tx.max_fee_per_blob_gas < max_blob_basefee {
+                let blob_basefee = blob_transaction.0.tx().max_fee_per_blob_gas().unwrap_or(0);
+
+                debug!(%max_blob_basefee, %blob_basefee, "Validating blob basefee");
+                if blob_basefee < max_blob_basefee {
                     return Err(ValidationError::BlobBaseFeeTooLow(max_blob_basefee));
                 }
 
                 // Validate blob against KZG settings
-                transaction.validate_blob(
-                    &blob_transaction.transaction.sidecar,
-                    self.kzg_settings.get(),
-                )?;
+                let sidecar = blob_transaction.0.tx().sidecar();
+                transaction.validate_blob(sidecar, self.kzg_settings.get())?;
             }
 
             // Increase the bundle nonce and balance diffs for this sender for the next iteration
@@ -510,7 +510,8 @@ impl<C: StateFetcher> ExecutionState<C> {
             trace!(%address, ?account_state, "Refreshing templates...");
 
             // `expected_account_state` is the account state after applying the state diff,
-            // that is the account state we expect after applying all transactions in a block template
+            // that is the account state we expect after applying all transactions in a block
+            // template
             let (address, mut expected_account_state) = (*address, *account_state);
 
             // Iterate over all block templates and apply the state diff

@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use alloy::{
+    consensus::Transaction,
     hex,
     primitives::{keccak256, Address, Signature, B256},
 };
@@ -102,6 +103,7 @@ impl InclusionRequest {
     ) -> eyre::Result<InclusionCommitment> {
         let digest = self.digest();
         let signature = signer.sign_hash(&digest).await?;
+        let signature = Signature::try_from(signature.as_bytes().as_ref())?;
         Ok(InclusionCommitment { request: self, signature })
     }
 
@@ -147,7 +149,7 @@ impl InclusionRequest {
     /// Validates the init code limit.
     pub fn validate_init_code_limit(&self, limit: usize) -> bool {
         for tx in &self.txs {
-            if tx.tx_kind().is_create() && tx.input().len() > limit {
+            if tx.kind().is_create() && tx.input().len() > limit {
                 return false;
             }
         }

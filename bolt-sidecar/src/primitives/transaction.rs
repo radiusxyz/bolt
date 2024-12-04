@@ -1,34 +1,19 @@
 use std::{borrow::Cow, fmt};
 
 use alloy::{
-    consensus::BlobTransactionSidecar,
+    consensus::{BlobTransactionSidecar, Transaction, TxType},
     eips::eip2718::{Decodable2718, Encodable2718},
     hex,
-    primitives::{Address, Bytes, TxKind, U256},
+    primitives::{Address, U256},
 };
-use reth_primitives::{PooledTransactionsElement, TxType};
+use reth_primitives::PooledTransactionsElement;
 use serde::{de, ser::SerializeSeq};
 
 /// Trait that exposes additional information on transaction types that don't already do it
 /// by themselves (e.g. [`PooledTransactionsElement`]).
 pub trait TransactionExt {
-    /// Returns the gas limit of the transaction.
-    fn gas_limit(&self) -> u64;
-
     /// Returns the value of the transaction.
     fn value(&self) -> U256;
-
-    /// Returns the type of the transaction.
-    fn tx_type(&self) -> TxType;
-
-    /// Returns the kind of the transaction.
-    fn tx_kind(&self) -> TxKind;
-
-    /// Returns the input data of the transaction.
-    fn input(&self) -> &Bytes;
-
-    /// Returns the chain ID of the transaction.
-    fn chain_id(&self) -> Option<u64>;
 
     /// Returns the blob sidecar of the transaction, if any.
     fn blob_sidecar(&self) -> Option<&BlobTransactionSidecar>;
@@ -38,85 +23,29 @@ pub trait TransactionExt {
 }
 
 impl TransactionExt for PooledTransactionsElement {
-    fn gas_limit(&self) -> u64 {
-        match self {
-            Self::Legacy { transaction, .. } => transaction.gas_limit,
-            Self::Eip2930 { transaction, .. } => transaction.gas_limit,
-            Self::Eip1559 { transaction, .. } => transaction.gas_limit,
-            Self::BlobTransaction(blob_tx) => blob_tx.transaction.tx.gas_limit,
-            _ => unimplemented!(),
-        }
-    }
-
     fn value(&self) -> U256 {
         match self {
-            Self::Legacy { transaction, .. } => transaction.value,
-            Self::Eip2930 { transaction, .. } => transaction.value,
-            Self::Eip1559 { transaction, .. } => transaction.value,
-            Self::BlobTransaction(blob_tx) => blob_tx.transaction.tx.value,
-            _ => unimplemented!(),
-        }
-    }
-
-    fn tx_type(&self) -> TxType {
-        match self {
-            Self::Legacy { .. } => TxType::Legacy,
-            Self::Eip2930 { .. } => TxType::Eip2930,
-            Self::Eip1559 { .. } => TxType::Eip1559,
-            Self::BlobTransaction(_) => TxType::Eip4844,
-            _ => unimplemented!(),
-        }
-    }
-
-    fn tx_kind(&self) -> TxKind {
-        match self {
-            Self::Legacy { transaction, .. } => transaction.to,
-            Self::Eip2930 { transaction, .. } => transaction.to,
-            Self::Eip1559 { transaction, .. } => transaction.to,
-            Self::BlobTransaction(blob_tx) => {
-                TxKind::Call(blob_tx.transaction.tx.to)
-            }
-            _ => unimplemented!(),
-        }
-    }
-
-    fn input(&self) -> &Bytes {
-        match self {
-            Self::Legacy { transaction, .. } => &transaction.input,
-            Self::Eip2930 { transaction, .. } => &transaction.input,
-            Self::Eip1559 { transaction, .. } => &transaction.input,
-            Self::BlobTransaction(blob_tx) => &blob_tx.transaction.tx.input,
-            _ => unimplemented!(),
-        }
-    }
-
-    fn chain_id(&self) -> Option<u64> {
-        match self {
-            Self::Legacy { transaction, .. } => transaction.chain_id,
-            Self::Eip2930 { transaction, .. } => Some(transaction.chain_id),
-            Self::Eip1559 { transaction, .. } => Some(transaction.chain_id),
-            Self::BlobTransaction(blob_tx) => {
-                Some(blob_tx.transaction.tx.chain_id)
-            }
+            Self::Legacy(transaction) => transaction.tx().value,
+            Self::Eip2930(transaction) => transaction.tx().value,
+            Self::Eip1559(transaction) => transaction.tx().value,
+            Self::BlobTransaction(blob_tx) => blob_tx.tx().tx.value,
             _ => unimplemented!(),
         }
     }
 
     fn blob_sidecar(&self) -> Option<&BlobTransactionSidecar> {
         match self {
-            Self::BlobTransaction(blob_tx) => {
-                Some(&blob_tx.transaction.sidecar)
-            }
+            Self::BlobTransaction(blob_tx) => Some(&blob_tx.tx().sidecar),
             _ => None,
         }
     }
 
     fn size(&self) -> usize {
         match self {
-            Self::Legacy { transaction, .. } => transaction.size(),
-            Self::Eip2930 { transaction, .. } => transaction.size(),
-            Self::Eip1559 { transaction, .. } => transaction.size(),
-            Self::BlobTransaction(blob_tx) => blob_tx.transaction.tx.size(),
+            Self::Legacy(transaction) => transaction.tx().size(),
+            Self::Eip2930(transaction) => transaction.tx().size(),
+            Self::Eip1559(transaction) => transaction.tx().size(),
+            Self::BlobTransaction(blob_tx) => blob_tx.tx().tx.size(),
             _ => unimplemented!(),
         }
     }
@@ -156,16 +85,16 @@ impl fmt::Debug for FullTransaction {
             PooledTransactionsElement::BlobTransaction(blob_tx) => {
                 let shortened_blobs: Vec<String> =
                     // Use alternative `Display` to print trimmed blob
-                    blob_tx.transaction.sidecar.blobs.iter().map(|blob| format!("{blob:#}")).collect();
+                    blob_tx.tx().sidecar.blobs.iter().map(|blob| format!("{blob:#}")).collect();
 
                 debug_struct.field("tx", &"BlobTransaction");
-                debug_struct.field("hash", &blob_tx.hash);
-                debug_struct.field("transaction", &blob_tx.transaction);
-                debug_struct.field("signature", &blob_tx.signature);
+                debug_struct.field("hash", &blob_tx.hash());
+                debug_struct.field("transaction", &blob_tx.tx());
+                debug_struct.field("signature", &blob_tx.signature());
 
                 debug_struct.field("sidecar_blobs", &shortened_blobs);
-                debug_struct.field("sidecar_commitments", &blob_tx.transaction.sidecar.commitments);
-                debug_struct.field("sidecar_proofs", &blob_tx.transaction.sidecar.proofs);
+                debug_struct.field("sidecar_commitments", &blob_tx.tx().sidecar().commitments);
+                debug_struct.field("sidecar_proofs", &blob_tx.tx().sidecar.proofs);
             }
             other => {
                 debug_struct.field("tx", other);

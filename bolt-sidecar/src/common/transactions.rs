@@ -1,10 +1,7 @@
-use alloy::primitives::U256;
+use alloy::{consensus::Transaction, primitives::U256};
 use reth_primitives::PooledTransactionsElement;
 
-use crate::{
-    primitives::{AccountState, TransactionExt},
-    state::ValidationError,
-};
+use crate::{primitives::AccountState, state::ValidationError};
 
 /// Calculates the max_basefee `slot_diff` blocks in the future given a current basefee (in wei).
 /// Returns None if an overflow would occur.

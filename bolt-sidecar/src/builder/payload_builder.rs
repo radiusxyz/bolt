@@ -4,7 +4,7 @@ use std::{
 };
 
 use alloy::{
-    consensus::{Header, EMPTY_OMMER_ROOT_HASH},
+    consensus::{Header, Transaction, EMPTY_OMMER_ROOT_HASH},
     eips::{calc_excess_blob_gas, calc_next_block_base_fee, eip1559::BaseFeeParams},
     primitives::{Address, Bloom, Bytes, B256, B64, U256},
     rpc::types::{Block, Withdrawal, Withdrawals},
@@ -133,6 +133,7 @@ impl FallbackPayloadBuilder {
             .iter()
             .flat_map(|tx| tx.blob_versioned_hashes())
             .flatten()
+            .copied()
             .collect::<Vec<_>>();
 
         let base_fee = calc_next_block_base_fee(
@@ -396,8 +397,10 @@ fn build_header_with_hints_and_context(
         blob_gas_used: Some(context.blob_gas_used),
         excess_blob_gas: Some(context.excess_blob_gas),
         parent_beacon_block_root: Some(context.parent_beacon_block_root),
-        requests_hash: None,
         extra_data: context.extra_data.clone(),
+        // TODO: handle the Pectra-related fields
+        requests_hash: None,
+        target_blobs_per_block: None,
     }
 }
 
@@ -409,8 +412,8 @@ pub fn secret_to_bearer_header(secret: &JwtSecret) -> HeaderValue {
         "Bearer {}",
         secret
             .encode(&Claims {
-                iat: (SystemTime::now().duration_since(UNIX_EPOCH).unwrap()
-                    + Duration::from_secs(60))
+                iat: (SystemTime::now().duration_since(UNIX_EPOCH).unwrap() +
+                    Duration::from_secs(60))
                 .as_secs(),
                 exp: None,
             })
@@ -474,9 +477,9 @@ mod tests {
         let raw_encoded = tx_signed.encoded_2718();
         let tx_signed_reth = TransactionSigned::decode_2718(&mut raw_encoded.as_slice())?;
 
-        let slot = genesis_time
-            + (SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() / cfg.chain.slot_time())
-            + 1;
+        let slot = genesis_time +
+            (SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() / cfg.chain.slot_time()) +
+            1;
 
         let block = builder.build_fallback_payload(slot, &[tx_signed_reth]).await?;
         assert_eq!(block.body.transactions.len(), 1);
