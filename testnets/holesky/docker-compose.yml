@@ -1,6 +1,6 @@
 services:
   bolt-sidecar-holesky:
-    image: ghcr.io/chainbound/bolt-sidecar:v0.3.0-alpha.rc2
+    image: ghcr.io/chainbound/bolt-sidecar:v0.3.0
     container_name: bolt-sidecar-holesky
     restart: unless-stopped
     env_file: ./bolt-sidecar.env
@@ -20,7 +20,7 @@ services:
       - bolt-default
 
   bolt-mev-boost-holesky:
-    image: ghcr.io/chainbound/bolt-mev-boost:v0.3.0-alpha.rc2
+    image: ghcr.io/chainbound/bolt-mev-boost:v0.3.0
     container_name: bolt-mev-boost-holesky
     restart: unless-stopped
     env_file: ./mev-boost.env
@@ -29,7 +29,7 @@ services:
       - bolt-default
 
   bolt-prometheus-holesky:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.55.1
     container_name: bolt-prometheus-holesky
     ports:
       - 18017:9090
