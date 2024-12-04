@@ -102,6 +102,7 @@ In particular, the core components are:
   such as proposer registration and permissionless dispute resolution for attributable faults.
 - [**Bolt Boost**](./bolt-boost/): A [Commit-Boost][commit-boost] module that implements the Constraints-API.
 - [**Bolt CLI**](./bolt-cli/): A CLI tool to interact with Bolt components in a safe and easy way.
+- [**Boltup**](./boltup/): Script to install the `bolt` CLI tool on any machine with a single command.
 - [**Testnets**](./testnets/): A set of guides and scripts to deploy the Bolt contracts on testnets.
 - [**Scripts**](./scripts/): A collection of scripts to build and run the Kurtosis devnet locally.
 
@@ -214,7 +215,7 @@ MIT. Forked repositories have their own licenses.
 
 <!-- Links -->
 
-[twitter]: https://twitter.com/chainbound_
+[twitter]: https://twitter.com/boltprotocol_
 [discord]: https://discord.gg/pK8GgjxYQS
 [docs]: https://docs.boltprotocol.xyz/
 [new-issue]: https://github.com/chainbound/bolt/issues/new
