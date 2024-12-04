@@ -168,7 +168,7 @@ mod tests {
 
         // Set the engine to either geth or nethermind
         // ge: remotebeast:48551, nm: remotesmol:58551
-        // cfg.engine_api_url = "http://remotesmol:58551".parse()?;
+        cfg.engine_api_url = "http://remotesmol:58551".parse()?;
 
         let raw_sk = std::env::var("PRIVATE_KEY")?;
 
