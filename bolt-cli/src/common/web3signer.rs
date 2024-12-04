@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::cli::TlsCredentials;
-use eyre::{Context, ContextCompat, Result};
+use eyre::{Context, Result};
 use reqwest::{Certificate, Identity, Url};
 use serde::Deserialize;
 
@@ -127,7 +127,7 @@ pub mod test_util {
     use crate::cli::TlsCredentials;
     use eyre::{bail, Ok};
 
-    pub async fn start_web3signer_test_server() -> eyre::Result<(Web3Signer, Child)> {
+    pub async fn start_web3signer_test_server() -> eyre::Result<(String, Child, TlsCredentials)> {
         // Key store test data.
         let test_data_dir =
             env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/web3signer/keystore";
@@ -171,19 +171,17 @@ pub mod test_util {
         // TLS client test data.
         let client_tls_dir = env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/dirk";
 
+        // TLS credentials.
+        let credentials = TlsCredentials {
+            client_cert_path: client_tls_dir.clone() + "/client1.crt",
+            client_key_path: client_tls_dir + "/client1.key",
+            ca_cert_path: None,
+        };
+
         // Connect to the Web3Signer client.
         let url = "https://127.0.0.1:9000".to_string();
-        let web3signer = Web3Signer::connect(
-            url,
-            TlsCredentials {
-                client_cert_path: client_tls_dir.clone() + "/client1.crt",
-                client_key_path: client_tls_dir + "/client1.key",
-                ca_cert_path: None,
-            },
-        )
-        .await?;
 
-        Ok((web3signer, web3signer_proc))
+        Ok((url, web3signer_proc, credentials))
     }
 }
 
@@ -200,8 +198,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "Requires Web3Signer to be installed on the system"]
     async fn test_web3signer_connection_e2e() -> eyre::Result<()> {
-        let (mut web3signer, mut web3signer_proc) =
-            test_util::start_web3signer_test_server().await?;
+        let (url, mut web3signer_proc, creds) = test_util::start_web3signer_test_server().await?;
+        let mut web3signer = Web3Signer::connect(url, creds).await?;
 
         let accounts = web3signer.list_accounts().await?;
         println!("Web3Signer Accounts: {:?}", accounts);
