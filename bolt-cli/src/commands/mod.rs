@@ -15,3 +15,6 @@ pub mod validators;
 
 /// Module for the operators-related commands to interact with the bolt network.
 pub mod operators;
+
+/// Module for generating various types of data like BLS keys.
+pub mod generate;
