@@ -1,9 +1,10 @@
-use std::{collections::HashMap, fs::File, io::Read};
+use std::fs;
 
-use crate::cli::RustTlsCredentials;
 use eyre::{Context, Result};
 use reqwest::{Certificate, Identity, Url};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+
+use crate::cli::Web3SignerTlsCredentials;
 
 /// Web3Signer remote server.
 ///
@@ -18,13 +19,12 @@ pub struct Web3Signer {
     client: reqwest::Client,
 }
 
-// Works:   reqwest::Client::builder().add_root_certificate(cert).use_rustls_tls().build()?;
-
 impl Web3Signer {
-    pub async fn connect(addr: String, credentials: RustTlsCredentials) -> Result<Self> {
-        // Establish connection with TLS config.
+    /// Establish connection to a remote Web3Signer instance with TLS credentials.
+    pub async fn connect(addr: String, credentials: Web3SignerTlsCredentials) -> Result<Self> {
         let base_url = addr.parse()?;
         let (cert, identity) = compose_credentials(credentials)?;
+
         let client = reqwest::Client::builder()
             .add_root_certificate(cert)
             .identity(identity)
@@ -41,31 +41,8 @@ impl Web3Signer {
     ///
     /// Reference: https://commit-boost.github.io/commit-boost-client/api/
     pub async fn list_accounts(&mut self) -> Result<Vec<String>> {
-        #[derive(Deserialize)]
-        struct Keys {
-            /// The consensus keys stored in the Web3Signer.
-            pub consensus: String,
-            /// The two below proxy fields are here for deserialisation purposes.
-            /// They are not used as signing is only over the consensus type.
-            #[allow(unused)]
-            proxy_bls: Vec<String>,
-            #[allow(unused)]
-            proxy_ecdsa: Vec<String>,
-        }
-
-        /// Outer container for response.
-        #[derive(Deserialize)]
-        struct CommitBoostKeys {
-            keys: Vec<Keys>,
-        }
-
-        let resp = self
-            .client
-            .get(self.base_url.join("/signer/v1/get_pubkeys")?)
-            .send()
-            .await?
-            .json::<CommitBoostKeys>()
-            .await?;
+        let path = self.base_url.join("/signer/v1/get_pubkeys")?;
+        let resp = self.client.get(path).send().await?.json::<CommitBoostKeys>().await?;
 
         let consensus_keys: Vec<String> =
             resp.keys.into_iter().map(|key_set| key_set.consensus).collect();
@@ -79,38 +56,57 @@ impl Web3Signer {
     ///
     /// Reference: https://commit-boost.github.io/commit-boost-client/api/
     pub async fn request_signature(&mut self, pub_key: &str, object_root: &str) -> Result<String> {
-        let mut map = HashMap::new();
-        map.insert("type", "consensus");
-        map.insert("pubkey", pub_key);
-        map.insert("object_root", object_root);
-        let resp = self
-            .client
-            .post(self.base_url.join("/signer/v1/request_signature")?)
-            .json(&map)
-            .send()
-            .await?
-            .json::<String>()
-            .await?;
+        let path = self.base_url.join("/signer/v1/request_signature")?;
+        let body = CommitBoostRequestSignature {
+            type_: "consensus".to_string(),
+            pubkey: pub_key.to_string(),
+            object_root: object_root.to_string(),
+        };
 
-        Ok(resp.to_string())
+        let resp = self.client.post(path).json(&body).send().await?.json::<String>().await?;
+
+        Ok(resp)
     }
 }
 
-pub fn compose_credentials(credentials: RustTlsCredentials) -> Result<(Certificate, Identity)> {
-    // Create pem certificate.
-    let mut buff = Vec::new();
-    File::open(credentials.ca_cert_path)
-        .wrap_err("Failed to read client cert")?
-        .read_to_end(&mut buff)
-        .wrap_err("Failed to read client cert into buffer")?;
-    let cert = Certificate::from_pem(&buff)?;
+/// Compose the TLS credentials for the Web3Signer.
+///
+/// Returns the CA certificate and the identity (combined PEM).
+fn compose_credentials(credentials: Web3SignerTlsCredentials) -> Result<(Certificate, Identity)> {
+    let ca_cert = fs::read(credentials.ca_cert_path).wrap_err("Failed to read CA cert")?;
+    let ca_cert = Certificate::from_pem(&ca_cert)?;
 
-    // Create pem identity.
-    let mut buff = Vec::new();
-    File::open(credentials.combined_pem_path).unwrap().read_to_end(&mut buff).unwrap();
-    let identity = Identity::from_pem(&buff).unwrap();
+    let identity = fs::read(credentials.combined_pem_path).wrap_err("Failed to read PEM")?;
+    let identity = Identity::from_pem(&identity)?;
 
-    Ok((cert, identity))
+    Ok((ca_cert, identity))
+}
+
+#[derive(Serialize, Deserialize)]
+struct Keys {
+    /// The consensus keys stored in the Web3Signer.
+    pub consensus: String,
+    /// The two below proxy fields are here for deserialisation purposes.
+    /// They are not used as signing is only over the consensus type.
+    #[allow(unused)]
+    pub proxy_bls: Vec<String>,
+    #[allow(unused)]
+    pub proxy_ecdsa: Vec<String>,
+}
+
+/// Outer container for response.
+#[derive(Serialize, Deserialize)]
+struct CommitBoostKeys {
+    keys: Vec<Keys>,
+}
+
+/// Request signature from the Web3Signer.
+#[derive(Serialize, Deserialize)]
+struct CommitBoostRequestSignature {
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub pubkey: String,
+    pub object_root: String,
 }
 
 #[cfg(test)]
@@ -120,21 +116,25 @@ pub mod test_util {
         time::Duration,
     };
 
-    use crate::cli::RustTlsCredentials;
+    use crate::cli::Web3SignerTlsCredentials;
     use eyre::{bail, Ok};
 
-    pub async fn start_web3signer_test_server() -> eyre::Result<(String, Child, RustTlsCredentials)>
-    {
-        // Key store test data.
-        let test_data_dir =
-            env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/web3signer/keystore";
+    /// Start a Web3Signer server for testing.
+    ///
+    /// This will start a Web3Signer server and return its URL, process handle, and TLS credentials.
+    pub async fn start_web3signer_test_server(
+    ) -> eyre::Result<(String, Child, Web3SignerTlsCredentials)> {
+        let test_data_dir = env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/web3signer";
+
+        // Keystore test data.
+        let keystore_dir = test_data_dir.clone() + "/keystore";
 
         // TLS test data.
-        let tls_dir = env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/web3signer/tls/";
-        let tls_keystore = tls_dir.clone() + "key.p12";
-        let tls_password = tls_dir.clone() + "password.txt";
-        let tls_cirt = tls_dir.clone() + "web3signer.crt";
-        let combined_pem = tls_dir.clone() + "combined.pem";
+        let tls_dir = test_data_dir.clone() + "/tls";
+        let tls_keystore = tls_dir.clone() + "/key.p12";
+        let tls_password = tls_dir.clone() + "/password.txt";
+        let ca_cert_path = tls_dir.clone() + "/web3signer.crt";
+        let combined_pem_path = tls_dir.clone() + "/combined.pem";
 
         // Check if web3signer is installed (in $PATH).
         if Command::new("web3signer").spawn().is_err() {
@@ -144,13 +144,13 @@ pub mod test_util {
         // Start the web3signer server.
         let web3signer_proc = Command::new("web3signer")
             .arg("--key-store-path")
-            .arg(test_data_dir.clone())
+            .arg(keystore_dir.clone())
             .arg("--tls-keystore-file")
             .arg(tls_keystore)
             .arg("--tls-allow-any-client")
             .arg("true")
             .arg("--tls-keystore-password-file")
-            .arg(tls_password)
+            .arg(tls_password.clone())
             .arg("eth2")
             .arg("--network")
             .arg("mainnet")
@@ -159,18 +159,15 @@ pub mod test_util {
             .arg("--commit-boost-api-enabled")
             .arg("true")
             .arg("--proxy-keystores-path")
-            .arg(test_data_dir.clone())
+            .arg(keystore_dir.clone())
             .arg("--proxy-keystores-password-file")
-            .arg(test_data_dir + "/password.txt")
+            .arg(tls_password)
             .spawn()?;
 
         // Allow the server to start up.
         tokio::time::sleep(Duration::from_secs(5)).await;
 
-        // TLS client test data.
-        let credentials =
-            RustTlsCredentials { ca_cert_path: tls_cirt, combined_pem_path: combined_pem };
-        // The URL of the web3signer.
+        let credentials = Web3SignerTlsCredentials { ca_cert_path, combined_pem_path };
         let url = "https://127.0.0.1:9000".to_string();
 
         Ok((url, web3signer_proc, credentials))

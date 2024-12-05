@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use crate::cli::TlsCredentials;
+use crate::cli::DirkTlsCredentials;
 
 /// Initialize the default TLS provider for the tests if not already set.
 pub fn try_init_tls_provider() {
@@ -20,7 +20,7 @@ pub fn try_init_tls_provider() {
 /// This is a single instance (non distributed).
 ///
 /// Returns the DIRK client URL and credentials, and the corresponding server process handle.
-pub async fn start_single_dirk_test_server() -> eyre::Result<(String, TlsCredentials, Child)> {
+pub async fn start_single_dirk_test_server() -> eyre::Result<(String, DirkTlsCredentials, Child)> {
     try_init_tls_provider();
 
     // Check if dirk is installed (in $PATH)
@@ -47,7 +47,7 @@ pub async fn start_single_dirk_test_server() -> eyre::Result<(String, TlsCredent
 
     let url = "https://localhost:9091".to_string();
 
-    let cred = TlsCredentials {
+    let cred = DirkTlsCredentials {
         client_cert_path: test_data_dir.clone() + "/client1.crt",
         client_key_path: test_data_dir.clone() + "/client1.key",
         ca_cert_path: Some(test_data_dir.clone() + "/security/ca.crt"),
@@ -71,7 +71,8 @@ pub async fn start_single_dirk_test_server() -> eyre::Result<(String, TlsCredent
 ///
 /// This is because we need to map 3 different server certificates to localhost
 /// to simulate multiple servers with their own hostnames.
-pub async fn start_multi_dirk_test_server() -> eyre::Result<(String, TlsCredentials, Vec<Child>)> {
+pub async fn start_multi_dirk_test_server() -> eyre::Result<(String, DirkTlsCredentials, Vec<Child>)>
+{
     try_init_tls_provider();
 
     // Check if dirk is installed (in $PATH)
@@ -107,7 +108,7 @@ pub async fn start_multi_dirk_test_server() -> eyre::Result<(String, TlsCredenti
 
     // Note: the first server is used for the client connection
     let url = "https://localhost-1:8881".to_string();
-    let cred = TlsCredentials {
+    let cred = DirkTlsCredentials {
         client_cert_path: test_data_dir.clone() + "/client/localhost.crt",
         client_key_path: test_data_dir.clone() + "/client/localhost.key",
         ca_cert_path: Some(test_data_dir.clone() + "/1/security/ca.crt"),

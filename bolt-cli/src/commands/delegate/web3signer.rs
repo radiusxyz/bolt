@@ -74,7 +74,7 @@ mod tests {
     /// Test generating signed delegations using a remote Web3Signer signer.
     ///
     /// ```shell
-    /// cargo test --package bolt --bin bolt -- commands::delegate::tests::test_delegation_web3signer
+    /// cargo test --package bolt --bin bolt -- commands::delegate::web3signer::tests::test_delegation_web3signer
     /// --exact --show-output  --ignored --nocapture
     /// ```
     #[tokio::test]
