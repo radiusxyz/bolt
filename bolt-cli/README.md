@@ -140,9 +140,8 @@ bolt delegate \
   --delegatee-pubkey 0x83eeddfac5e60f8fe607ee8713efb8877c295ad9f8ca075f4d8f6f2ae241a30dd57f78f6f3863a9fe0d5b5db9d550b93 \
   --chain holesky \
   web3-signer --url https://localhost:9000 \
-  --client-cert-path ./test_data/dirk/client1.crt \
-  --client-key-path ./test_data/dirk/client1.key \
-  --ca-cert-path ./test_data/dirk/security/ca.crt
+  --ca-cert-path ./test_data/web3signer/tls/web3signer.crt \
+  --combined_pem_path ./test_data/web3signer/tls/combined.pem
 ```
 
 </details>
@@ -213,9 +212,8 @@ bolt pubkeys dirk --url https://localhost:9091 \
 
 ```text
 bolt pubkeys web3signer --url https://localhost:9000 \
-  --client-cert-path ./test_data/dirk/client1.crt \
-  --client-key-path ./test_data/dirk/client1.key \
-  --ca-cert-path ./test_data/dirk/security/ca.crt
+  --ca-cert-path ./test_data/web3signer/tls/web3signer.crt \
+  --combined_pem_path ./test_data/web3signer/tls/combined.pem
 ```
 
 </details>
