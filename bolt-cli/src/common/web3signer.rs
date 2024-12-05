@@ -1,10 +1,6 @@
-use std::{
-    collections::HashMap,
-    fs::{self, File},
-    io::Read,
-};
+use std::{collections::HashMap, fs::File, io::Read};
 
-use crate::cli::TlsCredentials;
+use crate::cli::RustTlsCredentials;
 use eyre::{Context, Result};
 use reqwest::{Certificate, Identity, Url};
 use serde::Deserialize;
@@ -22,16 +18,17 @@ pub struct Web3Signer {
     client: reqwest::Client,
 }
 
+// Works:   reqwest::Client::builder().add_root_certificate(cert).use_rustls_tls().build()?;
+
 impl Web3Signer {
-    pub async fn connect(addr: String, credentials: TlsCredentials) -> Result<Self> {
+    pub async fn connect(addr: String, credentials: RustTlsCredentials) -> Result<Self> {
         // Establish connection with TLS config.
         let base_url = addr.parse()?;
         let (cert, identity) = compose_credentials(credentials)?;
         let client = reqwest::Client::builder()
-            // TODO: handle this properly
-            .danger_accept_invalid_certs(true)
             .add_root_certificate(cert)
             .identity(identity)
+            .use_rustls_tls()
             .build()?;
 
         Ok(Self { base_url, client })
@@ -99,20 +96,20 @@ impl Web3Signer {
     }
 }
 
-pub fn compose_credentials(credentials: TlsCredentials) -> Result<(Certificate, Identity)> {
-    // Create certificate.
+pub fn compose_credentials(credentials: RustTlsCredentials) -> Result<(Certificate, Identity)> {
+    // Create pem certificate.
     let mut buff = Vec::new();
-    File::open(credentials.client_cert_path.clone())
+    File::open(credentials.ca_cert_path)
         .wrap_err("Failed to read client cert")?
         .read_to_end(&mut buff)
         .wrap_err("Failed to read client cert into buffer")?;
     let cert = Certificate::from_pem(&buff)?;
 
-    // Create identity.
-    let cert_read =
-        fs::read(credentials.client_cert_path).wrap_err("Failed to read client cert")?;
-    let key_read = fs::read(credentials.client_key_path).wrap_err("Failed to read client key")?;
-    let identity = Identity::from_pkcs8_pem(&cert_read, &key_read)?;
+    // Create pem identity.
+    let mut buff = Vec::new();
+    File::open(credentials.combined_pem_path).unwrap().read_to_end(&mut buff).unwrap();
+    let identity = Identity::from_pem(&buff).unwrap();
+
     Ok((cert, identity))
 }
 
@@ -123,10 +120,11 @@ pub mod test_util {
         time::Duration,
     };
 
-    use crate::cli::TlsCredentials;
+    use crate::cli::RustTlsCredentials;
     use eyre::{bail, Ok};
 
-    pub async fn start_web3signer_test_server() -> eyre::Result<(String, Child, TlsCredentials)> {
+    pub async fn start_web3signer_test_server() -> eyre::Result<(String, Child, RustTlsCredentials)>
+    {
         // Key store test data.
         let test_data_dir =
             env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/web3signer/keystore";
@@ -134,7 +132,9 @@ pub mod test_util {
         // TLS test data.
         let tls_dir = env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/web3signer/tls/";
         let tls_keystore = tls_dir.clone() + "key.p12";
-        let tls_password = tls_dir + "password.txt";
+        let tls_password = tls_dir.clone() + "password.txt";
+        let tls_cirt = tls_dir.clone() + "web3signer.crt";
+        let combined_pem = tls_dir.clone() + "combined.pem";
 
         // Check if web3signer is installed (in $PATH).
         if Command::new("web3signer").spawn().is_err() {
@@ -168,16 +168,9 @@ pub mod test_util {
         tokio::time::sleep(Duration::from_secs(5)).await;
 
         // TLS client test data.
-        let client_tls_dir = env!("CARGO_MANIFEST_DIR").to_string() + "/test_data/dirk_single";
-
-        // TLS credentials.
-        let credentials = TlsCredentials {
-            client_cert_path: client_tls_dir.clone() + "/client1.crt",
-            client_key_path: client_tls_dir + "/client1.key",
-            ca_cert_path: None,
-        };
-
-        // Connect to the Web3Signer client.
+        let credentials =
+            RustTlsCredentials { ca_cert_path: tls_cirt, combined_pem_path: combined_pem };
+        // The URL of the web3signer.
         let url = "https://127.0.0.1:9000".to_string();
 
         Ok((url, web3signer_proc, credentials))
@@ -191,7 +184,7 @@ mod tests {
     /// Test for connecting to the Web3Signer and listing accounts.
     ///
     /// ```shell
-    /// cargo test --package bolt --bin bolt -- common::web3signer::tests
+    /// cargo test --package bolt --bin bolt -- common::web3signer::tests::test_web3signer_connection_e2e
     /// --exact --show-output --ignored
     /// ```
     #[tokio::test]

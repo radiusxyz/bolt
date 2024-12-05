@@ -434,9 +434,19 @@ pub struct Web3SignerOpts {
     pub url: String,
 
     /// The TLS credentials for connecting to the Web3Signer keystore.
-    /// Note: it is at the users discretion to enable TLS on the Web3Signer.
     #[clap(flatten)]
-    pub tls_credentials: TlsCredentials,
+    pub tls_credentials: RustTlsCredentials,
+}
+
+/// TLS credentials which are used for rustls-tls when connecting to reqwest.
+#[derive(Debug, Clone, PartialEq, Eq, Parser)]
+pub struct RustTlsCredentials {
+    /// Path to the CA certificate file. (.crt)
+    #[clap(long, env = "CA_CERT_PATH")]
+    pub ca_cert_path: String,
+    /// Path to the PEM encoded private key and certificate file. (.pem)
+    #[clap(long, env = "CLIENT_COMBINED_PEM")]
+    pub combined_pem_path: String,
 }
 
 /// TLS credentials for connecting to a remote server.
