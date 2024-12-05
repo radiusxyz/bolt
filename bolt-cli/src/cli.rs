@@ -354,6 +354,14 @@ pub enum KeysSource {
         #[clap(flatten)]
         opts: DirkOpts,
     },
+
+    /// Use a remote web3signer keystore as source for the public keys.
+    #[clap(name = "web3signer")]
+    Web3Signer {
+        /// The options for connecting to the web3signer keystore.
+        #[clap(flatten)]
+        opts: Web3SignerOpts,
+    },
 }
 
 #[derive(Debug, Clone, Parser)]
@@ -378,6 +386,13 @@ pub enum SecretsSource {
         /// The options for connecting to the DIRK keystore.
         #[clap(flatten)]
         opts: DirkOpts,
+    },
+
+    /// Use a remote Web3Signer keystore to generate the signed messages.
+    #[clap(name = "web3signer")]
+    Web3Signer {
+        #[clap(flatten)]
+        opts: Web3SignerOpts,
     },
 }
 
@@ -426,12 +441,35 @@ pub struct DirkOpts {
 
     /// The TLS credentials for connecting to the DIRK keystore.
     #[clap(flatten)]
-    pub tls_credentials: TlsCredentials,
+    pub tls_credentials: DirkTlsCredentials,
 }
 
-/// TLS credentials for connecting to a remote server.
+/// Options for connecting to a Web3Signer keystore.
+#[derive(Debug, Clone, Parser)]
+pub struct Web3SignerOpts {
+    /// The URL of the Web3Signer keystore.
+    #[clap(long, env = "WEB3SIGNER_URL")]
+    pub url: String,
+
+    /// The TLS credentials for connecting to the Web3Signer keystore.
+    #[clap(flatten)]
+    pub tls_credentials: Web3SignerTlsCredentials,
+}
+
+/// TLS credentials for connecting to a remote Web3Signer server.
 #[derive(Debug, Clone, PartialEq, Eq, Parser)]
-pub struct TlsCredentials {
+pub struct Web3SignerTlsCredentials {
+    /// Path to the CA certificate file. (.crt)
+    #[clap(long, env = "CA_CERT_PATH")]
+    pub ca_cert_path: String,
+    /// Path to the PEM encoded private key and certificate file. (.pem)
+    #[clap(long, env = "CLIENT_COMBINED_PEM_PATH")]
+    pub combined_pem_path: String,
+}
+
+/// TLS credentials for connecting to a remote Dirk server.
+#[derive(Debug, Clone, PartialEq, Eq, Parser)]
+pub struct DirkTlsCredentials {
     /// Path to the client certificate file. (.crt)
     #[clap(long, env = "CLIENT_CERT_PATH")]
     pub client_cert_path: String,

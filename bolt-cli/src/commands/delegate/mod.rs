@@ -18,6 +18,9 @@ mod keystore;
 /// Create delegations from remote Dirk signers.
 mod dirk;
 
+/// Create delegations from remote Web3Signers.
+mod web3signer;
+
 impl DelegateCommand {
     /// Run the `delegate` command.
     pub async fn run(self) -> Result<()> {
@@ -45,6 +48,10 @@ impl DelegateCommand {
             SecretsSource::Dirk { opts } => {
                 let delegatee_pubkey = parse_bls_public_key(&self.delegatee_pubkey)?;
                 dirk::generate_from_dirk(opts, delegatee_pubkey, self.chain, self.action).await?
+            }
+            SecretsSource::Web3Signer { opts } => {
+                let delegatee_pubkey = parse_bls_public_key(&self.delegatee_pubkey)?;
+                web3signer::generate_from_web3signer(opts, delegatee_pubkey, self.action).await?
             }
         };
 

@@ -5,7 +5,7 @@ use futures::{stream, StreamExt};
 use tracing::{debug, warn};
 
 use crate::{
-    cli::TlsCredentials,
+    cli::DirkTlsCredentials,
     common::dirk::recover_signature::recover_signature_from_shards,
     pb::eth2_signer_api::{self, Endpoint},
 };
@@ -14,7 +14,7 @@ use super::Dirk;
 
 #[derive(Debug)]
 pub struct DistributedDirkAccount {
-    credentials: TlsCredentials,
+    credentials: DirkTlsCredentials,
     participants: Vec<Endpoint>,
     threshold: usize,
     composite_public_key: BlsPublicKey,
@@ -24,7 +24,7 @@ impl DistributedDirkAccount {
     /// Create a new distributed account.
     pub fn new(
         acc: eth2_signer_api::DistributedAccount,
-        credentials: TlsCredentials,
+        credentials: DirkTlsCredentials,
     ) -> Result<Self> {
         let composite_public_key = BlsPublicKey::try_from(acc.composite_public_key.as_ref())?;
 

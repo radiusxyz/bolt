@@ -7,7 +7,7 @@ use tonic::transport::{Certificate, Channel, ClientTlsConfig, Identity};
 use tracing::debug;
 
 use crate::{
-    cli::TlsCredentials,
+    cli::DirkTlsCredentials,
     pb::eth2_signer_api::{
         AccountManagerClient, ListAccountsRequest, ListAccountsResponse, ListerClient,
         LockAccountRequest, ResponseState, SignRequest, SignRequestId, SignerClient,
@@ -42,7 +42,7 @@ pub struct Dirk {
 
 impl Dirk {
     /// Connect to the DIRK server with the given address and TLS credentials.
-    pub async fn connect(addr: String, credentials: TlsCredentials) -> Result<Self> {
+    pub async fn connect(addr: String, credentials: DirkTlsCredentials) -> Result<Self> {
         let addr = addr.parse()?;
         let tls_config = compose_credentials(credentials)?;
         let conn = Channel::builder(addr).tls_config(tls_config)?.connect().await?;
@@ -169,8 +169,8 @@ impl Dirk {
     }
 }
 
-/// Compose the TLS credentials from the given paths.
-fn compose_credentials(creds: TlsCredentials) -> Result<ClientTlsConfig> {
+/// Compose the TLS credentials for Dirk from the given paths.
+fn compose_credentials(creds: DirkTlsCredentials) -> Result<ClientTlsConfig> {
     let client_cert = fs::read(creds.client_cert_path).wrap_err("Failed to read client cert")?;
     let client_key = fs::read(creds.client_key_path).wrap_err("Failed to read client key")?;
 

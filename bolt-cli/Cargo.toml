@@ -38,7 +38,7 @@ thiserror = "1.0"
 hex = "0.4.3"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
-reqwest = "0.12.8"
+reqwest = { version = "0.12.9", features = ["rustls-tls"] }
 rand = "0.8.5"
 
 [dev-dependencies]

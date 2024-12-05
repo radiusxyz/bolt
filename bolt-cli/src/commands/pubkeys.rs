@@ -7,6 +7,7 @@ use crate::{
     common::{
         dirk::Dirk,
         keystore::{keystore_paths, KeystoreError},
+        web3signer::Web3Signer,
         write_to_file,
     },
     pb::eth2_signer_api::ListAccountsResponse,
@@ -40,6 +41,15 @@ impl PubkeysCommand {
 
                 write_to_file(&self.out, &pubkeys)?;
                 println!("Pubkeys generated from Dirk and saved to {}", self.out);
+            }
+            KeysSource::Web3Signer { opts } => {
+                let mut web3signer = Web3Signer::connect(opts.url, opts.tls_credentials).await?;
+
+                let accounts = web3signer.list_accounts().await?;
+                let pubkeys = list_from_web3signer_accounts(&accounts)?;
+
+                write_to_file(&self.out, &pubkeys)?;
+                println!("Pubkeys generated from Web3signer and saved to {}", self.out);
             }
         }
 
@@ -90,6 +100,19 @@ pub fn list_from_dirk_accounts(accounts: ListAccountsResponse) -> Result<Vec<Bls
     }
     for acc in accounts.distributed_accounts {
         let pubkey = BlsPublicKey::try_from(acc.composite_public_key.as_slice())?;
+        pubkeys.push(pubkey);
+    }
+
+    Ok(pubkeys)
+}
+
+/// Derive public keys from the provided web3signer accounts.
+pub fn list_from_web3signer_accounts(accounts: &[String]) -> Result<Vec<BlsPublicKey>> {
+    let mut pubkeys = Vec::with_capacity(accounts.len());
+
+    for acc in accounts {
+        let trimmed_account = &acc.clone()[2..];
+        let pubkey = BlsPublicKey::try_from(hex::decode(trimmed_account)?.as_slice())?;
         pubkeys.push(pubkey);
     }
 
