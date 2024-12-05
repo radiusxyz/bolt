@@ -57,7 +57,7 @@ impl Web3Signer {
     /// Reference: https://commit-boost.github.io/commit-boost-client/api/
     pub async fn request_signature(&mut self, pub_key: &str, object_root: &str) -> Result<String> {
         let path = self.base_url.join("/signer/v1/request_signature")?;
-        let body = CommitBoostRequestSignature {
+        let body = CommitBoostSignatureRequest {
             type_: "consensus".to_string(),
             pubkey: pub_key.to_string(),
             object_root: object_root.to_string(),
@@ -102,7 +102,7 @@ struct CommitBoostKeys {
 
 /// Request signature from the Web3Signer.
 #[derive(Serialize, Deserialize)]
-struct CommitBoostRequestSignature {
+struct CommitBoostSignatureRequest {
     #[serde(rename = "type")]
     pub type_: String,
     pub pubkey: String,

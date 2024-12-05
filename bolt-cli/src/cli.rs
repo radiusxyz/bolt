@@ -340,6 +340,7 @@ pub enum KeysSource {
     },
 
     /// Use a remote web3signer keystore as source for the public keys.
+    #[clap(name = "web3signer")]
     Web3Signer {
         /// The options for connecting to the web3signer keystore.
         #[clap(flatten)]
@@ -372,6 +373,7 @@ pub enum SecretsSource {
     },
 
     /// Use a remote Web3Signer keystore to generate the signed messages.
+    #[clap(name = "web3signer")]
     Web3Signer {
         #[clap(flatten)]
         opts: Web3SignerOpts,
