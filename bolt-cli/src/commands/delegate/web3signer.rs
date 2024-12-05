@@ -29,7 +29,7 @@ pub async fn generate_from_web3signer(
     for account in accounts {
         // Parse the BLS key of the account.
         // Trim the pre-pended 0x.
-        let trimmed_account = &account.clone()[2..];
+        let trimmed_account = trim_hex_prefix(&account)?;
         let pubkey = BlsPublicKey::try_from(hex::decode(trimmed_account)?.as_slice())?;
 
         match action {
@@ -40,7 +40,7 @@ pub async fn generate_from_web3signer(
                 let returned_signature =
                     web3signer.request_signature(&account, &signing_root).await?;
                 // Trim the 0x.
-                let trimmed_signature = &returned_signature[2..];
+                let trimmed_signature = trim_hex_prefix(&returned_signature)?;
                 let signature = BlsSignature::try_from(hex::decode(trimmed_signature)?.as_slice())?;
                 let signed = SignedDelegation { message, signature };
                 signed_messages.push(SignedMessage::Delegation(signed));
@@ -52,7 +52,7 @@ pub async fn generate_from_web3signer(
                 let returned_signature =
                     web3signer.request_signature(&account, &signing_root).await?;
                 // Trim the 0x.
-                let trimmed_signature = &returned_signature[2..];
+                let trimmed_signature = trim_hex_prefix(&returned_signature)?;
                 let signature = BlsSignature::try_from(trimmed_signature.as_bytes())?;
                 let signed = SignedRevocation { message, signature };
                 signed_messages.push(SignedMessage::Revocation(signed));
@@ -61,6 +61,12 @@ pub async fn generate_from_web3signer(
     }
 
     Ok(signed_messages)
+}
+
+/// A utility function to trim the pre-pended 0x prefix for hex strings.
+fn trim_hex_prefix(hex: &str) -> Result<String> {
+    let trimmed = hex.get(2..).ok_or_else(|| eyre::eyre!("Invalid hex string {hex}"))?;
+    Ok(trimmed.to_string())
 }
 
 #[cfg(test)]
