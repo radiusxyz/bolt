@@ -34,6 +34,9 @@ pub enum Cmd {
 
     /// Handle operators in the bolt network.
     Operators(OperatorsCommand),
+
+    /// Useful data generation commands.
+    Generate(GenerateCommand),
 }
 
 impl Cmd {
@@ -45,6 +48,7 @@ impl Cmd {
             Self::Send(cmd) => cmd.run().await,
             Self::Validators(cmd) => cmd.run().await,
             Self::Operators(cmd) => cmd.run().await,
+            Self::Generate(cmd) => cmd.run(),
         }
     }
 }
@@ -297,6 +301,18 @@ pub enum SymbioticSubcommand {
         #[clap(long, env = "OPERATOR_ADDRESS")]
         address: Address,
     },
+}
+
+#[derive(Debug, Clone, Parser)]
+pub struct GenerateCommand {
+    #[clap(subcommand)]
+    pub generate: GenerateSubcommand,
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum GenerateSubcommand {
+    /// Generate a BLS keypair.
+    Bls,
 }
 
 /// The action to perform.
