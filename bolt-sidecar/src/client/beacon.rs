@@ -84,6 +84,8 @@ impl BeaconClient {
     }
 
     /// Fetch the expected withdrawals for the given slot from the beacon chain.
+    ///
+    /// This function also maps the return type into [alloy::rpc::types::Withdrawal]s.
     pub async fn get_expected_withdrawals_at_head(&self) -> BeaconClientResult<Vec<Withdrawal>> {
         let res = self.inner.get_expected_withdrawals(StateId::Head, None).await?;
 

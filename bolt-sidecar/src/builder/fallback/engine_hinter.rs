@@ -52,11 +52,9 @@ impl EngineHinter {
         &self,
         mut ctx: EngineHinterContext,
     ) -> Result<SealedBlock, BuilderError> {
-        let body = BlockBody {
-            ommers: Vec::new(),
-            transactions: ctx.transactions.clone(),
-            withdrawals: Some(Withdrawals::new(ctx.withdrawals.clone())),
-        };
+        // The block body can be the same for all iterations, since it only contains
+        // the transactions and withdrawals from the context.
+        let body = ctx.build_block_body();
 
         // Loop until we get a valid payload from the engine API. On each iteration,
         // we build a new block header with the hints from the context and fetch the next hint.
@@ -76,19 +74,19 @@ impl EngineHinter {
             // build the new execution payload from the block header
             let exec_payload = to_alloy_execution_payload(&sealed_block, block_hash);
 
-            // fetch the next hint from the engine API and add it to the context
+            // attempt to fetch the next hint from the engine API payload response
             let hint = self.next_hint(exec_payload, &ctx).await?;
-            ctx.hints.populate_new(hint);
 
             if matches!(hint, EngineApiHint::ValidPayload) {
                 return Ok(sealed_block);
             }
 
+            // Populate the new hint in the context and continue the loop
+            ctx.hints.populate_new(hint);
+
             iteration += 1;
             if iteration >= max_iterations {
-                return Err(BuilderError::Custom(
-                    "Failed to get a valid payload after 20 iterations".to_string(),
-                ));
+                return Err(BuilderError::ExceededMaxHintIterations(max_iterations));
             }
         }
     }
@@ -213,6 +211,15 @@ pub struct EngineHinterContext {
 }
 
 impl EngineHinterContext {
+    /// Build a block body using the transactions and withdrawals from the context.
+    pub fn build_block_body(&self) -> BlockBody {
+        BlockBody {
+            ommers: Vec::new(),
+            transactions: self.transactions.clone(),
+            withdrawals: Some(Withdrawals::new(self.withdrawals.clone())),
+        }
+    }
+
     /// Build a header using the info from the context.
     /// Use any hints available, and default to an empty value if not present.
     pub fn build_block_header_with_hints(&self) -> RethHeader {

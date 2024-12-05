@@ -72,8 +72,8 @@ pub enum BuilderError {
     UnsupportedEngineHint(String),
     #[error("Unsupported engine client: {0}")]
     UnsupportedEngineClient(ClientCode),
-    #[error("Failed to build payload: {0}")]
-    Custom(String),
+    #[error("Failed to gather hints after {0} iterations")]
+    ExceededMaxHintIterations(u64),
 }
 
 /// Local builder instance that can ingest a sealed header and

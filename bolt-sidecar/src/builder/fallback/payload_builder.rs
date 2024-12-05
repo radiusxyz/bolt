@@ -167,7 +167,7 @@ mod tests {
         };
 
         // Set the engine to either geth or nethermind
-        // ge: remotebeast:48551, nm: remotesmol:58551
+        // ge: remotesmol:48551, nm: remotesmol:58551
         cfg.engine_api_url = "http://remotesmol:58551".parse()?;
 
         let raw_sk = std::env::var("PRIVATE_KEY")?;
@@ -193,6 +193,7 @@ mod tests {
             1;
 
         let block = builder.build_fallback_payload(slot, &[tx_signed_reth]).await?;
+
         assert_eq!(block.body.transactions.len(), 1);
 
         Ok(())
