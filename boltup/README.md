@@ -16,7 +16,7 @@ After the installation is complete, you can run `boltup` to install or update th
 boltup --tag [version]
 
 # Example
-boltup --tag v0.3.0-alpha.1
+boltup --tag v0.1.0
 ```
 
 After the installation is complete, you can run `bolt` to use the bolt CLI tool.
