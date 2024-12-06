@@ -74,7 +74,7 @@ depending on where your keys are stored:
   (with `validators` and `secrets` subdirectories containing the keystores and passwords respectively).
 
 ```bash
-bolt pubkeys local-keystore --path <validators_path> --password-path <secrets_path>
+bolt pubkeys local-keystore --path <validators_path>
 ```
 
 Example file structure when using `local-keystore` source:
@@ -94,7 +94,7 @@ Example file structure when using `local-keystore` source:
 In this case you would run the command (called from the `validator_keys` directory):
 
 ```bash
-bolt pubkeys local-keystore --path validators --password-path secrets
+bolt pubkeys local-keystore --path validators
 ```
 
 </details>
