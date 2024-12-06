@@ -1,5 +1,9 @@
-use std::{fs, io::Write, path::PathBuf};
+use std::{fs, io::Write, path::PathBuf, str::FromStr};
 
+use alloy::{
+    contract::Error as ContractError, primitives::Bytes, sol_types::SolInterface,
+    transports::TransportError,
+};
 use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
 use eyre::{Context, Result};
 use serde::Serialize;
@@ -35,6 +39,41 @@ pub fn write_to_file<T: Serialize>(out: &str, data: &T) -> Result<()> {
     let out_file = fs::File::create(out_path)?;
     serde_json::to_writer_pretty(out_file, data)?;
     Ok(())
+}
+
+/// Try to decode a contract error into a specific Solidity error interface.
+/// If the error cannot be decoded or it is not a contract error, return the original error.
+///
+/// Example usage:
+///
+/// ```rust no_run
+/// sol! {
+///    library ErrorLib {
+///       error SomeError(uint256 code);
+///    }
+/// }
+///
+/// // call a contract that may return an error with the SomeError interface
+/// let returndata = match myContract.call().await {
+///    Ok(returndata) => returndata,
+///    Err(err) => {
+///         let decoded_error = try_decode_contract_error::<ErrorLib::ErrorLibError>(err)?;
+///        // handle the decoded error however you want; for example, return it
+///         return Err(decoded_error);
+///    },
+/// }
+/// ```
+pub fn try_parse_contract_error<T: SolInterface>(error: ContractError) -> Result<T, ContractError> {
+    match error {
+        ContractError::TransportError(TransportError::ErrorResp(resp)) => {
+            let data = resp.data.unwrap_or_default();
+            let data = data.get().trim_matches('"');
+            let data = Bytes::from_str(data).unwrap_or_default();
+
+            T::abi_decode(&data, true).map_err(Into::into)
+        }
+        _ => Err(error),
+    }
 }
 
 /// Asks whether the user wants to proceed further. If not, the process is exited.

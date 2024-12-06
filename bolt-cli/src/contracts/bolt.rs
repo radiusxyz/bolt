@@ -25,10 +25,15 @@ sol! {
         /// @return ValidatorInfo struct
         function getValidatorByPubkeyHash(bytes20 pubkeyHash) public view returns (ValidatorInfo memory);
 
+        #[derive(Debug)]
         error KeyNotFound();
+        #[derive(Debug)]
         error InvalidQuery();
         #[derive(Debug)]
         error ValidatorDoesNotExist(bytes20 pubkeyHash);
+        #[derive(Debug)]
+        error ValidatorAlreadyExists(bytes20 pubkeyHash);
+        #[derive(Debug)]
         error InvalidAuthorizedOperator();
     }
 }
@@ -55,6 +60,9 @@ sol! {
         /// @dev This requires calling the EigenLayer AVS Directory contract to deregister the operator.
         /// EigenLayer internally contains a mapping from `msg.sender` (our AVS contract) to the operator.
         function deregisterOperator() public;
+
+        error AlreadyRegistered();
+        error NotOperator();
     }
 
     #[allow(missing_docs)]
@@ -74,5 +82,8 @@ sol! {
         /// @return collaterals The collaterals staked by the operator.
         /// @dev Assumes that the operator is registered and enabled.
         function getOperatorCollaterals(address operator) public view returns (address[] memory, uint256[] memory);
+
+        error AlreadyRegistered();
+        error NotOperator();
     }
 }
