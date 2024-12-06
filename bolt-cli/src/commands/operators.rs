@@ -4,6 +4,7 @@ use alloy::{
     primitives::{utils::format_ether, Bytes},
     providers::{Provider, ProviderBuilder, WalletProvider},
     signers::{local::PrivateKeySigner, SignerSync},
+    sol_types::SolInterface,
 };
 use eyre::Context;
 use tracing::{info, warn};
@@ -175,7 +176,10 @@ impl OperatorsCommand {
                                 BoltEigenLayerMiddlewareErrors::NotOperator(_) => {
                                     eyre::bail!("Operator not registered in EigenLayer")
                                 }
-                                _ => unreachable!(),
+                                other => unreachable!(
+                                    "Unexpected error with selector {:?}",
+                                    other.selector()
+                                ),
                             }
                         }
                     }
@@ -225,7 +229,10 @@ impl OperatorsCommand {
                                 BoltEigenLayerMiddlewareErrors::NotRegistered(_) => {
                                     eyre::bail!("Operator not registered in bolt")
                                 }
-                                _ => unreachable!(),
+                                other => unreachable!(
+                                    "Unexpected error with selector {:?}",
+                                    other.selector()
+                                ),
                             }
                         }
                     }
@@ -314,7 +321,10 @@ impl OperatorsCommand {
                                 BoltSymbioticMiddlewareErrors::NotOperator(_) => {
                                     eyre::bail!("Operator not registered in Symbiotic")
                                 }
-                                _ => unreachable!(),
+                                other => unreachable!(
+                                    "Unexpected error with selector {:?}",
+                                    other.selector()
+                                ),
                             }
                         }
                     }
@@ -365,7 +375,10 @@ impl OperatorsCommand {
                                 BoltSymbioticMiddlewareErrors::NotRegistered(_) => {
                                     eyre::bail!("Operator not registered in bolt")
                                 }
-                                _ => unreachable!(),
+                                other => unreachable!(
+                                    "Unexpected error with selector {:?}",
+                                    other.selector()
+                                ),
                             }
                         }
                     }

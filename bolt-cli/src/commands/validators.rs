@@ -2,6 +2,7 @@ use alloy::{
     network::EthereumWallet,
     providers::{Provider, ProviderBuilder},
     signers::local::PrivateKeySigner,
+    sol_types::SolInterface,
 };
 use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
 use eyre::Context;
@@ -91,7 +92,10 @@ impl ValidatorsCommand {
                             BoltValidatorsErrors::InvalidAuthorizedOperator(_) => {
                                 eyre::bail!("Invalid authorized operator")
                             }
-                            _ => eyre::bail!("Unknown contract error"),
+                            other => unreachable!(
+                                "Unexpected error with selector {:?}",
+                                other.selector()
+                            ),
                         }
                     }
                 }
