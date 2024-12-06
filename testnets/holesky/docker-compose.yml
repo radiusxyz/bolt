@@ -1,6 +1,6 @@
 services:
   bolt-sidecar-holesky:
-    image: ghcr.io/chainbound/bolt-sidecar:v0.3.0-alpha.rc2
+    image: ghcr.io/chainbound/bolt-sidecar:v0.3.0-alpha.rc1
     container_name: bolt-sidecar-holesky
     restart: unless-stopped
     ports:
@@ -19,7 +19,7 @@ services:
       - bolt-default
 
   bolt-mev-boost-holesky:
-    image: ghcr.io/chainbound/bolt-mev-boost:v0.3.0-alpha.rc2
+    image: ghcr.io/chainbound/bolt-mev-boost:v0.3.0-alpha
     container_name: bolt-mev-boost-holesky
     restart: unless-stopped
     env_file: ./mev-boost.env
