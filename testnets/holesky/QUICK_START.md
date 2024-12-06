@@ -40,7 +40,7 @@ curl -L https://raw.githubusercontent.com/chainbound/bolt/unstable/boltup/instal
 exec $SHELL
 
 # install the bolt-cli binary for holesky
-boltup --tag v0.3.0-alpha
+boltup --tag v0.1.0
 
 # check for successful installation
 bolt --help

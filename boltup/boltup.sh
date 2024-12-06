@@ -49,6 +49,9 @@ main() {
     BOLTUP_TAG="v${BOLTUP_TAG}"
   fi
 
+  # Add `cli-` prefix to the tag, that's were the release is located
+  BOLTUP_TAG="cli-${BOLTUP_TAG}"
+
   say "installing bolt (tag ${BOLTUP_TAG})"
 
   # Figure out the platform: one of "linux", "darwin" or "win32"

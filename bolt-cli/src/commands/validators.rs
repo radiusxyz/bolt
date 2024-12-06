@@ -2,6 +2,7 @@ use alloy::{
     network::EthereumWallet,
     providers::{Provider, ProviderBuilder},
     signers::local::PrivateKeySigner,
+    sol_types::SolInterface,
 };
 use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
 use eyre::Context;
@@ -9,8 +10,11 @@ use tracing::{info, warn};
 
 use crate::{
     cli::{Chain, ValidatorsCommand, ValidatorsSubcommand},
-    common::{hash::compress_bls_pubkey, request_confirmation},
-    contracts::{bolt::BoltValidators, deployments_for_chain},
+    common::{hash::compress_bls_pubkey, request_confirmation, try_parse_contract_error},
+    contracts::{
+        bolt::BoltValidators::{self, BoltValidatorsErrors},
+        deployments_for_chain,
+    },
 };
 
 impl ValidatorsCommand {
@@ -54,25 +58,47 @@ impl ValidatorsCommand {
 
                 request_confirmation();
 
-                let pending = bolt_validators
+                match bolt_validators
                     .batchRegisterValidatorsUnsafe(
                         pubkey_hashes,
                         max_committed_gas_limit,
                         authorized_operator,
                     )
                     .send()
-                    .await?;
+                    .await
+                {
+                    Ok(pending) => {
+                        info!(
+                            hash = ?pending.tx_hash(),
+                            "batchRegisterValidatorsUnsafe transaction sent, awaiting receipt..."
+                        );
+                        let receipt = pending.get_receipt().await?;
+                        if !receipt.status() {
+                            eyre::bail!("Transaction failed: {:?}", receipt)
+                        }
 
-                info!(
-                    hash = ?pending.tx_hash(),
-                    "batchRegisterValidatorsUnsafe transaction sent, awaiting receipt..."
-                );
-                let receipt = pending.get_receipt().await?;
-                if !receipt.status() {
-                    eyre::bail!("Transaction failed: {:?}", receipt)
+                        info!("Successfully registered validators into bolt");
+                    }
+                    Err(e) => {
+                        let decoded = try_parse_contract_error::<BoltValidatorsErrors>(e)?;
+
+                        match decoded {
+                            BoltValidatorsErrors::ValidatorAlreadyExists(b) => {
+                                eyre::bail!(format!(
+                                    "Validator already exists (pubkeyHash: {:?})",
+                                    b.pubkeyHash
+                                ))
+                            }
+                            BoltValidatorsErrors::InvalidAuthorizedOperator(_) => {
+                                eyre::bail!("Invalid authorized operator")
+                            }
+                            other => unreachable!(
+                                "Unexpected error with selector {:?}",
+                                other.selector()
+                            ),
+                        }
+                    }
                 }
-
-                info!("Successfully registered validators into bolt");
 
                 Ok(())
             }

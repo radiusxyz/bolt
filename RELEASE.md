@@ -45,4 +45,4 @@ Github release assets.
 These will then be automatically consumed by `boltup` consumers when selecting the
 tag they want to use for their Bolt cli installation.
 
-e.g. `boltup --tag v0.3.0-alpha` will pick one of the tarballs in the `v0.3.0-alpha` release.
+e.g. `boltup --tag v0.1.0` will pick one of the tarballs in the `cli-v0.1.0` release.

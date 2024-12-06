@@ -1,19 +1,19 @@
 #![allow(dead_code)] // TODO: rm this
 
-use std::str::FromStr;
-
 use alloy::{
-    contract::{Error as ContractError, Result as ContractResult},
-    primitives::{Address, Bytes, B256},
+    contract::Result as ContractResult,
+    primitives::{Address, B256},
     providers::{ProviderBuilder, RootProvider},
     sol,
     sol_types::{Error as SolError, SolInterface},
-    transports::{http::Http, TransportError},
+    transports::http::Http,
 };
 use reqwest::{Client, Url};
 use serde::Serialize;
 
 use BoltManagerContract::{BoltManagerContractErrors, BoltManagerContractInstance, ProposerStatus};
+
+use super::try_parse_contract_error;
 
 /// Bolt Manager contract bindings.
 #[derive(Debug, Clone)]
@@ -51,16 +51,7 @@ impl BoltManager {
         // TODO: clean this after https://github.com/alloy-rs/alloy/issues/787 is merged
         let error = match returndata.map(|data| data._0) {
             Ok(proposer) => return Ok(Some(proposer)),
-            Err(error) => match error {
-                ContractError::TransportError(TransportError::ErrorResp(err)) => {
-                    let data = err.data.unwrap_or_default();
-                    let data = data.get().trim_matches('"');
-                    let data = Bytes::from_str(data).unwrap_or_default();
-
-                    BoltManagerContractErrors::abi_decode(&data, true)?
-                }
-                e => return Err(e),
-            },
+            Err(error) => try_parse_contract_error::<BoltManagerContractErrors>(error)?,
         };
 
         if matches!(error, BoltManagerContractErrors::ValidatorDoesNotExist(_)) {
