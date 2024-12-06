@@ -63,6 +63,7 @@ sol! {
 
         error AlreadyRegistered();
         error NotOperator();
+        error NotRegistered();
     }
 
     #[allow(missing_docs)]
@@ -85,5 +86,6 @@ sol! {
 
         error AlreadyRegistered();
         error NotOperator();
+        error NotRegistered();
     }
 }

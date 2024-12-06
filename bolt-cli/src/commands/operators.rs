@@ -12,11 +12,11 @@ use crate::{
     cli::{
         Chain, EigenLayerSubcommand, OperatorsCommand, OperatorsSubcommand, SymbioticSubcommand,
     },
-    common::{bolt_manager::BoltManagerContract, request_confirmation},
+    common::{bolt_manager::BoltManagerContract, request_confirmation, try_parse_contract_error},
     contracts::{
         bolt::{
-            BoltEigenLayerMiddleware,
-            BoltSymbioticMiddleware::{self},
+            BoltEigenLayerMiddleware::{self, BoltEigenLayerMiddlewareErrors},
+            BoltSymbioticMiddleware::{self, BoltSymbioticMiddlewareErrors},
             SignatureWithSaltAndExpiry,
         },
         deployments_for_chain,
@@ -149,22 +149,36 @@ impl OperatorsCommand {
                         Bytes::from(signer.sign_hash_sync(&signature_digest_hash)?.as_bytes());
                     let signature = SignatureWithSaltAndExpiry { signature, expiry, salt };
 
-                    let result = bolt_eigenlayer_middleware
+                    match bolt_eigenlayer_middleware
                         .registerOperator(operator_rpc.to_string(), signature)
                         .send()
-                        .await?;
+                        .await
+                    {
+                        Ok(pending) => {
+                            info!(
+                                hash = ?pending.tx_hash(),
+                                "registerOperator transaction sent, awaiting receipt..."
+                            );
 
-                    info!(
-                        hash = ?result.tx_hash(),
-                        "registerOperator transaction sent, awaiting receipt..."
-                    );
+                            let receipt = pending.get_receipt().await?;
+                            if !receipt.status() {
+                                eyre::bail!("Transaction failed: {:?}", receipt)
+                            }
 
-                    let receipt = result.get_receipt().await?;
-                    if !receipt.status() {
-                        eyre::bail!("Transaction failed: {:?}", receipt)
+                            info!("Succesfully registered EigenLayer operator");
+                        }
+                        Err(e) => {
+                            match try_parse_contract_error::<BoltEigenLayerMiddlewareErrors>(e)? {
+                                BoltEigenLayerMiddlewareErrors::AlreadyRegistered(_) => {
+                                    eyre::bail!("Operator already registered in bolt")
+                                }
+                                BoltEigenLayerMiddlewareErrors::NotOperator(_) => {
+                                    eyre::bail!("Operator not registered in EigenLayer")
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
                     }
-
-                    info!("Succesfully registered EigenLayer operator");
 
                     Ok(())
                 }
@@ -192,19 +206,29 @@ impl OperatorsCommand {
                     let bolt_eigenlayer_middleware =
                         BoltEigenLayerMiddleware::new(bolt_avs_address, provider);
 
-                    let result = bolt_eigenlayer_middleware.deregisterOperator().send().await?;
+                    match bolt_eigenlayer_middleware.deregisterOperator().send().await {
+                        Ok(pending) => {
+                            info!(
+                                hash = ?pending.tx_hash(),
+                                "deregisterOperator transaction sent, awaiting receipt..."
+                            );
 
-                    info!(
-                        hash = ?result.tx_hash(),
-                        "deregisterOperator transaction sent, awaiting receipt..."
-                    );
+                            let receipt = pending.get_receipt().await?;
+                            if !receipt.status() {
+                                eyre::bail!("Transaction failed: {:?}", receipt)
+                            }
 
-                    let receipt = result.get_receipt().await?;
-                    if !receipt.status() {
-                        eyre::bail!("Transaction failed: {:?}", receipt)
+                            info!("Succesfully deregistered EigenLayer operator");
+                        }
+                        Err(e) => {
+                            match try_parse_contract_error::<BoltEigenLayerMiddlewareErrors>(e)? {
+                                BoltEigenLayerMiddlewareErrors::NotRegistered(_) => {
+                                    eyre::bail!("Operator not registered in bolt")
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
                     }
-
-                    info!("Succesfully deregistered EigenLayer operator");
 
                     Ok(())
                 }
@@ -268,20 +292,32 @@ impl OperatorsCommand {
                         provider.clone(),
                     );
 
-                    let pending =
-                        middleware.registerOperator(operator_rpc.to_string()).send().await?;
+                    match middleware.registerOperator(operator_rpc.to_string()).send().await {
+                        Ok(pending) => {
+                            info!(
+                                hash = ?pending.tx_hash(),
+                                "registerOperator transaction sent, awaiting receipt..."
+                            );
 
-                    info!(
-                        hash = ?pending.tx_hash(),
-                        "registerOperator transaction sent, awaiting receipt..."
-                    );
+                            let receipt = pending.get_receipt().await?;
+                            if !receipt.status() {
+                                eyre::bail!("Transaction failed: {:?}", receipt)
+                            }
 
-                    let receipt = pending.get_receipt().await?;
-                    if !receipt.status() {
-                        eyre::bail!("Transaction failed: {:?}", receipt)
+                            info!("Succesfully registered Symbiotic operator");
+                        }
+                        Err(e) => {
+                            match try_parse_contract_error::<BoltSymbioticMiddlewareErrors>(e)? {
+                                BoltSymbioticMiddlewareErrors::AlreadyRegistered(_) => {
+                                    eyre::bail!("Operator already registered in bolt")
+                                }
+                                BoltSymbioticMiddlewareErrors::NotOperator(_) => {
+                                    eyre::bail!("Operator not registered in Symbiotic")
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
                     }
-
-                    info!("Succesfully registered Symbiotic operator");
 
                     Ok(())
                 }
@@ -310,19 +346,29 @@ impl OperatorsCommand {
                         provider,
                     );
 
-                    let pending = middleware.deregisterOperator().send().await?;
+                    match middleware.deregisterOperator().send().await {
+                        Ok(pending) => {
+                            info!(
+                                hash = ?pending.tx_hash(),
+                                "deregisterOperator transaction sent, awaiting receipt..."
+                            );
 
-                    info!(
-                        hash = ?pending.tx_hash(),
-                        "deregisterOperator transaction sent, awaiting receipt..."
-                    );
+                            let receipt = pending.get_receipt().await?;
+                            if !receipt.status() {
+                                eyre::bail!("Transaction failed: {:?}", receipt)
+                            }
 
-                    let receipt = pending.get_receipt().await?;
-                    if !receipt.status() {
-                        eyre::bail!("Transaction failed: {:?}", receipt)
+                            info!("Succesfully deregistered Symbiotic operator");
+                        }
+                        Err(e) => {
+                            match try_parse_contract_error::<BoltSymbioticMiddlewareErrors>(e)? {
+                                BoltSymbioticMiddlewareErrors::NotRegistered(_) => {
+                                    eyre::bail!("Operator not registered in bolt")
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
                     }
-
-                    info!("Succesfully deregistered Symbiotic operator");
 
                     Ok(())
                 }
