@@ -197,8 +197,7 @@ bolt pubkeys secret-keys --secret-keys 642e0d33fde8968a48b5f560c1b20143eb82036c1
 
 ```text
 bolt pubkeys local-keystore \
-  --path test_data/lighthouse/validators \
-  --password-path test_data/lighthouse/secrets
+  --path test_data/lighthouse/validators
 ```
 
 3. Listing BLS public keys from a remote DIRK keystore
