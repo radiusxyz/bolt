@@ -464,7 +464,7 @@ First, make sure to have [Docker](https://docs.docker.com/engine/install/),
 Then clone the Bolt repository by running:
 
 ```bash
-git clone --branch v0.3.0-alpha htts://github.com/chainbound/bolt.git
+git clone --branch holesky htts://github.com/chainbound/bolt.git
 cd bolt/testnets/holesky
 ```
 
