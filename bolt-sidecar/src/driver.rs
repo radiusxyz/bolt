@@ -317,7 +317,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                 self.constraints_client.find_signing_key(validator_pubkey, available_pubkeys)
             else {
                 error!(%target_slot, "No available public key to sign constraints with");
-                let _ = response.send(Err(CommitmentError::Internal));
+                let _ = response.send(Err(CommitmentError::NoAvailablePubkeyForSlot(target_slot)));
                 return;
             };
 

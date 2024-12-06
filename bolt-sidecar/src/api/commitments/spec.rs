@@ -34,6 +34,9 @@ pub enum CommitmentError {
     /// Duplicate request.
     #[error("Duplicate request")]
     Duplicate,
+    /// No available public key to sign commitment request with for a given slot.
+    #[error("No available public key to sign request with (slot {0})")]
+    NoAvailablePubkeyForSlot(u64),
     /// Internal server error.
     #[error("Internal server error")]
     Internal,
@@ -71,6 +74,11 @@ impl IntoResponse for CommitmentError {
             Self::Internal => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(JsonResponse::from_error(-32002, self.to_string())),
+            )
+                .into_response(),
+            Self::NoAvailablePubkeyForSlot(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(JsonResponse::from_error(-32008, self.to_string())),
             )
                 .into_response(),
             Self::NoSignature => {
@@ -117,6 +125,9 @@ pub enum RejectionError {
     /// State validation failed for this request.
     #[error("Validation failed: {0}")]
     ValidationFailed(String),
+    /// JSON parsing error.
+    #[error("JSON parsing error: {0}")]
+    Json(#[from] serde_json::Error),
 }
 
 /// Implements the commitments-API: <https://chainbound.github.io/bolt-docs/api/rpc>
