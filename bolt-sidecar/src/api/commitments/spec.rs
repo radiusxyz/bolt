@@ -1,5 +1,11 @@
 use alloy::primitives::SignatureError;
-use axum::{extract::rejection::JsonRejection, http::StatusCode, response::IntoResponse, Json};
+use axum::{
+    body::Body,
+    extract::rejection::JsonRejection,
+    http::{Response, StatusCode},
+    response::IntoResponse,
+    Json,
+};
 use thiserror::Error;
 
 use crate::{
@@ -58,7 +64,7 @@ pub enum CommitmentError {
 }
 
 impl IntoResponse for CommitmentError {
-    fn into_response(self) -> axum::http::Response<axum::body::Body> {
+    fn into_response(self) -> Response<Body> {
         match self {
             Self::Rejected(err) => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32000, err.to_string())))
@@ -117,6 +123,9 @@ pub enum RejectionError {
     /// State validation failed for this request.
     #[error("Validation failed: {0}")]
     ValidationFailed(String),
+    /// JSON parsing error.
+    #[error("JSON parsing error: {0}")]
+    Json(#[from] serde_json::Error),
 }
 
 /// Implements the commitments-API: <https://chainbound.github.io/bolt-docs/api/rpc>
