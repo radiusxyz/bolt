@@ -1,5 +1,11 @@
 use alloy::primitives::SignatureError;
-use axum::{extract::rejection::JsonRejection, http::StatusCode, response::IntoResponse, Json};
+use axum::{
+    body::Body,
+    extract::rejection::JsonRejection,
+    http::{Response, StatusCode},
+    response::IntoResponse,
+    Json,
+};
 use thiserror::Error;
 
 use crate::{
@@ -34,9 +40,6 @@ pub enum CommitmentError {
     /// Duplicate request.
     #[error("Duplicate request")]
     Duplicate,
-    /// No available public key to sign commitment request with for a given slot.
-    #[error("No available public key to sign request with (slot {0})")]
-    NoAvailablePubkeyForSlot(u64),
     /// Internal server error.
     #[error("Internal server error")]
     Internal,
@@ -61,7 +64,7 @@ pub enum CommitmentError {
 }
 
 impl IntoResponse for CommitmentError {
-    fn into_response(self) -> axum::http::Response<axum::body::Body> {
+    fn into_response(self) -> Response<Body> {
         match self {
             Self::Rejected(err) => {
                 (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32000, err.to_string())))
@@ -74,11 +77,6 @@ impl IntoResponse for CommitmentError {
             Self::Internal => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(JsonResponse::from_error(-32002, self.to_string())),
-            )
-                .into_response(),
-            Self::NoAvailablePubkeyForSlot(_) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(JsonResponse::from_error(-32008, self.to_string())),
             )
                 .into_response(),
             Self::NoSignature => {
