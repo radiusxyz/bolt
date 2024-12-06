@@ -1,18 +1,23 @@
 services:
   bolt-sidecar-holesky:
-    image: ghcr.io/chainbound/bolt-sidecar:v0.3.0-alpha
+    image: ghcr.io/chainbound/bolt-sidecar:v0.3.1-alpha.rc1
     container_name: bolt-sidecar-holesky
     restart: unless-stopped
-    env_file: ./bolt-sidecar.env
     ports:
       # NOTE: to read these envs, it is necessary to provide them via `--env-file` or having them already set.
       - "${BOLT_SIDECAR_PORT:-8017}:${BOLT_SIDECAR_PORT:-8017}" # This port should be opened on your firewall!
       - "${BOLT_SIDECAR_CONSTRAINTS_PROXY_PORT:-18550}:${BOLT_SIDECAR_CONSTRAINTS_PROXY_PORT:-18550}"
     entrypoint: /usr/local/bin/entrypoint.sh
     volumes:
+      # Load the entrypoint script: an hook before starting the sidecar binary
+      # that overrides some of envs inside .env to match the volumes paths.
       - ./entrypoint.sh:/usr/local/bin/entrypoint.sh
+      # Load the environment variables that will be sourced by the sidecar process.
       - ./bolt-sidecar.env:/usr/local/bin/.env
       # NOTE: to read these envs, it is necessary to provide them via `--env-file` or having them already set.
+      # This is a workaround because it is not possible to conditionally mount
+      # volumes. As such, if an env is not provided, we will mount `/dev/null`
+      # instead.
       - ${BOLT_SIDECAR_DELEGATIONS_PATH:-/dev/null}:/etc/delegations.json
       - ${BOLT_SIDECAR_KEYSTORE_PATH:-/dev/null}:/etc/keystores
       - ${BOLT_SIDECAR_KEYSTORE_SECRETS_PATH:-/dev/null}:/etc/secrets

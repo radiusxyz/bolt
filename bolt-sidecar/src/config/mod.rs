@@ -126,7 +126,7 @@ impl Opts {
 fn read_env_file() -> eyre::Result<()> {
     match dotenvy::dotenv() {
         // It means the .env file hasn't been found but it's okay since it's optional
-        Err(dotenvy::Error::Io(_)) => (),
+        Err(dotenvy::Error::Io(_)) => println!("No .env file found, using environment variables"),
         Err(err) => bail!("Failed to load .env file: {:?}", err),
         Ok(path) => println!("Loaded environment variables from path: {:?}", path),
     };
