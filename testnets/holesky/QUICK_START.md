@@ -363,8 +363,7 @@ cp bolt-sidecar.env.example bolt-sidecar.env
 
 - `BOLT_SIDECAR_COMMITMENT_PRIVATE_KEY`: this is the private key of the operator address that you registered in the
   restaking protocol in the previous steps. This is the key that will be used to sign commitments for your validators.
-- `BOLT_SIDECAR_BUILDER_PRIVATE_KEY`: this can be any valid BLS private key. You can generate one by visiting
-  https://iancoleman.io/eip2333/ and pressing the GENERATE button.
+- `BOLT_SIDECAR_BUILDER_PRIVATE_KEY`: this can be any valid BLS private key. You can generate one using the `bolt generate bls` command.
 
 The section "signing options" is by far the most complex part of the configuration file.
 It is used to configure how Bolt protocol understands and authenticates your validators.
@@ -392,7 +391,7 @@ In order to create and use these delegations, you can follow these steps:
 
    - Note: this step is similar to the `bolt pubkeys` command used in step 3 of this quick guide.
    - Note: this command can be run _offline_.
-   - Note: you can generate a fresh BLS keypair [here](https://iancoleman.io/eip2333/) if necessary
+   - Note: you can generate a fresh BLS keypair using `bolt generate bls` if you don't have one.
 
    ```bash
     bolt delegate --delegatee-pubkey <delegatee_pubkey> local-keystore --path <validators_path> --password-path <secrets_path>
