@@ -11,7 +11,7 @@ set -eo pipefail
 # each tuple is in the format of "target-triple", "short-name".
 TARGETS=(
     "aarch64-apple-darwin" "arm64-darwin"     # ARM apple chips (M1)
-    "x86_64-apple-darwin" "amd64_64-darwin"   # Intel apple chips
+    "x86_64-apple-darwin" "amd64-darwin"   # Intel apple chips
     "aarch64-unknown-linux-gnu" "arm64-linux" # ARM linux chips
     "x86_64-unknown-linux-gnu" "amd64-linux"  # x86 linux chips
 )
