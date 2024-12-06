@@ -19,7 +19,7 @@ git clone git@github.com:chainbound/bolt.git
 cd bolt-cli
 
 # build and install the binary on your machine
-cargo install --path . --force
+cargo install --path . --force --locked
 
 # test the installation
 bolt --version
@@ -34,6 +34,7 @@ Available commands:
 - [`send`](#send) - Send a preconfirmation request to a Bolt sidecar.
 - [`validators`](#validators) - Subcommand for bolt validators.
 - [`operators`](#operators) - Subcommand for bolt operators.
+- [`generate`](#generate) - Subcommand for generating bolt related data.
 
 ---
 
@@ -333,6 +334,31 @@ Commands:
   deregister  Deregister a Symbiotic operator from bolt
   status      Check the status of a Symbiotic operator
   help        Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+```
+
+</details>
+
+---
+
+### `generate`
+
+The `generate` subcommand contains functionality for generating bolt related data like BLS keypairs.
+
+<details>
+<summary>Usage</summary>
+
+```text
+❯ bolt generate --help
+Useful data generation commands
+
+Usage: bolt generate <COMMAND>
+
+Commands:
+  bls   Generate a BLS keypair
+  help  Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help  Print help
