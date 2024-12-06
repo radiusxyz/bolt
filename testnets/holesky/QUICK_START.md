@@ -23,7 +23,7 @@ Additionally, you will need:
 ## 1. Clone the bolt repository
 
 ```bash
-git clone --branch holesky https://github.com/chainbound/bolt && cd bolt
+git clone https://github.com/chainbound/bolt && cd bolt
 ```
 
 ## 2. Install the bolt CLI
