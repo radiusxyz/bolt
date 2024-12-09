@@ -1,3 +1,5 @@
+use tracing::warn;
+
 use crate::builder::{fallback::engine_hinter::EngineApiHint, BuilderError};
 
 /// Parse a hinted value from the engine response.
@@ -13,13 +15,13 @@ use crate::builder::{fallback::engine_hinter::EngineApiHint, BuilderError};
 ///     }
 /// }
 /// ```
-///
-/// Nethermind Reference:
-/// TODO
+// TODO: implement hints parsing
+// TODO: remove dead_code attribute
+#[allow(dead_code)]
 pub fn parse_nethermind_engine_error_hint(
     error: &str,
 ) -> Result<Option<EngineApiHint>, BuilderError> {
-    dbg!(&error);
+    warn!(%error, "Nethermind engine error hint parsing is not implemented");
 
     Ok(None)
 }
