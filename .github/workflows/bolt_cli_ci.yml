@@ -60,13 +60,6 @@ jobs:
         with:
           version: nightly
 
-      - name: Install Tailscale
-        uses: tailscale/github-action@v2
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
-
       - name: Run bolt-cli tests
         run: |
           cd bolt-cli
