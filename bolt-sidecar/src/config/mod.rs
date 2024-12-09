@@ -76,9 +76,9 @@ pub struct Opts {
     /// one set for your validators.
     #[clap(long, env = "BOLT_SIDECAR_FEE_RECIPIENT")]
     pub fee_recipient: Address,
-    /// Secret BLS key to sign fallback payloads with. This can be any key. You can generate one
-    /// with the `bolt` CLI tool, using `bolt generate bls`.
-    #[clap(long, env = "BOLT_SIDECAR_BUILDER_PRIVATE_KEY")]
+    /// Secret BLS key to sign fallback payloads with. This can be any key, and by default a random
+    /// one is created. You can generate one with the `bolt` CLI tool, using `bolt generate bls`.
+    #[clap(long, env = "BOLT_SIDECAR_BUILDER_PRIVATE_KEY", default_value_t = BlsSecretKeyWrapper::random())]
     pub builder_private_key: BlsSecretKeyWrapper,
     /// Secret ECDSA key used to sign commitment messages on behalf of your validators.
     /// This MUST be set to the private key of your operator address registered in a restaking protocol.
