@@ -1068,7 +1068,7 @@ dependencies = [
  "cb-common",
  "cb-pbs",
  "ethereum_ssz 0.5.4",
- "ethereum_ssz 0.8.0",
+ "ethereum_ssz 0.8.1",
  "ethereum_ssz_derive 0.8.0",
  "eyre",
  "futures",
@@ -1806,12 +1806,11 @@ dependencies = [
 
 [[package]]
 name = "ethereum_ssz"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfbba28f4f3f32d92c06a64f5bf6c4537b5d4e21f28c689bd2bbaecfea4e0d3e"
+checksum = "036c84bd29bff35e29bbee3c8fc0e2fb95db12b6f2f3cae82a827fbc97256f3a"
 dependencies = [
  "alloy-primitives 0.8.5",
- "derivative",
  "ethereum_serde_utils 0.7.0",
  "itertools 0.13.0",
  "serde",
