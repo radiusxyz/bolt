@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   cargo-tests:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 20
     env:
       RUST_BACKTRACE: 1
