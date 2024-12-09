@@ -343,33 +343,32 @@ separate guide [here](./commit-boost/README.md) in detail.
 
 ### Docker mode
 
-First, change directory to the `testnets/holesky` folder in the bolt repository you cloned in step 1:
+First, change directory to the `testnets/holesky` folder in the bolt repository
+you cloned in step 1:
 
 ```bash
 cd testnets/holesky
 ```
 
-In this directory you will find a `docker-compose.yml` file that you can use to start the Bolt-sidecar.
-But before doing that, you will need to change the configuration file to match your setup.
+In this directory you will find a `docker-compose.yml` file that you can use to
+start the bolt sidecar. But before doing that, you will need to change the
+configuration file to match your setup.
 
-To get started with the configuration, copy the example file:
+To get started with the configuration, copy the following preset file:
 
 ```bash
-cp bolt-sidecar.env.example bolt-sidecar.env
+cp ./presets/sidecar-delegations-preset.env.example bolt-sidecar.env
 ```
 
-<details>
-<summary>Here is a brief explanation of some of the less-obvious fields in the `bolt-sidecar.env` file:</summary>
+This preset file will run the bolt-sidecar in "delegation" mode, which is the
+recommended way to set it up.
 
-- `BOLT_SIDECAR_COMMITMENT_PRIVATE_KEY`: this is the private key of the operator address that you registered in the
-  restaking protocol in the previous steps. This is the key that will be used to sign commitments for your validators.
-- `BOLT_SIDECAR_BUILDER_PRIVATE_KEY`: this can be any valid BLS private key. You can generate one using the `bolt generate bls` command.
+Fill the configuration excluding the "Signing options"
+section, which will be covered below. Remember to set the
+`BOLT_SIDECAR_COMMITMENT_PRIVATE_KEY` to the operator private key registered in
+the previous step.
 
-The section "signing options" is by far the most complex part of the configuration file.
-It is used to configure how Bolt protocol understands and authenticates your validators.
-
-Although this is a quick guide, delegation must be understood correctly in order to be setup properly.
-Here is a quick rundown of how it works:
+**Why delegation?**
 
 The bolt-sidecar needs to know which validators it is controlling (aka, which validators it can sign commitments
 on behalf of). Otherwise it may sign commitments for random validators which would get you slashed.
@@ -383,7 +382,7 @@ to sign a message that essentially says "I authorize this other key to sign comm
 
 This way, operators don't need to use their validator secret keys in their online sidecar setup anymore.
 
-This is by far the most recommended way to set up the bolt-sidecar.
+**Creating delegations**
 
 In order to create and use these delegations, you can follow these steps:
 
@@ -409,7 +408,7 @@ In order to create and use these delegations, you can follow these steps:
 
 That's it! You can proceed to the next step.
 
-</details>
+**Configuring MEV-Boost**
 
 After you've filled out the sidecar configuration, you can do the same with the `mev-boost` configuration:
 
@@ -421,6 +420,8 @@ And fill out the values in the `mev-boost.env` file as well.
 
 - NOTE: the config file comes with relay URLs already set up for you. Feel free to change them if
   you only want to use some specific relays.
+
+**Start the docker compose**
 
 Once the config files are in place, make sure you have Docker running and then start the docker compose:
 
