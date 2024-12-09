@@ -10,7 +10,6 @@ use super::{
     engine_hinter::{EngineHinter, EngineHinterContext},
     DEFAULT_EXTRA_DATA,
 };
-
 use crate::{
     builder::BuilderError,
     client::{BeaconClient, ExecutionClient},
@@ -69,20 +68,24 @@ impl FallbackPayloadBuilder {
         // For the timestamp, we must use the one expected by the beacon chain instead, to
         // prevent edge cases where the proposer before us has missed their slot and therefore
         // the timestamp of the previous block is too far in the past.
-        let head_block = self.execution_api.get_block(None, true).await?;
-        debug!(num = %head_block.header.number, "Fetched head block");
+        let head_block_fut = self.execution_api.get_block(None, true);
 
         // Fetch the execution client info from the engine API in order to know what hint
         // types the engine hinter can parse from the engine API responses.
-        let el_client_code = self.engine_hinter.engine_client_version().await?[0].code;
+        let el_client_info_fut = self.engine_hinter.engine_client_version();
+
+        let (head_block, el_client_info) = tokio::try_join!(head_block_fut, el_client_info_fut)?;
+
+        let el_client_code = el_client_info[0].code;
         debug!(client = %el_client_code.client_name(), "Fetched execution client info");
 
         // Fetch required head info from the beacon client
-        let (parent_beacon_block_root, withdrawals, prev_randao) = tokio::try_join!(
-            self.beacon_api.get_parent_beacon_block_root(),
-            self.beacon_api.get_expected_withdrawals_at_head(),
-            self.beacon_api.get_prev_randao()
-        )?;
+        let parent_beacon_block_root_fut = self.beacon_api.get_parent_beacon_block_root();
+        let withdrawals_fut = self.beacon_api.get_expected_withdrawals_at_head();
+        let prev_randao_fut = self.beacon_api.get_prev_randao();
+
+        let (parent_beacon_block_root, withdrawals, prev_randao) =
+            tokio::try_join!(parent_beacon_block_root_fut, withdrawals_fut, prev_randao_fut)?;
 
         // The next block timestamp must be calculated manually rather than relying on the
         // previous execution block, to cover the edge case where any previous slots have
