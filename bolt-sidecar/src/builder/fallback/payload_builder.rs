@@ -77,10 +77,12 @@ impl FallbackPayloadBuilder {
         let el_client_code = self.engine_hinter.engine_client_version().await?[0].code;
         debug!(client = %el_client_code.client_name(), "Fetched execution client info");
 
-        // Fetch required head info from the beacon chain
-        let parent_beacon_block_root = self.beacon_api.get_parent_beacon_block_root().await?;
-        let withdrawals = self.beacon_api.get_expected_withdrawals_at_head().await?;
-        let prev_randao = self.beacon_api.get_prev_randao().await?;
+        // Fetch required head info from the beacon client
+        let (parent_beacon_block_root, withdrawals, prev_randao) = tokio::try_join!(
+            self.beacon_api.get_parent_beacon_block_root(),
+            self.beacon_api.get_expected_withdrawals_at_head(),
+            self.beacon_api.get_prev_randao()
+        )?;
 
         // The next block timestamp must be calculated manually rather than relying on the
         // previous execution block, to cover the edge case where any previous slots have
