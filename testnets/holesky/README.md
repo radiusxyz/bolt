@@ -1127,9 +1127,32 @@ the restart by following this steps when starting the Bolt sidecar:
 
 ## Vouch configuration
 
-If you are using [Vouch](https://www.attestant.io/posts/introducing-vouch/) as validator client,
+If you are using [Vouch](https://www.attestant.io/posts/introducing-vouch/) as your validator client,
 you will need to tweak its configuration to make sure that it doesn't fetch blocks from PBS relays directly,
 otherwise your validators might propose a block that does not adhere to the signed constraints from the Bolt sidecar.
 
-In particular, you need to [disable external MEV relays](https://github.com/attestantio/vouch/blob/master/docs/blockrelay.md#without-mev-relays),
-and make sure that your beacon node is pointing to the bolt sidecar.
+In particular, you'll need to point any external MEV relays to the sidecar URL.
+Doing so can be done by tweaking the following configuration files:
+
+#### `execution_config.json`
+```json
+{
+    "version": 2, 
+    "fee_recipient": "<FEE_RECIPIENT_ADDRESS>", 
+    "relays": {"<BOLT_SIDECAR_CONSTRAINTS_API_URL>": {}}, 
+    "proposers": []
+}
+```
+
+Then using this config in `vouch.yaml`:
+
+```yml
+...
+blockrelay:
+  config:
+    url: file:///data/vouch/execution_config.json
+...
+```
+
+
+
