@@ -75,11 +75,13 @@ pub struct Opts {
     /// The fee recipient address for fallback blocks
     #[clap(long, env = "BOLT_SIDECAR_FEE_RECIPIENT")]
     pub fee_recipient: Address,
-    /// Secret BLS key to sign fallback payloads with
+    /// Secret BLS key to sign fallback payloads with. This can be any key. You can generate one
+    /// with the `bolt` CLI tool, using `bolt generate bls`.
     #[clap(long, env = "BOLT_SIDECAR_BUILDER_PRIVATE_KEY")]
     pub builder_private_key: BlsSecretKeyWrapper,
-    /// Secret ECDSA key to sign commitment messages with. The public key associated to it must be
-    /// then used when registering the operator in the `BoltManager` contract.
+    /// Secret ECDSA key used to sign commitment messages on behalf of your validators. The public
+    /// key associated is an operator registered in the `BoltManager` contract and in a restaking
+    /// protocol.
     #[clap(long, env = "BOLT_SIDECAR_COMMITMENT_PRIVATE_KEY")]
     pub commitment_private_key: EcdsaSecretKeyWrapper,
     /// Unsafely disables consensus checks when validating commitments.
