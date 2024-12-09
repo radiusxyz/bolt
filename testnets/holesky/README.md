@@ -1131,8 +1131,8 @@ If you are using [Vouch](https://www.attestant.io/posts/introducing-vouch/) as y
 you will need to tweak its configuration to make sure that it doesn't fetch blocks from PBS relays directly,
 otherwise your validators might propose a block that does not adhere to the signed constraints from the Bolt sidecar.
 
-In particular, you need to [disable external MEV relays](https://github.com/attestantio/vouch/blob/master/docs/blockrelay.md#without-mev-relays),
-and make sure that  bolt sidecar. Doing so can be done by tweaking the following configuration files:
+In particular, you'll need to point any external MEV relays to the sidecar URL.
+Doing so can be done by tweaking the following configuration files:
 
 #### `execution_config.json`
 ```json
