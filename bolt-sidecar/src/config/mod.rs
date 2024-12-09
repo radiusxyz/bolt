@@ -72,16 +72,16 @@ pub struct Opts {
     /// containing the hex-encoded secret.
     #[clap(long, env = "BOLT_SIDECAR_ENGINE_JWT_HEX")]
     pub engine_jwt_hex: JwtSecretConfig,
-    /// The fee recipient address for fallback blocks
+    /// The fee recipient address for locally-built fallback blocks. It should be the same as the
+    /// one set for your validators.
     #[clap(long, env = "BOLT_SIDECAR_FEE_RECIPIENT")]
     pub fee_recipient: Address,
     /// Secret BLS key to sign fallback payloads with. This can be any key. You can generate one
     /// with the `bolt` CLI tool, using `bolt generate bls`.
     #[clap(long, env = "BOLT_SIDECAR_BUILDER_PRIVATE_KEY")]
     pub builder_private_key: BlsSecretKeyWrapper,
-    /// Secret ECDSA key used to sign commitment messages on behalf of your validators. The public
-    /// key associated is an operator registered in the `BoltManager` contract and in a restaking
-    /// protocol.
+    /// Secret ECDSA key used to sign commitment messages on behalf of your validators.
+    /// This MUST be set to the private key of your operator address registered in a restaking protocol.
     #[clap(long, env = "BOLT_SIDECAR_COMMITMENT_PRIVATE_KEY")]
     pub commitment_private_key: EcdsaSecretKeyWrapper,
     /// Unsafely disables consensus checks when validating commitments.
