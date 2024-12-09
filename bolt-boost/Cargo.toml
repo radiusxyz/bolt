@@ -15,7 +15,7 @@ axum-extra = "0.9.6"
 futures = "0.3"
 async-trait = "0.1.82"
 eyre = "0.6.12"
-thiserror = "1.0.63"
+thiserror = "2.0.6"
 reqwest = "0.12.7"
 
 # crypto
