@@ -11,7 +11,7 @@ debug = true
 # core
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.7", features = ["macros"] }
-axum-extra = "0.9.3"
+axum-extra = "0.9.6"
 futures = "0.3"
 async-trait = "0.1.82"
 eyre = "0.6.12"
