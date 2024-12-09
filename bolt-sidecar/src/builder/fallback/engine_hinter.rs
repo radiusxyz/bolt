@@ -11,7 +11,7 @@ use reqwest::Url;
 use reth_primitives::{
     BlockBody, Header as RethHeader, SealedBlock, SealedHeader, TransactionSigned,
 };
-use tracing::debug;
+use tracing::{debug, error};
 
 use crate::{
     builder::{compat::to_alloy_execution_payload, BuilderError},
@@ -113,6 +113,7 @@ impl EngineHinter {
             PayloadStatusEnum::Valid => return Ok(EngineApiHint::ValidPayload),
             PayloadStatusEnum::Invalid { validation_error } => validation_error,
             PayloadStatusEnum::Syncing | PayloadStatusEnum::Accepted => {
+                error!(status = ?payload_status.status, "Unexpected payload status from engine API");
                 return Err(BuilderError::UnexpectedPayloadStatus(payload_status.status))
             }
         };
