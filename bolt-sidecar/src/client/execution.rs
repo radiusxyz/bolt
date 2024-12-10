@@ -1,5 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
+use alloy::rpc::client::RpcClient;
 use alloy::{
     eips::BlockNumberOrTag,
     primitives::{Address, Bytes, TxHash, B256, U256, U64},
@@ -22,7 +23,7 @@ use crate::primitives::AccountState;
 #[derive(Clone, Debug)]
 pub struct ExecutionClient {
     /// The custom RPC client that allows us to add custom batching and extend the provider.
-    rpc: alloy::rpc::client::RpcClient<Http<Client>>,
+    rpc: RpcClient<Http<Client>>,
     /// The inner provider that implements all the JSON-RPC methods, that can be
     /// easily used via dereferencing this struct.
     inner: RootProvider<Http<Client>>,

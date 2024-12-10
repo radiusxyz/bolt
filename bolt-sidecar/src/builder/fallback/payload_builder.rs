@@ -1,9 +1,9 @@
 use alloy::{
-    consensus::Transaction,
+    consensus::{proofs, Transaction},
     eips::{calc_excess_blob_gas, calc_next_block_base_fee, eip1559::BaseFeeParams},
     primitives::{Address, Bytes},
 };
-use reth_primitives::{proofs, SealedBlock, TransactionSigned};
+use reth_primitives::{SealedBlock, TransactionSigned};
 use tracing::debug;
 
 use super::{
@@ -144,7 +144,9 @@ impl FallbackPayloadBuilder {
 mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use alloy::consensus::constants;
     use alloy::{
+        consensus::proofs,
         eips::eip2718::{Decodable2718, Encodable2718},
         network::{EthereumWallet, TransactionBuilder},
         primitives::{hex, Address},
@@ -193,9 +195,9 @@ mod tests {
         let raw_encoded = tx_signed.encoded_2718();
         let tx_signed_reth = TransactionSigned::decode_2718(&mut raw_encoded.as_slice())?;
 
-        let slot = genesis_time +
-            (SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() / cfg.chain.slot_time()) +
-            1;
+        let slot = genesis_time
+            + (SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() / cfg.chain.slot_time())
+            + 1;
 
         let block = builder.build_fallback_payload(slot, &[tx_signed_reth]).await?;
 
@@ -207,9 +209,6 @@ mod tests {
     #[test]
     fn test_empty_el_withdrawals_root() {
         // Withdrawal root in the execution layer header is MPT.
-        assert_eq!(
-            reth_primitives::proofs::calculate_withdrawals_root(&Vec::new()),
-            alloy::consensus::constants::EMPTY_WITHDRAWALS
-        );
+        assert_eq!(proofs::calculate_withdrawals_root(&Vec::new()), constants::EMPTY_WITHDRAWALS);
     }
 }
