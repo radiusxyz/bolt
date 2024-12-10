@@ -22,7 +22,7 @@ import {IBoltManagerV3} from "../interfaces/IBoltManagerV3.sol";
 /// See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
 /// To validate the storage layout, use the Openzeppelin Foundry Upgrades toolkit.
 /// You can also validate manually with forge: forge inspect <contract> storage-layout --pretty
-contract BoltManagerV2 is IBoltManagerV2, OwnableUpgradeable, UUPSUpgradeable {
+contract BoltManagerV3 is IBoltManagerV3, OwnableUpgradeable, UUPSUpgradeable {
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableMapV2 for EnumerableMapV2.OperatorMap;
     using OperatorMapWithTimeV2 for EnumerableMapV2.OperatorMap;
