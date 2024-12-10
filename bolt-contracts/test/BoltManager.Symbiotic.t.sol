@@ -375,4 +375,12 @@ contract BoltManagerSymbioticTest is Test {
         vm.expectRevert(abi.encodeWithSelector(ValidatorsLib.ValidatorDoesNotExist.selector, pubkeyHash));
         manager.getProposerStatus(pubkeyHash);
     }
+
+    function testCalculateSubnetwork() public {
+        address network_ = 0xb017002D8024d8c8870A5CECeFCc63887650D2a4;
+        uint96 identifier_ = 0;
+
+        bytes32 subnetwork_ = network_.subnetwork(identifier_);
+        assertEq(subnetwork_, 0xb017002D8024d8c8870A5CECeFCc63887650D2a4000000000000000000000000);
+    }
 }
