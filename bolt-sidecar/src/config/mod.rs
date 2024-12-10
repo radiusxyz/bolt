@@ -143,7 +143,6 @@ fn remove_empty_envs() -> eyre::Result<()> {
     for item in env::vars() {
         let (key, val) = item;
         if val.trim().is_empty() {
-            println!("Removing empty environment variable with key: {}", key);
             std::env::remove_var(key)
         }
     }
