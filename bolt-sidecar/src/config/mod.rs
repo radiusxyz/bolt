@@ -10,6 +10,10 @@ use serde::Deserialize;
 pub mod chain;
 pub use chain::ChainConfig;
 
+/// Commitment related options.
+pub mod commitments;
+pub use commitments::CommitmentOpts;
+
 /// Commitment and constraint signing related options.
 pub mod constraint_signing;
 pub use constraint_signing::ConstraintSigningOpts;
@@ -22,12 +26,7 @@ use telemetry::TelemetryOpts;
 pub mod limits;
 use limits::LimitsOpts;
 
-use crate::common::secrets::{BlsSecretKeyWrapper, EcdsaSecretKeyWrapper, JwtSecretConfig};
-
-/// Default port for the JSON-RPC server exposed by the sidecar supporting the Commitments API.
-///
-/// 8017 -> BOLT :)
-pub const DEFAULT_RPC_PORT: u16 = 8017;
+use crate::common::secrets::{BlsSecretKeyWrapper, JwtSecretConfig};
 
 /// Default port for the Constraints proxy server, binded to the default port used by MEV-Boost.
 pub const DEFAULT_CONSTRAINTS_PROXY_PORT: u16 = 18550;
@@ -35,10 +34,9 @@ pub const DEFAULT_CONSTRAINTS_PROXY_PORT: u16 = 18550;
 /// Command-line options for the Bolt sidecar
 #[derive(Debug, Parser, Deserialize)]
 pub struct Opts {
-    /// Port to listen on for incoming JSON-RPC requests of the Commitments API.
-    /// This port should be open on your firewall in order to receive external requests!
-    #[clap(long, env = "BOLT_SIDECAR_PORT", default_value_t = DEFAULT_RPC_PORT)]
-    pub port: u16,
+    /// Commitment options for the sidecar
+    #[clap(flatten)]
+    pub commitment_opts: CommitmentOpts,
     /// Execution client API URL
     #[clap(long, env = "BOLT_SIDECAR_EXECUTION_API_URL", default_value = "http://localhost:8545")]
     pub execution_api_url: Url,
@@ -79,10 +77,6 @@ pub struct Opts {
     /// one is created. You can generate one with the `bolt` CLI tool, using `bolt generate bls`.
     #[clap(long, env = "BOLT_SIDECAR_BUILDER_PRIVATE_KEY", default_value_t = BlsSecretKeyWrapper::random())]
     pub builder_private_key: BlsSecretKeyWrapper,
-    /// Secret ECDSA key used to sign commitment messages on behalf of your validators.
-    /// This MUST be set to the private key of your operator address registered in a restaking protocol.
-    #[clap(long, env = "BOLT_SIDECAR_COMMITMENT_PRIVATE_KEY")]
-    pub commitment_private_key: EcdsaSecretKeyWrapper,
     /// Unsafely disables consensus checks when validating commitments.
     ///
     /// If enabled, the sidecar will sign every commitment request with the first private key

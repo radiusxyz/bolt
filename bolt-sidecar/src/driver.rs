@@ -90,7 +90,7 @@ impl SidecarDriver<StateClient, PrivateKeySigner> {
         ));
 
         // Commitment responses are signed with a regular Ethereum wallet private key.
-        let commitment_key = opts.commitment_private_key.0.clone();
+        let commitment_key = opts.commitment_opts.operator_private_key.0.clone();
         let commitment_signer = PrivateKeySigner::from_signing_key(commitment_key);
 
         Self::from_components(opts, constraint_signer, commitment_signer, state_client)
@@ -122,7 +122,7 @@ impl SidecarDriver<StateClient, PrivateKeySigner> {
         let keystore_signer = SignerBLS::Keystore(keystore);
 
         // Commitment responses are signed with a regular Ethereum wallet private key.
-        let commitment_key = opts.commitment_private_key.0.clone();
+        let commitment_key = opts.commitment_opts.operator_private_key.0.clone();
         let commitment_signer = PrivateKeySigner::from_signing_key(commitment_key);
 
         Self::from_components(opts, keystore_signer, commitment_signer, state_client)
@@ -228,7 +228,10 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         });
 
         // start the commitments api server
-        let api_addr = format!("0.0.0.0:{}", opts.port);
+        let api_addr = format!(
+            "0.0.0.0:{}",
+            opts.commitment_opts.port.expect("commitments port must be provided")
+        );
         let (api_events_tx, api_events_rx) = mpsc::channel(1024);
         CommitmentsApiServer::new(api_addr).run(api_events_tx, opts.limits).await;
 
