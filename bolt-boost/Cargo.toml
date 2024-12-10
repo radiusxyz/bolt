@@ -34,7 +34,7 @@ ethereum_ssz = "0.8.1"
 ethereum_ssz_derive = "0.8.0"
 
 # alloy
-alloy = { version = "0.3.6", features = [
+alloy = { version = "0.5.4", features = [
     "signer-local",
     "provider-trace-api",
     "rpc-types-beacon",
@@ -43,8 +43,8 @@ alloy = { version = "0.3.6", features = [
 alloy-rlp = "0.3.9"
 
 # commit-boost
-cb-common = { git = "https://github.com/commit-boost/commit-boost-client", tag = "v0.3.1" }
-cb-pbs = { git = "https://github.com/commit-boost/commit-boost-client", tag = "v0.3.1" }
+cb-common = { git = "https://github.com/commit-boost/commit-boost-client", tag = "v0.4.0" }
+cb-pbs = { git = "https://github.com/commit-boost/commit-boost-client", tag = "v0.4.0" }
 
 # other
 rand = "0.8.5"
