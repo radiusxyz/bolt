@@ -1,5 +1,5 @@
 use alloy::primitives::U256;
-use beacon_api_client::mainnet::Client as BeaconClient;
+use alloy_rpc_types_engine::{ClientCode, PayloadStatusEnum};
 use ethereum_consensus::{
     crypto::{KzgCommitment, PublicKey},
     deneb::mainnet::ExecutionPayloadHeader,
@@ -14,6 +14,11 @@ use crate::{
     },
 };
 
+/// Fallback payload building logic that (ab)uses the engine API's
+/// `engine_newPayloadV3` response error to produce a valid payload.
+pub mod fallback;
+pub use fallback::FallbackPayloadBuilder;
+
 /// Basic block template handler that can keep track of
 /// the local commitments according to protocol validity rules.
 ///
@@ -25,11 +30,6 @@ pub use template::BlockTemplate;
 /// Builder payload signing utilities
 pub mod signature;
 use signature::sign_builder_message;
-
-/// Fallback Payload builder agent that leverages the engine API's
-/// `engine_newPayloadV3` response error to produce a valid payload.
-pub mod payload_builder;
-use payload_builder::FallbackPayloadBuilder;
 
 /// Interface for fetching payloads from the beacon node.
 pub mod payload_fetcher;
@@ -58,12 +58,22 @@ pub enum BuilderError {
     Transport(#[from] alloy::transports::TransportError),
     #[error("Failed in SSZ merkleization: {0}")]
     Merkleization(#[from] MerkleizationError),
-    #[error("Failed while interacting with beacon client: {0}")]
-    BeaconApi(#[from] beacon_api_client::Error),
     #[error("Failed to parse hint from engine response: {0}")]
     InvalidEngineHint(String),
-    #[error("Failed to build payload: {0}")]
-    Custom(String),
+    #[error("Beacon API error: {0}")]
+    BeaconApi(#[from] crate::client::beacon::BeaconClientError),
+    #[error("Failed to build payload due to invalid transactions: {0}")]
+    InvalidTransactions(String),
+    #[error("Got an unexpected response from engine_newPayload query: {0}")]
+    UnexpectedPayloadStatus(PayloadStatusEnum),
+    #[error("Failed to parse any hints from engine API validation error")]
+    FailedToParseHintsFromEngine,
+    #[error("Unsupported engine hint: {0}")]
+    UnsupportedEngineHint(String),
+    #[error("Unsupported engine client: {0}")]
+    UnsupportedEngineClient(ClientCode),
+    #[error("Failed to gather hints after {0} iterations")]
+    ExceededMaxHintIterations(u64),
 }
 
 /// Local builder instance that can ingest a sealed header and
@@ -85,10 +95,10 @@ pub struct LocalBuilder {
 
 impl LocalBuilder {
     /// Create a new local builder with the given secret key.
-    pub fn new(opts: &Opts, beacon_api_client: BeaconClient, genesis_time: u64) -> Self {
+    pub fn new(opts: &Opts, genesis_time: u64) -> Self {
         Self {
             payload_and_bid: None,
-            fallback_builder: FallbackPayloadBuilder::new(opts, beacon_api_client, genesis_time),
+            fallback_builder: FallbackPayloadBuilder::new(opts, genesis_time),
             secret_key: opts.builder_private_key.clone(),
             chain: opts.chain,
         }
@@ -150,12 +160,11 @@ impl LocalBuilder {
         blob_kzg_commitments: Vec<KzgCommitment>,
     ) -> Result<SignedBuilderBid, BuilderError> {
         // compat: convert from blst to ethereum consensus types
-        let pubkey = self.secret_key.sk_to_pk().to_bytes();
-        let consensus_pubkey = PublicKey::try_from(pubkey.as_slice()).expect("valid pubkey bytes");
+        let public_key = self.secret_key.sk_to_pk().to_bytes();
+        let public_key = PublicKey::try_from(public_key.as_ref()).expect("valid public key");
         let blob_kzg_commitments = List::try_from(blob_kzg_commitments).expect("valid list");
 
-        let message =
-            BuilderBid { header, blob_kzg_commitments, public_key: consensus_pubkey, value };
+        let message = BuilderBid { header, blob_kzg_commitments, public_key, value };
 
         let signature = sign_builder_message(&self.chain, &self.secret_key, &message)?;
 

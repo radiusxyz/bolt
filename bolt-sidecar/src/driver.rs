@@ -5,7 +5,6 @@ use alloy::{
     rpc::types::beacon::events::HeadEvent,
     signers::local::PrivateKeySigner,
 };
-use beacon_api_client::mainnet::Client as BeaconClient;
 use ethereum_consensus::{
     clock::{self, SlotStream, SystemTimeProvider},
     phase0::mainnet::SLOTS_PER_EPOCH,
@@ -26,7 +25,7 @@ use crate::{
     },
     builder::payload_fetcher::LocalPayloadFetcher,
     chain_io::BoltManager,
-    client::ConstraintsClient,
+    client::{BeaconClient, ConstraintsClient},
     common::backoff::retry_with_backoff,
     config::Opts,
     crypto::{SignableBLS, SignerECDSA},
@@ -205,7 +204,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             clock::from_system_time(genesis_time, opts.chain.slot_time(), SLOTS_PER_EPOCH)
                 .into_stream();
 
-        let local_builder = LocalBuilder::new(opts, beacon_client.clone(), genesis_time);
+        let local_builder = LocalBuilder::new(opts, genesis_time);
         let head_tracker = HeadTracker::start(beacon_client.clone());
 
         let consensus = ConsensusState::new(
