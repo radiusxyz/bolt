@@ -17,7 +17,7 @@ use cb_common::{
     constants::COMMIT_BOOST_DOMAIN,
     pbs::{DenebSpec, EthSpec, SignedExecutionPayloadHeader, Transaction, VersionedResponse},
     signature::{compute_domain, compute_signing_root},
-    signer::schemes::bls::verify_bls_signature,
+    signer::verify_bls_signature,
     types::Chain,
 };
 
