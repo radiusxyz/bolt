@@ -2,7 +2,11 @@ use std::{str::FromStr, sync::Arc};
 
 use alloy::{primitives::Address, rpc::types::beacon::BlsSignature, signers::Signature};
 use cb_common::{
-    commit::{client::SignerClient, error::SignerClientError, request::SignConsensusRequest},
+    commit::{
+        client::SignerClient,
+        error::SignerClientError,
+        request::{GetPubkeysResponse, SignConsensusRequest},
+    },
     signer::EcdsaPublicKey,
 };
 use commit_boost::prelude::SignProxyRequest;
@@ -45,9 +49,8 @@ pub enum CommitBoostError {
 impl CommitBoostSigner {
     /// Create a new [CommitBoostSigner] instance
     pub fn new(signer_url: Url, jwt: &JwtSecretConfig) -> SignerResult<Self> {
-        let socket_addr = parse_address_from_url(signer_url).map_err(CommitBoostError::Other)?;
         let signer_client =
-            SignerClient::new(socket_addr, &jwt.to_hex()).map_err(CommitBoostError::Other)?;
+            SignerClient::new(signer_url, &jwt.to_hex()).map_err(CommitBoostError::Other)?;
 
         let client = Self {
             signer_client,
@@ -58,21 +61,35 @@ impl CommitBoostSigner {
         let mut this = client.clone();
         tokio::spawn(async move {
             match this.signer_client.get_pubkeys().await {
-                Ok(pubkeys) => {
+                Ok(GetPubkeysResponse { keys }) => {
+                    // Calculate totals for each key type across all mappings
+                    let consensus_count = keys.len();
+                    let proxy_bls_count = keys.iter().map(|map| map.proxy_bls.len()).sum::<usize>();
+                    let proxy_ecdsa_count =
+                        keys.iter().map(|map| map.proxy_ecdsa.len()).sum::<usize>();
+
                     info!(
-                        consensus = pubkeys.consensus.len(),
-                        bls_proxy = pubkeys.proxy_bls.len(),
-                        ecdsa_proxy = pubkeys.proxy_ecdsa.len(),
+                        consensus = consensus_count,
+                        bls_proxy = proxy_bls_count,
+                        ecdsa_proxy = proxy_ecdsa_count,
                         "Received pubkeys"
                     );
+
                     let mut pubkeys_lock = this.pubkeys.write();
                     let mut proxy_ecdsa_lock = this.proxy_ecdsa.write();
-                    *pubkeys_lock = pubkeys
-                        .consensus
-                        .into_iter()
-                        .map(|k| BlsPublicKey::try_from(k.as_ref()).unwrap())
+
+                    // Store consensus keys
+                    *pubkeys_lock = keys
+                        .iter()
+                        .map(|map| {
+                            BlsPublicKey::try_from(map.consensus.as_ref())
+                                .expect("valid consensus public key")
+                        })
                         .collect();
-                    *proxy_ecdsa_lock = pubkeys.proxy_ecdsa;
+
+                    // Collect all ECDSA proxy keys
+                    *proxy_ecdsa_lock =
+                        keys.iter().flat_map(|map| map.proxy_ecdsa.clone()).collect();
                 }
                 Err(e) => {
                     error!(?e, "Failed to fetch pubkeys");
