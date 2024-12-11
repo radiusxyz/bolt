@@ -67,7 +67,113 @@ impl CommitmentsFirewallStream {
     }
 }
 
-async fn handle_connection(url: Url, tx: mpsc::UnboundedSender<String>) {
+struct MessageProcesser {
+    tx: mpsc::UnboundedSender<CommitmentEvent>,
+    write: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
+    read: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
+    ping_recv: mpsc::Receiver<()>,
+    // NOTE: this can grow indefinitely
+    pending_commitment_responses: FuturesUnordered<
+        Pin<
+            Box<
+                dyn std::future::Future<
+                    Output = Result<
+                        Result<SignedCommitment, CommitmentError>,
+                        oneshot::error::RecvError,
+                    >,
+                >,
+            >,
+        >,
+    >,
+    pending_rpc_responses: FuturesUnordered<Pin<Box<dyn Future<Output = ()>>>>,
+}
+
+impl MessageProcesser {
+    pub fn new(
+        tx: mpsc::UnboundedSender<CommitmentEvent>,
+        write: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
+        read: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
+        ping_recv: mpsc::Receiver<()>,
+    ) -> Self {
+        Self {
+            tx,
+            write,
+            read,
+            ping_recv,
+            pending_commitment_responses: FuturesUnordered::new(),
+            pending_rpc_responses: FuturesUnordered::new(),
+        }
+    }
+}
+
+impl Future for MessageProcesser {
+    type Output = ();
+
+    fn poll(
+        self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        let this = self.get_mut();
+
+        loop {
+            // 1. handle incoming messages
+            if let Poll::Ready(Some(message)) = this.read.poll_next_unpin(cx) {
+                match message {
+                    Ok(Message::Text(text)) => {
+                        let (tx, rx) =
+                            oneshot::channel::<Result<SignedCommitment, CommitmentError>>();
+                        let request = CommitmentRequest::Inclusion(InclusionRequest::default());
+                        let event = CommitmentEvent { request, response: tx };
+                        if this.tx.send(event).is_err() {
+                            eprintln!("Failed to forward message to channel");
+                        }
+
+                        // Add the receiver's future to the FuturesUnordered
+                        this.pending_commitment_responses.push(Box::pin(async { rx.await }));
+                    }
+                    Ok(Message::Close(_)) => {
+                        println!("WebSocket closed");
+                        return Poll::Ready(());
+                    }
+                    Err(e) => {
+                        eprintln!("WebSocket error: {:?}", e);
+                        return Poll::Ready(());
+                    }
+                    _ => {} // Ignore non-text messages
+                }
+            }
+
+            // Handle ping messages
+            // if let Poll::Ready(Some(_)) = this.ping_recv.poll_recv(cx) {
+            //     if self.write.send(Message::Ping(vec![])).await.is_err() {
+            //         eprintln!("Ping send failed");
+            //         break;
+            //     }
+            // }
+
+            // Process pending oneshot responses
+            if let Poll::Ready(Some(response)) =
+                this.pending_commitment_responses.poll_next_unpin(cx)
+            {
+                match response {
+                    Ok(commitment) => {
+                        let message =
+                            Message::text(serde_json::to_string(&commitment.unwrap()).unwrap());
+                        let fut = this.write.send(message);
+                        this.pending_rpc_responses.push(Box::pin(async {
+                            fut.await;
+                        }));
+                    }
+                    Err(e) => {
+                        eprintln!("Commitment error: {:?}", e);
+                    }
+                }
+            }
+        }
+    }
+}
+
+async fn handle_connection(url: Url, tx: mpsc::Sender<CommitmentEvent>) {
     let ws_config = WebSocketConfig {
         max_message_size: Some(1 << 10), // 64KB
         ..Default::default()
@@ -123,7 +229,7 @@ async fn handle_connection(url: Url, tx: mpsc::UnboundedSender<String>) {
 
 async fn process_messages(
     mut read: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
-    tx: mpsc::UnboundedSender<String>,
+    tx: mpsc::Sender<CommitmentEvent>,
 ) {
     while let Some(message) = read.next().await {
         match message {

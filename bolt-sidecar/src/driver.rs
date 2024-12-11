@@ -18,6 +18,7 @@ use crate::{
     api::{
         builder::{start_builder_proxy_server, BuilderProxyConfig},
         commitments::{
+            firewall_stream::CommitmentsFirewallStream,
             server::{CommitmentEvent, CommitmentsApiServer},
             spec::CommitmentError,
         },
@@ -227,13 +228,27 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             }
         });
 
-        // start the commitments api server
-        let api_addr = format!(
-            "0.0.0.0:{}",
-            opts.commitment_opts.port.expect("commitments port must be provided")
-        );
-        let (api_events_tx, api_events_rx) = mpsc::channel(1024);
-        CommitmentsApiServer::new(api_addr).run(api_events_tx, opts.limits).await;
+        let api_events_rx = if let Some(port) = opts.commitment_opts.port {
+            // start the commitments api server
+            let api_addr = format!(
+                "0.0.0.0:{}",
+                opts.commitment_opts.port.expect("commitments port must be provided")
+            );
+            let (api_events_tx, api_events_rx) = mpsc::channel(1024);
+            CommitmentsApiServer::new(api_addr).run(api_events_tx, opts.limits).await;
+            api_events_rx
+        } else {
+            CommitmentsFirewallStream::new(
+                opts.commitment_opts.operator_private_key.clone(),
+                opts.chain.chain,
+                opts.commitment_opts
+                    .firewall_rpc_list
+                    .clone()
+                    .expect("firewall rpc list must be provided"),
+            )
+            .run()
+            .await
+        };
 
         let unsafe_skip_consensus_checks = opts.unsafe_disable_consensus_checks;
 
