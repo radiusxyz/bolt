@@ -22,3 +22,25 @@ pub fn compress_bls_pubkey(pubkey: &BlsPublicKey) -> CompressedHash {
 
     CompressedHash::from_slice(hash.get(0..20).expect("hash is longer than 20 bytes"))
 }
+
+#[cfg(test)]
+mod tests {
+    use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
+
+    use crate::common::hash::compress_bls_pubkey;
+
+    #[test]
+    fn test_compute_pubkey_hash() -> eyre::Result<()> {
+        let pubkey = "8fa1c53218bdcbb4c8eb27a6c92b8147ca557717a6aeb1f5c347559255b421e5c7327ab047662be883fde91947ae0334";
+        let pubkey = BlsPublicKey::try_from(hex::decode(pubkey)?.as_slice())?;
+
+        let hash = compress_bls_pubkey(&pubkey);
+        assert_eq!(
+            hex::encode(hash),
+            "9bf58e9a809e502234ece758ac401741d6c1a30d",
+            "hash should match the expected value"
+        );
+
+        Ok(())
+    }
+}
