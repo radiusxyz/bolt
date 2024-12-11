@@ -1,30 +1,43 @@
-use futures::stream::{SplitSink, SplitStream};
+use futures::stream::{FuturesUnordered, SplitSink, SplitStream};
 use futures::{SinkExt, StreamExt};
+use std::task::Poll;
 use std::time::Duration;
-use std::{
-    future::Future,
-    net::{SocketAddr, ToSocketAddrs},
-    pin::Pin,
-};
+use std::{future::Future, pin::Pin};
 use tokio::net::TcpStream;
-use tokio::sync::mpsc;
-use tokio::task;
-// use tokio_stream::StreamExt;
+use tokio::sync::{mpsc, oneshot};
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async_with_config, MaybeTlsStream, WebSocketStream};
 
 use reqwest::Url;
 
+use crate::common::secrets::EcdsaSecretKeyWrapper;
+use crate::config::chain::Chain;
+use crate::primitives::commitment::SignedCommitment;
+use crate::primitives::{CommitmentRequest, InclusionRequest};
+
+use super::server::CommitmentEvent;
+use super::spec::CommitmentError;
+
+#[allow(dead_code)]
 pub struct CommitmentsFirewallStream {
+    /// The operator's private key to sign authentication requests when opening websocket
+    /// connections with RPCs.
+    operator_private_key: EcdsaSecretKeyWrapper,
+    /// The chain ID of the chain the sidecar is running. Used for authentication purposes.
+    chain: Chain,
+    /// The URLs of the websocket servers to connect to.
     urls: Vec<Url>,
     /// The shutdown signal.
     signal: Option<Pin<Box<dyn Future<Output = ()> + Send>>>,
 }
 
+#[allow(dead_code)]
 impl CommitmentsFirewallStream {
-    pub fn new(urls: Vec<Url>) -> Self {
+    pub fn new(operator_private_key: EcdsaSecretKeyWrapper, chain: Chain, urls: Vec<Url>) -> Self {
         Self {
+            operator_private_key,
+            chain,
             urls,
             signal: Some(Box::pin(async {
                 let _ = tokio::signal::ctrl_c().await;
@@ -32,11 +45,10 @@ impl CommitmentsFirewallStream {
         }
     }
 
-    pub async fn run(&self) {
+    pub async fn run(&self) -> mpsc::Receiver<CommitmentEvent> {
         // Create a Multiple-Producer-Single-Consumer (MPSC) channel to receive messages from the
         // websocket servers on a single stream.
-        // TODO: Use a bounded channel
-        let (tx, mut rx) = mpsc::unbounded_channel();
+        let (tx, rx) = mpsc::channel(self.urls.len() * 2);
 
         for url in &self.urls {
             let url = url.clone();
@@ -46,9 +58,7 @@ impl CommitmentsFirewallStream {
             });
         }
 
-        while let Some(msg) = rx.recv().await {
-            println!("Received: {:?}", msg);
-        }
+        rx
     }
 
     /// Returns the local addr the server is listening on (or configured with).
@@ -153,12 +163,17 @@ mod tests {
     use futures::{SinkExt, StreamExt};
     use tokio::sync::broadcast;
 
-    use crate::api::commitments::firewall_stream::CommitmentsFirewallStream;
+    use crate::{
+        api::commitments::firewall_stream::CommitmentsFirewallStream,
+        common::secrets::EcdsaSecretKeyWrapper, config::chain::Chain,
+    };
 
     const FIREWALL_STREAM_PATH: &str = "/api/v1/firewall_stream";
 
     #[tokio::test]
     async fn test_firewall_rpc_stream_ws() {
+        let operator_private_key = EcdsaSecretKeyWrapper::random();
+
         // Create a Single-Producer-Multiple-Consumer (SPMC) channel via a broadcast that sends a shutdown
         // signal to all websocket servers.
         let (shutdown_tx, shutdown_rx) = broadcast::channel::<()>(1);
@@ -170,10 +185,14 @@ mod tests {
         println!("Server 2 running on port: {}", port_2);
         println!("Waiting for 5 seconds before shutting down the servers...");
 
-        let stream = CommitmentsFirewallStream::new(vec![
-            format!("ws://127.0.0.1:{}{}", port_1, FIREWALL_STREAM_PATH).parse().unwrap(),
-            format!("ws://127.0.0.1:{}{}", port_2, FIREWALL_STREAM_PATH).parse().unwrap(),
-        ]);
+        let stream = CommitmentsFirewallStream::new(
+            operator_private_key,
+            Chain::Holesky,
+            vec![
+                format!("ws://127.0.0.1:{}{}", port_1, FIREWALL_STREAM_PATH).parse().unwrap(),
+                format!("ws://127.0.0.1:{}{}", port_2, FIREWALL_STREAM_PATH).parse().unwrap(),
+            ],
+        );
 
         let _ = tokio::time::timeout(Duration::from_secs(5), async {
             stream.run().await;
