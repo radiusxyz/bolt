@@ -1,5 +1,5 @@
 /// The commitments-API stream handler.
-mod firewall_stream;
+pub mod firewall_stream;
 /// The commitments-API request handlers.
 mod handlers;
 /// The commitments-API headers and constants.
