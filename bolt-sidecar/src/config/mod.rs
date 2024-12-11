@@ -21,7 +21,6 @@ use telemetry::TelemetryOpts;
 /// Operating limits for commitments and constraints.
 pub mod limits;
 use limits::LimitsOpts;
-use tracing::debug;
 
 use crate::common::secrets::{BlsSecretKeyWrapper, EcdsaSecretKeyWrapper, JwtSecretConfig};
 
@@ -144,7 +143,6 @@ fn remove_empty_envs() -> eyre::Result<()> {
     for item in env::vars() {
         let (key, val) = item;
         if val.trim().is_empty() {
-            debug!("removing empty env var: {}", key);
             std::env::remove_var(key)
         }
     }
