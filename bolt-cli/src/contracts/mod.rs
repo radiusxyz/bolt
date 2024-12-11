@@ -16,6 +16,7 @@ pub struct Contracts {
     pub bolt: Bolt,
     pub symbiotic: Symbiotic,
     pub eigen_layer: EigenLayer,
+    pub collateral: Token,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -67,6 +68,16 @@ pub enum EigenLayerStrategy {
     WEth,
     CbEth,
     MEth,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct Token {
+    pub wst_eth: Address,
+    pub r_eth: Address,
+    pub st_eth: Address,
+    pub w_eth: Address,
+    pub cb_eth: Address,
+    pub m_eth: Address,
 }
 
 impl std::fmt::Display for EigenLayerStrategy {
@@ -144,5 +155,13 @@ const HOLESKY_DEPLOYMENTS: Contracts = Contracts {
             cb_eth: address!("70EB4D3c164a6B4A5f908D4FBb5a9cAfFb66bAB6"),
             m_eth: address!("accc5A86732BE85b5012e8614AF237801636F8e5"),
         },
+    },
+    collateral: Token {
+        wst_eth: address!("8d09a4502Cc8Cf1547aD300E066060D043f6982D"),
+        r_eth: address!("7322c24752f79c05FFD1E2a6FCB97020C1C264F1"),
+        st_eth: address!("3F1c547b21f65e10480dE3ad8E19fAAC46C95034"),
+        w_eth: address!("94373a4919B3240D86eA41593D5eBa789FEF3848"),
+        cb_eth: address!("8720095Fa5739Ab051799211B146a2EEE4Dd8B37"),
+        m_eth: address!("e3C063B1BEe9de02eb28352b55D49D85514C67FF"),
     },
 };
