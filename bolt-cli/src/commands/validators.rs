@@ -102,6 +102,7 @@ impl ValidatorsCommand {
 
                 Ok(())
             }
+
             ValidatorsSubcommand::Status { rpc_url, pubkeys_path, pubkeys } => {
                 let provider = ProviderBuilder::new().on_http(rpc_url);
                 let chain_id = provider.get_chain_id().await?;
@@ -132,7 +133,13 @@ impl ValidatorsCommand {
                     match bolt_validators.getValidatorByPubkeyHash(*hash).call().await.map(|v| v._0)
                     {
                         Ok(info) => {
-                            info!(%pubkey, operator = %info.authorizedOperator, controller = %info.controller, gas_limit = info.maxCommittedGasLimit, "Validator registered");
+                            info!(
+                                %pubkey,
+                                operator = %info.authorizedOperator,
+                                controller = %info.controller,
+                                gas_limit = info.maxCommittedGasLimit,
+                                "Validator registered"
+                            );
                         }
                         Err(_e) => {
                             warn!(%pubkey, "Validator not registered");
