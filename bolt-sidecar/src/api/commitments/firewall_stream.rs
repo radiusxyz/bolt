@@ -1,13 +1,16 @@
 use futures::stream::{FuturesUnordered, SplitSink, SplitStream};
-use futures::{SinkExt, StreamExt};
+use futures::{FutureExt, SinkExt, StreamExt};
+use std::collections::VecDeque;
 use std::task::Poll;
 use std::time::Duration;
 use std::{future::Future, pin::Pin};
 use tokio::net::TcpStream;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::broadcast::error::TryRecvError;
+use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async_with_config, MaybeTlsStream, WebSocketStream};
+use tracing::{error, info, warn};
 
 use reqwest::Url;
 
@@ -18,6 +21,9 @@ use crate::primitives::{CommitmentRequest, InclusionRequest};
 
 use super::server::CommitmentEvent;
 use super::spec::CommitmentError;
+
+/// The interval at which to send ping messages from connected clients.
+const PING_INTERVAL: Duration = Duration::from_secs(30);
 
 #[allow(dead_code)]
 pub struct CommitmentsFirewallStream {
@@ -48,17 +54,32 @@ impl CommitmentsFirewallStream {
     pub async fn run(&self) -> mpsc::Receiver<CommitmentEvent> {
         // Create a Multiple-Producer-Single-Consumer (MPSC) channel to receive messages from the
         // websocket servers on a single stream.
-        let (tx, rx) = mpsc::channel(self.urls.len() * 2);
+        let (api_event_tx, api_events_rx) = mpsc::channel(self.urls.len() * 2);
+        let (ping_tx, ping_rx) = broadcast::channel::<()>(1);
+
+        // Create a task to send pings to the server at regular intervals
+        let _ = tokio::spawn(async move {
+            let ping_interval = tokio::time::interval(PING_INTERVAL);
+            tokio::pin!(ping_interval);
+
+            loop {
+                ping_interval.tick().await;
+                if let Err(err) = ping_tx.send(()) {
+                    error!(?err, "internal error while sending ping task")
+                }
+            }
+        });
 
         for url in &self.urls {
             let url = url.clone();
-            let tx = tx.clone();
+            let api_events_tx = api_event_tx.clone();
+            let ping_rx = ping_rx.resubscribe();
             tokio::spawn(async move {
-                handle_connection(url, tx).await;
+                handle_connection(url, api_events_tx, ping_rx).await;
             });
         }
 
-        rx
+        api_events_rx
     }
 
     /// Returns the local addr the server is listening on (or configured with).
@@ -67,41 +88,79 @@ impl CommitmentsFirewallStream {
     }
 }
 
+async fn handle_connection(
+    url: Url,
+    api_events_tx: mpsc::Sender<CommitmentEvent>,
+    ping_rx: broadcast::Receiver<()>,
+) {
+    let ws_config = WebSocketConfig {
+        max_message_size: Some(1 << 10), // 64KB
+        ..Default::default()
+    };
+
+    loop {
+        match connect_async_with_config(url.to_string(), Some(ws_config), false).await {
+            Ok((stream, _response)) => {
+                info!(?url, "opened websocket connection");
+                let (write, read) = stream.split();
+
+                let message_processer = MessageProcesser::new(
+                    url.clone(),
+                    api_events_tx.clone(),
+                    write,
+                    read,
+                    ping_rx.resubscribe(),
+                );
+                message_processer.await
+            }
+            Err(e) => {
+                error!(?e, ?url, "failed to connect");
+            }
+        }
+
+        // Reconnect on failure
+        println!("Reconnecting to {}", url);
+        tokio::time::sleep(Duration::from_secs(5)).await;
+    }
+}
+
 struct MessageProcesser {
-    tx: mpsc::UnboundedSender<CommitmentEvent>,
+    url: Url,
+    tx: mpsc::Sender<CommitmentEvent>,
     write: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
     read: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
-    ping_recv: mpsc::Receiver<()>,
-    // NOTE: this can grow indefinitely
+    ping_rx: broadcast::Receiver<()>,
     pending_commitment_responses: FuturesUnordered<
         Pin<
             Box<
-                dyn std::future::Future<
-                    Output = Result<
-                        Result<SignedCommitment, CommitmentError>,
-                        oneshot::error::RecvError,
-                    >,
-                >,
+                dyn Future<
+                        Output = Result<
+                            Result<SignedCommitment, CommitmentError>,
+                            oneshot::error::RecvError,
+                        >,
+                    > + Send,
             >,
         >,
     >,
-    pending_rpc_responses: FuturesUnordered<Pin<Box<dyn Future<Output = ()>>>>,
+    outgoing_messages: VecDeque<Message>,
 }
 
 impl MessageProcesser {
     pub fn new(
-        tx: mpsc::UnboundedSender<CommitmentEvent>,
+        url: Url,
+        tx: mpsc::Sender<CommitmentEvent>,
         write: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
         read: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
-        ping_recv: mpsc::Receiver<()>,
+        ping_rx: broadcast::Receiver<()>,
     ) -> Self {
         Self {
+            url,
             tx,
             write,
             read,
-            ping_recv,
+            ping_rx,
             pending_commitment_responses: FuturesUnordered::new(),
-            pending_rpc_responses: FuturesUnordered::new(),
+            outgoing_messages: VecDeque::new(),
         }
     }
 }
@@ -114,140 +173,122 @@ impl Future for MessageProcesser {
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
         let this = self.get_mut();
+        let rpc_url = this.url.clone();
 
         loop {
-            // 1. handle incoming messages
-            if let Poll::Ready(Some(message)) = this.read.poll_next_unpin(cx) {
-                match message {
-                    Ok(Message::Text(text)) => {
-                        let (tx, rx) =
-                            oneshot::channel::<Result<SignedCommitment, CommitmentError>>();
-                        let request = CommitmentRequest::Inclusion(InclusionRequest::default());
-                        let event = CommitmentEvent { request, response: tx };
-                        if this.tx.send(event).is_err() {
-                            eprintln!("Failed to forward message to channel");
-                        }
+            let mut progress = false;
 
-                        // Add the receiver's future to the FuturesUnordered
-                        this.pending_commitment_responses.push(Box::pin(async { rx.await }));
+            // 1. Handle incoming WebSocket messages
+            match this.read.poll_next_unpin(cx) {
+                Poll::Ready(Some(message)) => {
+                    progress = true;
+
+                    match message {
+                        Ok(Message::Text(_text)) => {
+                            let (tx, rx) = oneshot::channel();
+                            let request = CommitmentRequest::Inclusion(InclusionRequest::default());
+                            let event = CommitmentEvent { request, response: tx };
+                            if let Err(err) = this.tx.try_send(event) {
+                                error!(?err, "failed to forward commitment event to channel");
+                            }
+
+                            // Add the receiver's future to the FuturesUnordered
+                            this.pending_commitment_responses.push(rx.boxed());
+                        }
+                        Ok(Message::Close(_)) => {
+                            warn!(?rpc_url, "websocket connection closed by server");
+                            return Poll::Ready(());
+                        }
+                        Err(e) => {
+                            error!(?e, ?rpc_url, "error reading message from websocket connection");
+                            return Poll::Ready(());
+                        }
+                        _ => {} // Ignore non-text messages
                     }
-                    Ok(Message::Close(_)) => {
-                        println!("WebSocket closed");
-                        return Poll::Ready(());
-                    }
-                    Err(e) => {
-                        eprintln!("WebSocket error: {:?}", e);
-                        return Poll::Ready(());
-                    }
-                    _ => {} // Ignore non-text messages
                 }
+                Poll::Ready(None) => {
+                    warn!("websocket connection with {} closed by server", rpc_url);
+                    return Poll::Ready(());
+                }
+                _ => {}
             }
 
-            // Handle ping messages
-            // if let Poll::Ready(Some(_)) = this.ping_recv.poll_recv(cx) {
-            //     if self.write.send(Message::Ping(vec![])).await.is_err() {
-            //         eprintln!("Ping send failed");
-            //         break;
-            //     }
-            // }
-
-            // Process pending oneshot responses
-            if let Poll::Ready(Some(response)) =
+            // 2. Handle commitment responses
+            while let Poll::Ready(Some(response)) =
                 this.pending_commitment_responses.poll_next_unpin(cx)
             {
+                progress = true;
                 match response {
-                    Ok(commitment) => {
-                        let message =
-                            Message::text(serde_json::to_string(&commitment.unwrap()).unwrap());
-                        let fut = this.write.send(message);
-                        this.pending_rpc_responses.push(Box::pin(async {
-                            fut.await;
-                        }));
-                    }
-                    Err(e) => {
-                        eprintln!("Commitment error: {:?}", e);
-                    }
-                }
-            }
-        }
-    }
-}
-
-async fn handle_connection(url: Url, tx: mpsc::Sender<CommitmentEvent>) {
-    let ws_config = WebSocketConfig {
-        max_message_size: Some(1 << 10), // 64KB
-        ..Default::default()
-    };
-
-    loop {
-        match connect_async_with_config(url.to_string(), Some(ws_config), false).await {
-            Ok((stream, _response)) => {
-                println!("Connected to: {}", url);
-                let (mut write, read) = stream.split();
-
-                // Create a task to send pings to the server at regular intervals
-                let ping_task = tokio::spawn(async move {
-                    let ping_interval = tokio::time::interval(Duration::from_secs(1));
-                    tokio::pin!(ping_interval);
-
-                    loop {
-                        ping_interval.tick().await;
-                        if write.send(Message::Ping(vec![8, 0, 1, 7])).await.is_err() {
-                            println!("Ping failed. Disconnecting...");
-                            break;
+                    Ok(commitment_result) => {
+                        if let Ok(commitment) = commitment_result {
+                            let message =
+                                Message::text(serde_json::to_string(&commitment).unwrap());
+                            this.outgoing_messages.push_back(message);
                         }
                     }
-                });
-
-                let tx_clone = tx.clone();
-                let read_task = tokio::spawn(async move {
-                    process_messages(read, tx_clone).await;
-                });
-
-                // PERF: is it more efficient to have a custom poll implementation?
-                tokio::select! {
-                    _ = ping_task => {
-                        println!("Ping task ended. Disconnecting...");
-                        break;
-                    }
-                    _ = read_task => {
-                        println!("Read task ended. Disconnecting...");
-                        break;
+                    Err(e) => {
+                        error!(?e, "failed to receive commitment response");
                     }
                 }
             }
-            Err(e) => {
-                eprintln!("Failed to connect to {}: {:?}", url, e);
+
+            // 3. Handle ping messages
+            match this.ping_rx.try_recv() {
+                Ok(_) => {
+                    progress = true;
+                    this.outgoing_messages.push_back(Message::Ping(vec![8, 0, 1, 7]));
+                }
+                Err(TryRecvError::Closed) => {
+                    error!("ping channel for keep-alive messages closed");
+                    return Poll::Ready(());
+                }
+                Err(TryRecvError::Lagged(lost)) => {
+                    error!("ping channel for keep-alives lagged by {} messages", lost)
+                }
+                _ => {}
             }
-        }
 
-        // Reconnect on failure
-        println!("Reconnecting to {}", url);
-        tokio::time::sleep(Duration::from_secs(5)).await;
-    }
-}
+            // 4. Process outgoing messages
+            while let Some(message) = this.outgoing_messages.pop_front() {
+                match this.write.poll_ready_unpin(cx) {
+                    Poll::Ready(Ok(())) => {
+                        progress = true;
 
-async fn process_messages(
-    mut read: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
-    tx: mpsc::Sender<CommitmentEvent>,
-) {
-    while let Some(message) = read.next().await {
-        match message {
-            Ok(Message::Text(text)) => {
-                println!("Received: {}", text);
-                if tx.send(text).is_err() {
-                    eprintln!("Failed to forward message to channel");
+                        if let Err(e) = this.write.start_send_unpin(message) {
+                            error!(?e, ?rpc_url, "failed to send message to websocket connection");
+                            // NOTE: Should we return here?
+                            // return Poll::Ready(());
+                        }
+                    }
+                    Poll::Pending => {
+                        // Put the message back and try again later
+                        this.outgoing_messages.push_front(message);
+                        break;
+                    }
+                    Poll::Ready(Err(e)) => {
+                        error!(?e, "sink error while sending message to websocket");
+                        // NOTE: Should we return here?
+                        // return Poll::Ready(());
+                    }
                 }
             }
-            Ok(Message::Close(_)) => {
-                println!("WebSocket closed");
-                break;
+
+            // 5. Ensure the write sink is flushed
+            match this.write.poll_flush_unpin(cx) {
+                Poll::Ready(Ok(())) => {
+                    progress = true;
+                }
+                Poll::Ready(Err(e)) => {
+                    error!(?e, "failed to flush websocket write sink");
+                    // NOTE: Should we return here?
+                    // return Poll::Ready(());
+                }
+                _ => {}
             }
-            Err(e) => {
-                eprintln!("WebSocket error: {:?}", e);
-                break;
+
+            if !progress {
+                return Poll::Pending;
             }
-            _ => {} // Ignore non-text messages
         }
     }
 }
