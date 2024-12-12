@@ -1,7 +1,9 @@
 use alloy::{
     network::EthereumWallet,
-    node_bindings::WEI_IN_ETHER,
-    primitives::{utils::format_ether, Bytes, Uint},
+    primitives::{
+        utils::{format_ether, Unit},
+        Bytes, Uint,
+    },
     providers::{Provider, ProviderBuilder, WalletProvider},
     signers::{local::PrivateKeySigner, SignerSync},
     sol_types::SolInterface,
@@ -65,7 +67,7 @@ impl OperatorsCommand {
 
                     let token = strategy_contract.underlyingToken().call().await?.token;
 
-                    let amount = amount * WEI_IN_ETHER;
+                    let amount = amount * Unit::ETHER.wei();
 
                     info!(%strategy, %token, amount = format_ether(amount), ?operator, "Depositing funds into EigenLayer strategy");
 
@@ -276,7 +278,7 @@ impl OperatorsCommand {
                             info!(?address, token = %name, amount = ?stake, "Operator has collateral");
                         }
                     }
-                    if total_collateral >= WEI_IN_ETHER {
+                    if total_collateral >= Unit::ETHER.wei() {
                         info!(?address, total_collateral=?total_collateral, "Operator is active");
                     } else if total_collateral > Uint::from(0) {
                         info!(?address, total_collateral=?total_collateral, "Total operator collateral");
@@ -452,7 +454,7 @@ impl OperatorsCommand {
                             info!(?address, token = %name, amount = ?stake, "Operator has collateral");
                         }
                     }
-                    if total_collateral >= WEI_IN_ETHER {
+                    if total_collateral >= Unit::ETHER.wei() {
                         info!(?address, total_collateral=?total_collateral, "Operator is active");
                     } else if total_collateral > Uint::from(0) {
                         info!(?address, total_collateral=?total_collateral, "Total operator collateral");
