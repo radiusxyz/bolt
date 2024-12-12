@@ -256,63 +256,16 @@ impl OperatorsCommand {
 
                     // Check if operator has collateral
                     let mut total_collateral = Uint::from(0);
-                    // Check r_eth
-                    let stake = bolt_manager
-                        .getOperatorStake(address, deployments.collateral.r_eth)
-                        .call()
-                        .await?
-                        ._0;
-                    if stake > Uint::from(0) {
-                        total_collateral += stake;
-                        info!(?address, token="r_eth", amount=?stake, "Operator has collateral");
+                    for (name, address) in deployments.collateral {
+                        let stake =
+                            bolt_manager.getOperatorStake(address, address).call().await?._0;
+                        if stake > Uint::from(0) {
+                            total_collateral += stake;
+                            info!(?address, token = %name, amount = ?stake, "Operator has collateral");
+                        }
                     }
-
-                    // Check st_eth
-                    let stake = bolt_manager
-                        .getOperatorStake(address, deployments.collateral.st_eth)
-                        .call()
-                        .await?
-                        ._0;
-                    if stake > Uint::from(0) {
-                        total_collateral += stake;
-                        info!(?address, token="st_eth", amount=?stake, "Operator has collateral");
-                    }
-
-                    // Check w_eth
-                    let stake = bolt_manager
-                        .getOperatorStake(address, deployments.collateral.w_eth)
-                        .call()
-                        .await?
-                        ._0;
-                    if stake > Uint::from(0) {
-                        total_collateral += stake;
-                        info!(?address, token="w_eth", amount=?stake, "Operator has collateral");
-                    }
-
-                    // Check cb_eth
-                    let stake = bolt_manager
-                        .getOperatorStake(address, deployments.collateral.cb_eth)
-                        .call()
-                        .await?
-                        ._0;
-                    if stake > Uint::from(0) {
-                        total_collateral += stake;
-                        info!(?address, token="cb_eth", amount=?stake, "Operator has collateral");
-                    }
-
-                    // Check m_eth
-                    let stake = bolt_manager
-                        .getOperatorStake(address, deployments.collateral.m_eth)
-                        .call()
-                        .await?
-                        ._0;
-                    if stake > Uint::from(0) {
-                        total_collateral += stake;
-                        info!(?address, token="m_eth", amount=?stake, "Operator has collateral");
-                    }
-
                     if total_collateral > Uint::from(0) {
-                        info!(?address, total_collateral=?total_collateral, "Operator has collateral");
+                        info!(?address, total_collateral=?total_collateral, "Total operator collateral");
                     } else {
                         warn!(?address, "Operator has no collateral");
                     }
@@ -465,74 +418,16 @@ impl OperatorsCommand {
 
                     // Check if operator has collateral
                     let mut total_collateral = Uint::from(0);
-                    // Check wst_eth
-                    let stake = bolt_manager
-                        .getOperatorStake(address, deployments.collateral.wst_eth)
-                        .call()
-                        .await?
-                        ._0;
-                    if stake > Uint::from(0) {
-                        total_collateral += stake;
-                        info!(?address, token="wst_eth", amount=?stake, "Operator has collateral");
+                    for (name, address) in deployments.collateral {
+                        let stake =
+                            bolt_manager.getOperatorStake(address, address).call().await?._0;
+                        if stake > Uint::from(0) {
+                            total_collateral += stake;
+                            info!(?address, token = %name, amount = ?stake, "Operator has collateral");
+                        }
                     }
-
-                    // Check r_eth
-                    let stake = bolt_manager
-                        .getOperatorStake(address, deployments.collateral.r_eth)
-                        .call()
-                        .await?
-                        ._0;
-                    if stake > Uint::from(0) {
-                        total_collateral += stake;
-                        info!(?address, token="r_eth", amount=?stake, "Operator has collateral");
-                    }
-
-                    // Check st_eth
-                    let stake = bolt_manager
-                        .getOperatorStake(address, deployments.collateral.st_eth)
-                        .call()
-                        .await?
-                        ._0;
-                    if stake > Uint::from(0) {
-                        total_collateral += stake;
-                        info!(?address, token="st_eth", amount=?stake, "Operator has collateral");
-                    }
-
-                    // Check w_eth
-                    let stake = bolt_manager
-                        .getOperatorStake(address, deployments.collateral.w_eth)
-                        .call()
-                        .await?
-                        ._0;
-                    if stake > Uint::from(0) {
-                        total_collateral += stake;
-                        info!(?address, token="w_eth", amount=?stake, "Operator has collateral");
-                    }
-
-                    // Check cb_eth
-                    let stake = bolt_manager
-                        .getOperatorStake(address, deployments.collateral.cb_eth)
-                        .call()
-                        .await?
-                        ._0;
-                    if stake > Uint::from(0) {
-                        total_collateral += stake;
-                        info!(?address, token="cb_eth", amount=?stake, "Operator has collateral");
-                    }
-
-                    // Check m_eth
-                    let stake = bolt_manager
-                        .getOperatorStake(address, deployments.collateral.m_eth)
-                        .call()
-                        .await?
-                        ._0;
-                    if stake > Uint::from(0) {
-                        total_collateral += stake;
-                        info!(?address, token="m_eth", amount=?stake, "Operator has collateral");
-                    }
-
                     if total_collateral > Uint::from(0) {
-                        info!(?address, total_collateral=?total_collateral, "Operator has collateral");
+                        info!(?address, total_collateral=?total_collateral, "Total operator collateral");
                     } else {
                         warn!(?address, "Operator has no collateral");
                     }
