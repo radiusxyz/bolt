@@ -3,7 +3,7 @@ pragma solidity 0.8.25;
 
 import {EnumerableMapV2} from "../lib/EnumerableMapV2.sol";
 
-interface IBoltManagerV2 {
+interface IBoltManagerV3 {
     error InvalidQuery();
     error OperatorAlreadyRegistered();
     error OperatorNotRegistered();
@@ -47,9 +47,9 @@ interface IBoltManagerV2 {
 
     function getOperatorData(
         address operator
-    ) public view returns (EnumerableMapV2.Operator memory operatorData);
+    ) external view returns (EnumerableMapV2.Operator memory operatorData);
 
-    function getAllOperatorsData() public view returns (EnumerableMapV2.Operator[] memory operatorData);
+    function getAllOperatorsData() external view returns (EnumerableMapV2.Operator[] memory operatorData);
 
     function getProposerStatus(
         bytes20 pubkeyHash
