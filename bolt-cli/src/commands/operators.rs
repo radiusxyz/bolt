@@ -1,7 +1,9 @@
 use alloy::{
     network::EthereumWallet,
-    node_bindings::WEI_IN_ETHER,
-    primitives::{utils::format_ether, Bytes},
+    primitives::{
+        utils::{format_ether, Unit},
+        Bytes, Uint,
+    },
     providers::{Provider, ProviderBuilder, WalletProvider},
     signers::{local::PrivateKeySigner, SignerSync},
     sol_types::SolInterface,
@@ -65,7 +67,7 @@ impl OperatorsCommand {
 
                     let token = strategy_contract.underlyingToken().call().await?.token;
 
-                    let amount = amount * WEI_IN_ETHER;
+                    let amount = amount * Unit::ETHER.wei();
 
                     info!(%strategy, %token, amount = format_ether(amount), ?operator, "Depositing funds into EigenLayer strategy");
 
@@ -254,6 +256,36 @@ impl OperatorsCommand {
                         warn!(?address, "Operator not registered");
                     }
 
+                    // Check if operator has collateral
+                    let mut total_collateral = Uint::from(0);
+                    for (name, address) in deployments.collateral {
+                        let stake =
+                            match bolt_manager.getOperatorStake(address, address).call().await {
+                                Ok(stake) => stake._0,
+                                Err(e) => match try_parse_contract_error::<
+                                    BoltEigenLayerMiddlewareErrors,
+                                >(e)?
+                                {
+                                    BoltEigenLayerMiddlewareErrors::KeyNotFound(_) => Uint::from(0),
+                                    other => unreachable!(
+                                        "Unexpected error with selector {:?}",
+                                        other.selector()
+                                    ),
+                                },
+                            };
+                        if stake > Uint::from(0) {
+                            total_collateral += stake;
+                            info!(?address, token = %name, amount = ?stake, "Operator has collateral");
+                        }
+                    }
+                    if total_collateral >= Unit::ETHER.wei() {
+                        info!(?address, total_collateral=?total_collateral, "Operator is active");
+                    } else if total_collateral > Uint::from(0) {
+                        info!(?address, total_collateral=?total_collateral, "Total operator collateral");
+                    } else {
+                        warn!(?address, "Operator has no collateral");
+                    }
+
                     Ok(())
                 }
             },
@@ -398,6 +430,36 @@ impl OperatorsCommand {
                         info!(?address, "Symbiotic operator is registered");
                     } else {
                         warn!(?address, "Operator not registered");
+                    }
+
+                    // Check if operator has collateral
+                    let mut total_collateral = Uint::from(0);
+                    for (name, address) in deployments.collateral {
+                        let stake =
+                            match bolt_manager.getOperatorStake(address, address).call().await {
+                                Ok(stake) => stake._0,
+                                Err(e) => match try_parse_contract_error::<
+                                    BoltSymbioticMiddlewareErrors,
+                                >(e)?
+                                {
+                                    BoltSymbioticMiddlewareErrors::KeyNotFound(_) => Uint::from(0),
+                                    other => unreachable!(
+                                        "Unexpected error with selector {:?}",
+                                        other.selector()
+                                    ),
+                                },
+                            };
+                        if stake > Uint::from(0) {
+                            total_collateral += stake;
+                            info!(?address, token = %name, amount = ?stake, "Operator has collateral");
+                        }
+                    }
+                    if total_collateral >= Unit::ETHER.wei() {
+                        info!(?address, total_collateral=?total_collateral, "Operator is active");
+                    } else if total_collateral > Uint::from(0) {
+                        info!(?address, total_collateral=?total_collateral, "Total operator collateral");
+                    } else {
+                        warn!(?address, "Operator has no collateral");
                     }
 
                     Ok(())

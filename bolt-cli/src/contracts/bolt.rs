@@ -64,6 +64,7 @@ sol! {
         error AlreadyRegistered();
         error NotOperator();
         error NotRegistered();
+        error KeyNotFound();
     }
 
     #[allow(missing_docs)]
@@ -87,5 +88,6 @@ sol! {
         error AlreadyRegistered();
         error NotOperator();
         error NotRegistered();
+        error KeyNotFound();
     }
 }

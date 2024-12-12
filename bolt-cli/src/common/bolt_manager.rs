@@ -82,6 +82,7 @@ sol! {
         function getProposerStatus(bytes32 pubkeyHash) external view returns (ProposerStatus memory);
 
         function isOperator(address operator) public view returns (bool);
+        function getOperatorStake(address operator, address collateral) public view returns (uint256);
 
         error InvalidQuery();
         error ValidatorDoesNotExist();
