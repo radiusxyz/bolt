@@ -13,7 +13,7 @@ pub const DEFAULT_RPC_PORT: u16 = 8017;
 #[derive(Args, Deserialize, Debug, Clone)]
 #[clap(
     group = ArgGroup::new("commitments-opts").required(true)
-        .args(&["commitments_port", "firewall_rpc"])
+        .args(&["port", "firewall_rpc"])
 )]
 pub struct CommitmentOpts {
     /// Port to listen on for incoming JSON-RPC requests of the Commitments API.
@@ -22,12 +22,7 @@ pub struct CommitmentOpts {
     pub port: Option<u16>,
     /// Comma-separated list of allowed RPC addresses to subscribe via websocket to receive
     /// incoming commitments requests.
-    #[clap(
-        long,
-        env = "BOLT_SIDECAR_FIREWALL_RPC",
-        value_delimiter = ',',
-        conflicts_with("commitments_port")
-    )]
+    #[clap(long, env = "BOLT_SIDECAR_FIREWALL_RPC", value_delimiter = ',', conflicts_with("port"))]
     pub firewall_rpc_list: Option<Vec<Url>>,
     /// Secret ECDSA key used to sign commitment messages on behalf of your validators.
     /// This MUST be set to the private key of your operator address registered in a restaking protocol.

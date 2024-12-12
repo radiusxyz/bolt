@@ -50,7 +50,7 @@ pub struct CommitmentsFirewallRecv {
 
 impl Debug for CommitmentsFirewallRecv {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("CommitmentsFirewallStream")
+        f.debug_struct("CommitmentsFirewallRecv")
             .field("operator_private_key", &"********")
             .field("chain", &self.chain)
             .field("urls", &self.urls)
@@ -242,47 +242,35 @@ impl Future for CommitmentRequestProcessor {
             while let Poll::Ready(maybe_message) = this.read_stream.poll_next_unpin(cx) {
                 progress = true;
 
-                match maybe_message {
-                    Some(message_res) => {
-                        match message_res {
-                            Ok(Message::Text(text)) => {
-                                trace!(
-                                    ?rpc_url,
-                                    text,
-                                    "received text message from websocket connection"
-                                );
-                                // Create the channel to send and receive the commitment response
-                                let (tx, rx) = oneshot::channel();
+                let Some(res_message) = maybe_message else {
+                    warn!("websocket connection with {} closed by server", rpc_url);
+                    return Poll::Ready(true);
+                };
 
-                                // TODO: parse the text into a commitment request
-                                let request =
-                                    CommitmentRequest::Inclusion(InclusionRequest::default());
-                                let event = CommitmentEvent { request, response: tx };
+                match res_message {
+                    Ok(Message::Text(text)) => {
+                        trace!(?rpc_url, text, "received text message from websocket connection");
+                        // Create the channel to send and receive the commitment response
+                        let (tx, rx) = oneshot::channel();
 
-                                if let Err(err) = this.api_events_tx.try_send(event) {
-                                    error!(?err, "failed to forward commitment event to channel");
-                                }
+                        // TODO: parse the text into a commitment request
+                        let request = CommitmentRequest::Inclusion(InclusionRequest::default());
+                        let event = CommitmentEvent { request, response: tx };
 
-                                // add the pending response to this buffer for later processing
-                                this.pending_commitment_responses.push(rx.boxed());
-                            }
-                            Ok(Message::Close(_)) => {
-                                warn!(?rpc_url, "websocket connection closed by server");
-                                return Poll::Ready(true);
-                            }
-                            Ok(_) => {} // ignore other message types
-                            Err(e) => {
-                                error!(
-                                    ?e,
-                                    ?rpc_url,
-                                    "error reading message from websocket connection"
-                                );
-                                return Poll::Ready(true);
-                            }
+                        if let Err(err) = this.api_events_tx.try_send(event) {
+                            error!(?err, "failed to forward commitment event to channel");
                         }
+
+                        // add the pending response to this buffer for later processing
+                        this.pending_commitment_responses.push(rx.boxed());
                     }
-                    None => {
-                        warn!("websocket connection with {} closed by server", rpc_url);
+                    Ok(Message::Close(_)) => {
+                        warn!(?rpc_url, "websocket connection closed by server");
+                        return Poll::Ready(true);
+                    }
+                    Ok(_) => {} // ignore other message types
+                    Err(e) => {
+                        error!(?e, ?rpc_url, "error reading message from websocket connection");
                         return Poll::Ready(true);
                     }
                 }
@@ -293,20 +281,17 @@ impl Future for CommitmentRequestProcessor {
                 this.pending_commitment_responses.poll_next_unpin(cx)
             {
                 progress = true;
-                match response {
-                    Ok(commitment_result) => {
-                        if let Ok(commitment) = commitment_result {
-                            trace!(?rpc_url, ?commitment, "received commitment response");
-                            // TODO: check whether this format is correct + handle errors.
-                            let message =
-                                Message::text(serde_json::to_string(&commitment).unwrap());
-                            // Add the message to the outgoing messages queue
-                            this.outgoing_messages.push_back(message);
-                        }
-                    }
-                    Err(e) => {
-                        error!(?e, "failed to receive commitment response");
-                    }
+                let Ok(result_commitment) = response else {
+                    error!("failed to receive commitment response. dropped sender");
+                    continue;
+                };
+
+                if let Ok(commitment) = result_commitment {
+                    trace!(?rpc_url, ?commitment, "received commitment response");
+                    // TODO: check whether this format is correct + handle errors.
+                    let message = Message::text(serde_json::to_string(&commitment).unwrap());
+                    // Add the message to the outgoing messages queue
+                    this.outgoing_messages.push_back(message);
                 }
             }
 
