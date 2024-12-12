@@ -159,6 +159,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         commitment_signer: ECDSA,
         fetcher: C,
     ) -> eyre::Result<Self> {
+        println!("opts {:#?}", opts);
         let mut constraints_client = ConstraintsClient::new(opts.constraints_api_url.clone());
 
         // read the delegations from disk if they exist and add them to the constraints client.
@@ -238,10 +239,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             CommitmentsFirewallRecv::new(
                 opts.commitment_opts.operator_private_key.clone(),
                 opts.chain.chain,
-                opts.commitment_opts
-                    .firewall_rpc_list
-                    .clone()
-                    .expect("firewall rpc list must be provided"),
+                opts.commitment_opts.gateway_urls.clone().expect("gateway urls must be provided"),
             )
             .run()
             .await

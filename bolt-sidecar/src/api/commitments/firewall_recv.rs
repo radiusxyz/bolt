@@ -16,6 +16,7 @@ use tracing::{error, info, trace, warn};
 
 use reqwest::Url;
 
+use crate::common::backoff::retry_with_backoff;
 use crate::common::secrets::EcdsaSecretKeyWrapper;
 use crate::config::chain::Chain;
 use crate::primitives::commitment::SignedCommitment;
@@ -29,6 +30,9 @@ use super::spec::CommitmentError;
 const PING_INTERVAL: Duration = Duration::from_secs(3);
 #[cfg(not(test))]
 const PING_INTERVAL: Duration = Duration::from_secs(30);
+
+/// The maximum number of retries to attempt when reconnecting to a websocket server.
+const MAX_RETRIES: usize = 10;
 
 type ShutdownSignal = Pin<Box<dyn Future<Output = ()> + Send>>;
 
@@ -167,6 +171,8 @@ async fn handle_connection(
             warn!("shutting down connection to {}", url);
             break;
         }
+
+        // retry_with_backoff(MAX_RETRIES, fut)
 
         // Reconnect on failure
         // TODO: add backoff

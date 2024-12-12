@@ -2,7 +2,7 @@ use std::{future::Future, time::Duration};
 
 use tokio_retry::{
     strategy::{jitter, ExponentialBackoff},
-    Retry,
+    Condition, Retry, RetryIf,
 };
 
 /// Retry a future with exponential backoff and jitter.
@@ -18,6 +18,24 @@ where
 
     Retry::spawn(backoff, fut).await
 }
+
+/// Retry a future with exponential backoff and jitter if the error matches a condition.
+// pub async fn retry_with_backoff_if<F, T, E>(
+//     max_retries: usize,
+//     fut: impl Fn() -> F,
+//     condition: Condition,
+// ) -> Result<T, E>
+// where
+//     F: Future<Output = Result<T, E>>,
+// {
+//     let backoff = ExponentialBackoff::from_millis(100)
+//         .factor(2)
+//         .max_delay(Duration::from_secs(1))
+//         .take(max_retries)
+//         .map(jitter);
+//
+//     RetryIf::spawn(backoff, fut).await
+// }
 
 #[cfg(test)]
 mod tests {
