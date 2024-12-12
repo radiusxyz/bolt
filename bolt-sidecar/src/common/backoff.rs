@@ -20,22 +20,22 @@ where
 }
 
 /// Retry a future with exponential backoff and jitter if the error matches a condition.
-// pub async fn retry_with_backoff_if<F, T, E>(
-//     max_retries: usize,
-//     fut: impl Fn() -> F,
-//     condition: Condition,
-// ) -> Result<T, E>
-// where
-//     F: Future<Output = Result<T, E>>,
-// {
-//     let backoff = ExponentialBackoff::from_millis(100)
-//         .factor(2)
-//         .max_delay(Duration::from_secs(1))
-//         .take(max_retries)
-//         .map(jitter);
-//
-//     RetryIf::spawn(backoff, fut).await
-// }
+pub async fn retry_with_backoff_if<F, T, E>(
+    max_retries: usize,
+    fut: impl Fn() -> F,
+    condition: impl FnMut(&E) -> bool,
+) -> Result<T, E>
+where
+    F: Future<Output = Result<T, E>>,
+{
+    let backoff = ExponentialBackoff::from_millis(100)
+        .factor(2)
+        .max_delay(Duration::from_secs(1))
+        .take(max_retries)
+        .map(jitter);
+
+    RetryIf::spawn(backoff, fut, condition).await
+}
 
 #[cfg(test)]
 mod tests {
@@ -99,6 +99,25 @@ mod tests {
             let mut counter = counter.lock().await;
             counter.retryable_fn().await
         })
+        .await;
+
+        assert!(result.is_ok());
+        assert_eq!(counter.lock().await.count, 4, "Should retry until success on 4th attempt");
+    }
+
+    #[tokio::test]
+    async fn test_retry_until_success_with_condition() {
+        let counter = Arc::new(Mutex::new(Counter::new(3))); // Fail 3 times, succeed on 4th
+
+        let result = retry_with_backoff_if(
+            5,
+            || async {
+                let counter = Arc::clone(&counter);
+                let mut counter = counter.lock().await;
+                counter.retryable_fn().await
+            },
+            |err| matches!(err, MockError),
+        )
         .await;
 
         assert!(result.is_ok());
