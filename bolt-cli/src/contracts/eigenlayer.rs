@@ -210,6 +210,5 @@ sol! {
         function registerAsOperator(OperatorDetails calldata registeringOperatorDetails, string calldata metadataURI) external;
 
         function isOperator(address operator) public view returns (bool);
-        function hasCollateral(address operator) public view returns (bool);
     }
 }
