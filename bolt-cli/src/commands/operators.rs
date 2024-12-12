@@ -276,7 +276,9 @@ impl OperatorsCommand {
                             info!(?address, token = %name, amount = ?stake, "Operator has collateral");
                         }
                     }
-                    if total_collateral > Uint::from(0) {
+                    if total_collateral >= WEI_IN_ETHER {
+                        info!(?address, total_collateral=?total_collateral, "Operator is active");
+                    } else if total_collateral > Uint::from(0) {
                         info!(?address, total_collateral=?total_collateral, "Total operator collateral");
                     } else {
                         warn!(?address, "Operator has no collateral");
@@ -450,7 +452,9 @@ impl OperatorsCommand {
                             info!(?address, token = %name, amount = ?stake, "Operator has collateral");
                         }
                     }
-                    if total_collateral > Uint::from(0) {
+                    if total_collateral >= WEI_IN_ETHER {
+                        info!(?address, total_collateral=?total_collateral, "Operator is active");
+                    } else if total_collateral > Uint::from(0) {
                         info!(?address, total_collateral=?total_collateral, "Total operator collateral");
                     } else {
                         warn!(?address, "Operator has no collateral");
