@@ -41,6 +41,13 @@ pub struct InclusionCommitment {
     signature: Signature,
 }
 
+impl InclusionCommitment {
+    /// Creates a new unchecked inclusion commitment
+    pub fn new_unchecked(request: InclusionRequest, signature: Signature) -> Self {
+        Self { request, signature }
+    }
+}
+
 impl From<SignedCommitment> for InclusionCommitment {
     fn from(commitment: SignedCommitment) -> Self {
         match commitment {
