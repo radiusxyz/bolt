@@ -7,8 +7,8 @@ import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {OperatorMapWithTimeV2} from "../lib/OperatorMapWithTimeV2.sol";
-import {EnumerableMapV2} from "../lib/EnumerableMapV2.sol";
+import {OperatorMapWithTimeV3} from "../lib/OperatorMapWithTimeV3.sol";
+import {EnumerableMapV3} from "../lib/EnumerableMapV3.sol";
 import {IBoltParametersV1} from "../interfaces/IBoltParametersV1.sol";
 import {IBoltMiddlewareV1} from "../interfaces/IBoltMiddlewareV1.sol";
 import {IBoltValidatorsV2} from "../interfaces/IBoltValidatorsV2.sol";
@@ -24,11 +24,11 @@ import {IBoltManagerV3} from "../interfaces/IBoltManagerV3.sol";
 /// You can also validate manually with forge: forge inspect <contract> storage-layout --pretty
 contract BoltManagerV3 is IBoltManagerV3, OwnableUpgradeable, UUPSUpgradeable {
     using EnumerableSet for EnumerableSet.AddressSet;
-    using EnumerableMapV2 for EnumerableMapV2.OperatorMap;
-    using OperatorMapWithTimeV2 for EnumerableMapV2.OperatorMap;
+    using EnumerableMapV3 for EnumerableMapV3.OperatorMap;
+    using OperatorMapWithTimeV3 for EnumerableMapV3.OperatorMap;
 
     // ========= STORAGE =========
-    
+
     /// @notice Start timestamp of the first epoch.
     uint48 public START_TIMESTAMP;
 
@@ -40,7 +40,7 @@ contract BoltManagerV3 is IBoltManagerV3, OwnableUpgradeable, UUPSUpgradeable {
     IBoltValidatorsV2 public validators;
 
     /// @notice Set of operator addresses that have opted in to Bolt Protocol.
-    EnumerableMapV2.OperatorMap private operators;
+    EnumerableMapV3.OperatorMap private operators;
 
     /// @notice Set of restaking protocols supported. Each address corresponds to the
     /// associated Bolt Middleware contract.
@@ -170,16 +170,16 @@ contract BoltManagerV3 is IBoltManagerV3, OwnableUpgradeable, UUPSUpgradeable {
     /// @return operatorData The operator data.
     function getOperatorData(
         address operator
-    ) public view returns (EnumerableMapV2.Operator memory operatorData) {
+    ) public view returns (EnumerableMapV3.Operator memory operatorData) {
         return operators.get(operator);
     }
 
     /// @notice Get the data of all registered operators.
     /// @return operatorData An array of operator data.
-    function getAllOperatorsData() public view returns (EnumerableMapV2.Operator[] memory operatorData) {
-        operatorData = new EnumerableMapV2.Operator[](operators.length());
+    function getAllOperatorsData() public view returns (EnumerableMapV3.Operator[] memory operatorData) {
+        operatorData = new EnumerableMapV3.Operator[](operators.length());
         for (uint256 i = 0; i < operators.length(); ++i) {
-            (address operator, EnumerableMapV2.Operator memory data) = operators.at(i);
+            (address operator, EnumerableMapV3.Operator memory data) = operators.at(i);
             operatorData[i] = data;
         }
     }
@@ -210,7 +210,7 @@ contract BoltManagerV3 is IBoltManagerV3, OwnableUpgradeable, UUPSUpgradeable {
         // NOTE: this will revert when the proposer does not exist.
         IBoltValidatorsV2.ValidatorInfo memory validator = validators.getValidatorByPubkeyHash(pubkeyHash);
 
-        EnumerableMapV2.Operator memory operatorData = operators.get(validator.authorizedOperator);
+        EnumerableMapV3.Operator memory operatorData = operators.get(validator.authorizedOperator);
 
         status.pubkeyHash = pubkeyHash;
         status.operator = validator.authorizedOperator;
@@ -245,7 +245,7 @@ contract BoltManagerV3 is IBoltManagerV3, OwnableUpgradeable, UUPSUpgradeable {
     /// @param collateral The address of the collateral asset to get the stake for.
     /// @return amount The amount staked by the operator for the given collateral asset.
     function getOperatorStake(address operator, address collateral) public view returns (uint256) {
-        EnumerableMapV2.Operator memory operatorData = operators.get(operator);
+        EnumerableMapV3.Operator memory operatorData = operators.get(operator);
 
         return IBoltMiddlewareV1(operatorData.middleware).getOperatorStake(operator, collateral);
     }
@@ -258,7 +258,7 @@ contract BoltManagerV3 is IBoltManagerV3, OwnableUpgradeable, UUPSUpgradeable {
     ) public view returns (uint256 amount) {
         // Loop over all of the operators, get their middleware, and retrieve their staked amount.
         for (uint256 i = 0; i < operators.length(); ++i) {
-            (address operator, EnumerableMapV2.Operator memory operatorData) = operators.at(i);
+            (address operator, EnumerableMapV3.Operator memory operatorData) = operators.at(i);
             amount += IBoltMiddlewareV1(operatorData.middleware).getOperatorStake(operator, collateral);
         }
 
@@ -276,7 +276,7 @@ contract BoltManagerV3 is IBoltManagerV3, OwnableUpgradeable, UUPSUpgradeable {
         }
 
         // Create an already enabled operator
-        EnumerableMapV2.Operator memory operator = EnumerableMapV2.Operator(rpc, msg.sender, Time.timestamp());
+        EnumerableMapV3.Operator memory operator = EnumerableMapV3.Operator(rpc, msg.sender, Time.timestamp());
 
         operators.set(operatorAddr, operator);
     }
