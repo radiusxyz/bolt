@@ -28,6 +28,7 @@ contract BoltManagerV3 is IBoltManagerV3, OwnableUpgradeable, UUPSUpgradeable {
     using OperatorMapWithTimeV2 for EnumerableMapV2.OperatorMap;
 
     // ========= STORAGE =========
+    
     /// @notice Start timestamp of the first epoch.
     uint48 public START_TIMESTAMP;
 
