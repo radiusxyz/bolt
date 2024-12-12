@@ -3,7 +3,7 @@ pragma solidity 0.8.25;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-library EnumerableMapV2 {
+library EnumerableMapV3 {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     error KeyNotFound(address key);
@@ -52,7 +52,7 @@ library EnumerableMapV2 {
 
     function get(OperatorMap storage self, address key) internal view returns (Operator memory) {
         if (!contains(self, key)) {
-            revert KeyNotFound();
+            revert KeyNotFound(key);
         }
 
         return self._values[bytes32(uint256(uint160(key)))];

@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import {EnumerableMapV2} from "../lib/EnumerableMapV2.sol";
+import {EnumerableMapV3} from "../lib/EnumerableMapV3.sol";
 
 interface IBoltManagerV3 {
     error InvalidQuery();
     error OperatorAlreadyRegistered();
     error OperatorNotRegistered();
     error UnauthorizedMiddleware();
-    // TODO: remove in future upgrade (unused)
-    error InactiveOperator();
 
     /// @notice Proposer status info.
     struct ProposerStatus {
@@ -47,9 +45,9 @@ interface IBoltManagerV3 {
 
     function getOperatorData(
         address operator
-    ) external view returns (EnumerableMapV2.Operator memory operatorData);
+    ) external view returns (EnumerableMapV3.Operator memory operatorData);
 
-    function getAllOperatorsData() external view returns (EnumerableMapV2.Operator[] memory operatorData);
+    function getAllOperatorsData() external view returns (EnumerableMapV3.Operator[] memory operatorData);
 
     function getProposerStatus(
         bytes20 pubkeyHash
