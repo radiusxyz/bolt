@@ -40,6 +40,8 @@ use crate::{
     LocalBuilder,
 };
 
+const API_EVENTS_BUFFER_SIZE: usize = 1024;
+
 /// The driver for the sidecar, responsible for managing the main event loop.
 ///
 /// The reponsibilities of the driver include:
@@ -159,7 +161,6 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         commitment_signer: ECDSA,
         fetcher: C,
     ) -> eyre::Result<Self> {
-        println!("opts {:#?}", opts);
         let mut constraints_client = ConstraintsClient::new(opts.constraints_api_url.clone());
 
         // read the delegations from disk if they exist and add them to the constraints client.
@@ -241,7 +242,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             let port = opts.commitment_opts.port.unwrap_or(DEFAULT_RPC_PORT);
             // start the commitments api server
             let api_addr = format!("0.0.0.0:{}", port);
-            let (api_events_tx, api_events_rx) = mpsc::channel(1024);
+            let (api_events_tx, api_events_rx) = mpsc::channel(API_EVENTS_BUFFER_SIZE);
             CommitmentsApiServer::new(api_addr).run(api_events_tx, opts.limits).await;
             api_events_rx
         };

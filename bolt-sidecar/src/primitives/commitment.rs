@@ -41,6 +41,7 @@ pub struct InclusionCommitment {
     signature: Signature,
 }
 
+#[cfg(test)]
 impl InclusionCommitment {
     /// Creates a new unchecked inclusion commitment
     pub fn new_unchecked(request: InclusionRequest, signature: Signature) -> Self {

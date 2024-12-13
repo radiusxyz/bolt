@@ -181,9 +181,6 @@ async fn handle_connection(
     }
 }
 
-type PendingCommitmentResult = dyn Future<Output = Result<Result<SignedCommitment, CommitmentError>, oneshot::error::RecvError>>
-    + Send;
-
 /// The [CommitmentRequestProcessor] handles incoming commitment requests a the websocket
 /// connection, and forwards them to the [CommitmentEvent] tx channel for processing.
 struct CommitmentRequestProcessor {
@@ -203,7 +200,8 @@ struct CommitmentRequestProcessor {
     /// NOTE: Is there a better way to avoid this monster type?
     /// SAFETY: the `poll` implementation of this struct promptly handles these responses and
     /// ensures this vector doesn't grow indefinitely.
-    pending_commitment_responses: FuturesUnordered<Pin<Box<PendingCommitmentResult>>>,
+    pending_commitment_responses:
+        FuturesUnordered<oneshot::Receiver<Result<SignedCommitment, CommitmentError>>>,
     /// The collection of outgoing messages to be sent to the connected websocket server.
     outgoing_messages: VecDeque<Message>,
 }
@@ -268,7 +266,7 @@ impl Future for CommitmentRequestProcessor {
                         }
 
                         // add the pending response to this buffer for later processing
-                        this.pending_commitment_responses.push(rx.boxed());
+                        this.pending_commitment_responses.push(rx);
                     }
                     Ok(Message::Close(_)) => {
                         warn!(?rpc_url, "websocket connection closed by server");
