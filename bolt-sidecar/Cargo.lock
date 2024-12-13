@@ -1605,7 +1605,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "tree_hash 0.8.0",
- "tree_hash_derive 0.8.0",
+ "tree_hash_derive",
 ]
 
 [[package]]
@@ -1741,7 +1741,7 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "tree_hash 0.8.0",
- "tree_hash_derive 0.8.0",
+ "tree_hash_derive",
  "unicode-normalization",
  "url",
 ]
@@ -1808,7 +1808,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tree_hash 0.8.0",
- "tree_hash_derive 0.8.0",
+ "tree_hash_derive",
  "uuid 1.11.0",
 ]
 
@@ -2024,7 +2024,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tree_hash 0.8.0",
- "tree_hash_derive 0.8.0",
+ "tree_hash_derive",
 ]
 
 [[package]]
@@ -3261,18 +3261,6 @@ checksum = "c853bd72c9e5787f8aafc3df2907c2ed03cff3150c3acd94e2e53a98ab70a8ab"
 dependencies = [
  "cpufeatures",
  "ring 0.17.8",
- "sha2 0.10.8",
-]
-
-[[package]]
-name = "ethereum_hashing"
-version = "1.0.0-beta.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "233dc6f434ce680dbabf4451ee3380cec46cb3c45d66660445a435619710dd35"
-dependencies = [
- "cpufeatures",
- "lazy_static",
- "ring 0.16.20",
  "sha2 0.10.8",
 ]
 
@@ -8231,17 +8219,6 @@ dependencies = [
 
 [[package]]
 name = "tree_hash"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c998ac5fe2b07c025444bdd522e6258110b63861c6698eedc610c071980238d"
-dependencies = [
- "ethereum-types 0.14.1",
- "ethereum_hashing 1.0.0-beta.2",
- "smallvec",
-]
-
-[[package]]
-name = "tree_hash"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "134d6b24a5b829f30b5ee7de05ba7384557f5f6b00e29409cdf2392f93201bfa"
@@ -8260,17 +8237,6 @@ dependencies = [
  "alloy-primitives 0.8.15",
  "ethereum_hashing 0.7.0",
  "smallvec",
-]
-
-[[package]]
-name = "tree_hash_derive"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84303a9c7cda5f085a3ed9cd241d1e95e04d88aab1d679b02f212e653537ba86"
-dependencies = [
- "darling 0.13.4",
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -8373,7 +8339,7 @@ dependencies = [
  "tempfile",
  "test_random_derive",
  "tree_hash 0.8.0",
- "tree_hash_derive 0.8.0",
+ "tree_hash_derive",
 ]
 
 [[package]]
