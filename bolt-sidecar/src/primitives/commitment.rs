@@ -3,7 +3,7 @@ use std::str::FromStr;
 use alloy::{
     consensus::Transaction,
     hex,
-    primitives::{keccak256, Address, Signature, B256},
+    primitives::{keccak256, Address, PrimitiveSignature as Signature, B256},
 };
 use serde::{de, Deserialize, Deserializer, Serialize};
 
@@ -224,7 +224,7 @@ fn serialize_sig<S: serde::Serializer>(sig: &Signature, serializer: S) -> Result
     let parity = sig.v();
     // As bytes encodes the parity as 27/28, need to change that.
     let mut bytes = sig.as_bytes();
-    bytes[bytes.len() - 1] = if parity.y_parity() { 1 } else { 0 };
+    bytes[bytes.len() - 1] = if parity { 1 } else { 0 };
     serializer.serialize_str(&hex::encode_prefixed(bytes))
 }
 
@@ -265,7 +265,7 @@ impl ECDSASignatureExt for Signature {
         let parity = self.v();
         // As bytes encodes the parity as 27/28, need to change that.
         let mut bytes = self.as_bytes();
-        bytes[bytes.len() - 1] = if parity.y_parity() { 1 } else { 0 };
+        bytes[bytes.len() - 1] = if parity { 1 } else { 0 };
 
         bytes
     }
@@ -281,7 +281,7 @@ mod tests {
 
     use alloy::{
         hex,
-        primitives::{Address, Signature},
+        primitives::{Address, PrimitiveSignature as Signature},
     };
 
     use super::{CommitmentRequest, InclusionRequest};
