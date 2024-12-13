@@ -9,6 +9,9 @@ pub mod score_cache;
 /// Secret key types wrappers for BLS, ECDSA and JWT.
 pub mod secrets;
 
+/// Time-related utilities.
+pub mod time;
+
 /// Utility functions for working with transactions.
 pub mod transactions;
 

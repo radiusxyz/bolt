@@ -70,13 +70,15 @@ bytes = "1.6.0"
 hex = "0.4.3"
 
 # utils
+
+lazy_static = "1.5.0"
+
 eyre = "0.6.12"
 thiserror = "2.0"
 rand = "0.8.5"
 dotenvy = "0.15.7"
 regex = "1.10.5"
-lazy_static = "1.5.0"
-
+jsonwebtoken = "9.3.0"
 # tracing
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt"] }

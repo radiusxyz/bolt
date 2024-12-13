@@ -10,8 +10,6 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tracing::{error, info, trace, warn};
 
-use reqwest::Url;
-
 use crate::api::commitments::server::spec::CommitmentError;
 use crate::api::commitments::server::CommitmentEvent;
 use crate::primitives::commitment::SignedCommitment;
@@ -33,7 +31,7 @@ pub enum InterruptReason {
 #[allow(missing_debug_implementations)]
 pub struct CommitmentRequestProcessor {
     /// The URL of the connected websocket server.
-    url: Url,
+    url: String,
     /// The channel to send commitment events to be processed.
     api_events_tx: mpsc::Sender<CommitmentEvent>,
     /// The websocket writer sink.
@@ -57,7 +55,7 @@ pub struct CommitmentRequestProcessor {
 impl CommitmentRequestProcessor {
     /// Creates a new instance of the [CommitmentRequestProcessor].
     pub fn new(
-        url: Url,
+        url: String,
         tx: mpsc::Sender<CommitmentEvent>,
         write: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
         read: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,

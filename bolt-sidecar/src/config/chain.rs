@@ -97,6 +97,16 @@ pub enum Chain {
 }
 
 impl Chain {
+    /// Get the chain ID for the given chain.
+    pub const fn id(&self) -> u64 {
+        match self {
+            Self::Mainnet => 1,
+            Self::Holesky => 17000,
+            Self::Helder => 7014190335,
+            Self::Kurtosis => 3151908,
+        }
+    }
+
     /// Get the chain name for the given chain.
     pub fn name(&self) -> &'static str {
         match self {

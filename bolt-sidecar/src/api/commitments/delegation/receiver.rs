@@ -1,3 +1,4 @@
+use alloy::signers::local::PrivateKeySigner;
 use futures::StreamExt;
 use std::fmt::Debug;
 use std::fmt::{self, Formatter};
@@ -6,6 +7,7 @@ use std::{future::Future, pin::Pin};
 use thiserror::Error;
 use tokio::sync::{broadcast, mpsc};
 use tokio_tungstenite::connect_async_with_config;
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tracing::{error, info};
 
@@ -17,6 +19,7 @@ use crate::common::backoff::retry_with_backoff_if;
 use crate::common::secrets::EcdsaSecretKeyWrapper;
 use crate::config::chain::Chain;
 
+use super::jwt::ProposerAuthClaims;
 use super::processor::InterruptReason;
 
 /// The interval at which to send ping messages from connected clients.
@@ -44,7 +47,7 @@ enum ConnectionHandlerError {
 pub struct CommitmentsReceiver {
     /// The operator's private key to sign authentication requests when opening websocket
     /// connections with RPCs.
-    #[allow(dead_code)]
+    /// TODO: Change this to SignerECDSA
     operator_private_key: EcdsaSecretKeyWrapper,
     /// The chain ID of the chain the sidecar is running. Used for authentication purposes.
     chain: Chain,
@@ -115,6 +118,9 @@ impl CommitmentsReceiver {
             });
         }
 
+        // TODO: remove this once we have SignerECDSA
+        let signer = PrivateKeySigner::from_signing_key(self.operator_private_key.0);
+
         for url in &self.urls {
             // NOTE: We're cloning the variables here because we're moving the inputs into an async
             // task.
@@ -122,22 +128,33 @@ impl CommitmentsReceiver {
             let api_events_tx = api_events_tx.clone();
             let ping_rx = ping_rx.resubscribe();
             let shutdown_rx = shutdown_rx.resubscribe();
+            let signer = signer.clone();
 
             tokio::spawn(async move {
                 retry_with_backoff_if(
                     MAX_RETRIES,
-                    // NOTE: this needs to be a closure because it must be re-called upon failure. 
+                    // NOTE: this needs to be a closure because it must be re-called upon failure.
                     // As such we also need to clone the inputs again.
-                        move || {
-                            let url = url.clone();
-                            let api_events_tx = api_events_tx.clone();
-                            let ping_rx = ping_rx.resubscribe();
-                            let shutdown_rx = shutdown_rx.resubscribe();
+                    move || {
+                        let url = url.to_string();
 
-                            async move {
-                                handle_connection(url, api_events_tx, ping_rx, shutdown_rx).await
-                            }
-                        },
+                        let jwt = ProposerAuthClaims::new_from_signer(
+                            url.clone(),
+                            self.chain,
+                            None,
+                            signer.clone(),
+                        )
+                        .to_jwt()
+                        .expect("failed to produce JWT");
+
+                        let api_events_tx = api_events_tx.clone();
+                        let ping_rx = ping_rx.resubscribe();
+                        let shutdown_rx = shutdown_rx.resubscribe();
+
+                        async move {
+                            handle_connection(url, jwt, api_events_tx, ping_rx, shutdown_rx).await
+                        }
+                    },
                     |err| {
                         // Retry unless shutdown signal is received.
                         !matches!(
@@ -160,13 +177,21 @@ impl CommitmentsReceiver {
 }
 
 async fn handle_connection(
-    url: Url,
+    url: String,
+    jwt: String,
     api_events_tx: mpsc::Sender<CommitmentEvent>,
     ping_rx: broadcast::Receiver<()>,
     shutdown_rx: broadcast::Receiver<()>,
 ) -> Result<(), ConnectionHandlerError> {
+    // TODO: check if default is actually ok
     let ws_config = WebSocketConfig { ..Default::default() };
-    match connect_async_with_config(url.to_string(), Some(ws_config), false).await {
+
+    let mut request = url.clone().into_client_request()?;
+    request
+        .headers_mut()
+        .insert("Authorization", format!("Bearer {}", jwt).parse().expect("valid header"));
+
+    match connect_async_with_config(request, Some(ws_config), false).await {
         Ok((stream, response)) => {
             info!(?url, ?response, "opened websocket connection");
             let (write_sink, read_stream) = stream.split();
@@ -174,7 +199,7 @@ async fn handle_connection(
             // For each opened connection, create a new commitment processor
             // able to handle incoming message requests.
             let commitment_request_processor = CommitmentRequestProcessor::new(
-                url.clone(),
+                url,
                 api_events_tx.clone(),
                 write_sink,
                 read_stream,
@@ -204,15 +229,19 @@ mod tests {
         },
         response::IntoResponse,
         routing::get,
-        Router,
+        Json, Router,
     };
-    use axum_extra::{headers, TypedHeader};
+    use axum_extra::{
+        headers::{authorization::Bearer, Authorization, UserAgent},
+        TypedHeader,
+    };
     use futures::{FutureExt, SinkExt, StreamExt};
+    use reqwest::StatusCode;
     use tokio::sync::broadcast;
     use tracing::{debug, error, info, warn};
 
     use crate::{
-        api::commitments::delegation::receiver::CommitmentsReceiver,
+        api::commitments::delegation::{jwt::ProposerAuthClaims, receiver::CommitmentsReceiver},
         common::secrets::EcdsaSecretKeyWrapper,
         config::chain::Chain,
         primitives::commitment::{InclusionCommitment, SignedCommitment},
@@ -284,7 +313,6 @@ mod tests {
         info!("Shutting down the servers...");
         shutdown_servers_tx.send(()).unwrap();
     }
-
     async fn create_websocket_server(mut shutdown_rx: broadcast::Receiver<()>) -> u16 {
         let app = Router::new().route(FIREWALL_STREAM_PATH, get(ws_handler));
         // Bind to port 0 to let the OS pick a random port for us.
@@ -314,15 +342,37 @@ mod tests {
     /// as well as things from HTTP headers such as user-agent of the browser etc.
     async fn ws_handler(
         ws: WebSocketUpgrade,
-        user_agent: Option<TypedHeader<headers::UserAgent>>,
         ConnectInfo(addr): ConnectInfo<SocketAddr>,
+        user_agent: Option<TypedHeader<UserAgent>>,
+        TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
     ) -> impl IntoResponse {
         let user_agent = if let Some(TypedHeader(user_agent)) = user_agent {
             user_agent.to_string()
         } else {
             String::from("Unknown user agent")
         };
-        info!("`{user_agent}` at {addr} connected.");
+
+        // Extract the JWT from the Authorization header
+        let jwt = auth.token();
+
+        let decoded_claim = jsonwebtoken::decode::<ProposerAuthClaims>(
+            jwt,
+            &jsonwebtoken::DecodingKey::from_secret(&[]),
+            &jsonwebtoken::Validation::default(),
+        );
+
+        match decoded_claim {
+            Err(e) => {
+                return (StatusCode::UNAUTHORIZED, Json(format!("Invalid JWT: {}", e)))
+                    .into_response();
+            }
+            Ok(_claims) => {
+                // NOTE: We're not checking ecrecovering the operator and checking whether it is
+                // active on bolt
+                info!("User `{user_agent}` at connected with a valid JWT");
+            }
+        }
+
         // finalize the upgrade process by returning upgrade callback.
         // we can customize the callback by sending additional info such as address.
         ws.on_upgrade(move |socket| handle_socket(socket, addr))

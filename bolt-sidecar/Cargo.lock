@@ -1590,6 +1590,7 @@ dependencies = [
  "futures",
  "hex",
  "http-body-util",
+ "jsonwebtoken",
  "lazy_static",
  "metrics 0.23.0",
  "metrics-exporter-prometheus",
