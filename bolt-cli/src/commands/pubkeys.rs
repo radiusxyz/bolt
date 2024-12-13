@@ -16,18 +16,14 @@ use crate::{
 impl PubkeysCommand {
     pub async fn run(self) -> Result<()> {
         match self.source {
-            KeysSource::PublicKeys { public_keys } => {
-                write_to_file(&self.out, &public_keys)?;
-                println!("Pubkeys saved to {}", self.out);
-            }
             KeysSource::SecretKeys { secret_keys } => {
                 let pubkeys = list_from_local_keys(&secret_keys)?;
 
                 write_to_file(&self.out, &pubkeys)?;
                 println!("Pubkeys generated and saved to {}", self.out);
             }
-            KeysSource::LocalKeystore { path } => {
-                let pubkeys = list_from_keystore(&path)?;
+            KeysSource::LocalKeystore { opts } => {
+                let pubkeys = list_from_keystore(&opts.path)?;
 
                 write_to_file(&self.out, &pubkeys)?;
                 println!("Pubkeys generated from local keystore and saved to {}", self.out);

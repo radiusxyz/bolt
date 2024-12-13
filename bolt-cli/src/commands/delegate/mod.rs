@@ -2,7 +2,7 @@ use eyre::Result;
 use tracing::debug;
 
 use crate::{
-    cli::{DelegateCommand, SecretsSource},
+    cli::{DelegateCommand, KeysSource},
     common::{keystore::KeystoreSecret, parse_bls_public_key, write_to_file},
 };
 
@@ -25,7 +25,7 @@ impl DelegateCommand {
     /// Run the `delegate` command.
     pub async fn run(self) -> Result<()> {
         let signed_messages = match self.source {
-            SecretsSource::SecretKeys { secret_keys } => {
+            KeysSource::SecretKeys { secret_keys } => {
                 let delegatee_pubkey = parse_bls_public_key(&self.delegatee_pubkey)?;
                 local::generate_from_local_keys(
                     &secret_keys,
@@ -34,7 +34,7 @@ impl DelegateCommand {
                     self.action,
                 )?
             }
-            SecretsSource::LocalKeystore { opts } => {
+            KeysSource::LocalKeystore { opts } => {
                 let keystore_secret = KeystoreSecret::from_keystore_options(&opts)?;
                 let delegatee_pubkey = parse_bls_public_key(&self.delegatee_pubkey)?;
                 keystore::generate_from_keystore(
@@ -45,11 +45,11 @@ impl DelegateCommand {
                     self.action,
                 )?
             }
-            SecretsSource::Dirk { opts } => {
+            KeysSource::Dirk { opts } => {
                 let delegatee_pubkey = parse_bls_public_key(&self.delegatee_pubkey)?;
                 dirk::generate_from_dirk(opts, delegatee_pubkey, self.chain, self.action).await?
             }
-            SecretsSource::Web3Signer { opts } => {
+            KeysSource::Web3Signer { opts } => {
                 let delegatee_pubkey = parse_bls_public_key(&self.delegatee_pubkey)?;
                 web3signer::generate_from_web3signer(opts, delegatee_pubkey, self.action).await?
             }
