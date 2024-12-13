@@ -28,7 +28,7 @@ use crate::{
     chain_io::BoltManager,
     client::{BeaconClient, ConstraintsClient},
     common::backoff::retry_with_backoff,
-    config::Opts,
+    config::{commitments::DEFAULT_RPC_PORT, Opts},
     crypto::{SignableBLS, SignerECDSA},
     primitives::{
         commitment::SignedCommitment, read_signed_delegations_from_file, CommitmentRequest,
@@ -229,20 +229,21 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             }
         });
 
-        let api_events_rx = if let Some(port) = opts.commitment_opts.port {
+        let api_events_rx = if let Some(urls) = opts.commitment_opts.firewall_rpcs.clone() {
+            CommitmentsFirewallRecv::new(
+                opts.commitment_opts.operator_private_key.clone(),
+                opts.chain.chain,
+                urls,
+            )
+            .run()
+            .await
+        } else {
+            let port = opts.commitment_opts.port.unwrap_or(DEFAULT_RPC_PORT);
             // start the commitments api server
             let api_addr = format!("0.0.0.0:{}", port);
             let (api_events_tx, api_events_rx) = mpsc::channel(1024);
             CommitmentsApiServer::new(api_addr).run(api_events_tx, opts.limits).await;
             api_events_rx
-        } else {
-            CommitmentsFirewallRecv::new(
-                opts.commitment_opts.operator_private_key.clone(),
-                opts.chain.chain,
-                opts.commitment_opts.gateway_urls.clone().expect("gateway urls must be provided"),
-            )
-            .run()
-            .await
         };
 
         let unsafe_skip_consensus_checks = opts.unsafe_disable_consensus_checks;
