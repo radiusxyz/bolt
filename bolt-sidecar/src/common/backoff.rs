@@ -2,7 +2,7 @@ use std::{future::Future, time::Duration};
 
 use tokio_retry::{
     strategy::{jitter, ExponentialBackoff},
-    Condition, Retry, RetryIf,
+    Retry, RetryIf,
 };
 
 /// Retry a future with exponential backoff and jitter.

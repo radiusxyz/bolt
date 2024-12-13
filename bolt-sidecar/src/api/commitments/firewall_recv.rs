@@ -1,11 +1,12 @@
 use futures::stream::{FuturesUnordered, SplitSink, SplitStream};
-use futures::{FutureExt, SinkExt, StreamExt};
+use futures::{SinkExt, StreamExt};
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::fmt::{self, Formatter};
 use std::task::Poll;
 use std::time::Duration;
 use std::{future::Future, pin::Pin};
+use thiserror::Error;
 use tokio::net::TcpStream;
 use tokio::sync::broadcast::error::TryRecvError;
 use tokio::sync::{broadcast, mpsc, oneshot};
@@ -16,7 +17,7 @@ use tracing::{error, info, trace, warn};
 
 use reqwest::Url;
 
-use crate::common::backoff::retry_with_backoff;
+use crate::common::backoff::retry_with_backoff_if;
 use crate::common::secrets::EcdsaSecretKeyWrapper;
 use crate::config::chain::Chain;
 use crate::primitives::commitment::SignedCommitment;
@@ -35,6 +36,21 @@ const PING_INTERVAL: Duration = Duration::from_secs(30);
 const MAX_RETRIES: usize = 10;
 
 type ShutdownSignal = Pin<Box<dyn Future<Output = ()> + Send>>;
+
+#[derive(Debug, Error)]
+enum ConnectionHandlerError {
+    #[error("error while opening websocket connection: {0}")]
+    OnConnectionError(#[from] tokio_tungstenite::tungstenite::Error),
+    #[error("error while processing commitments")]
+    ProcessorInterrupted(InterruptReason),
+}
+
+#[derive(Debug)]
+enum InterruptReason {
+    Shutdown,
+    ReadStreamTerminated,
+    ConnectionClosed,
+}
 
 /// A [CommitmentsFirewallRecv] connects to multiple firewall-ed websocket RPC servers and
 /// forwards [CommitmentEvent]s to a single receiver, return upon calling the
@@ -86,7 +102,7 @@ impl CommitmentsFirewallRecv {
     pub async fn run(mut self) -> mpsc::Receiver<CommitmentEvent> {
         // mspc channel where every websocket connection will send commitment events over its own
         // tx to a single receiver.
-        let (api_event_tx, api_events_rx) = mpsc::channel(self.urls.len() * 2);
+        let (api_events_tx, api_events_rx) = mpsc::channel(self.urls.len() * 2);
         let (ping_tx, ping_rx) = broadcast::channel::<()>(1);
         let (shutdown_tx, shutdown_rx) = broadcast::channel::<()>(1);
 
@@ -114,12 +130,37 @@ impl CommitmentsFirewallRecv {
         }
 
         for url in &self.urls {
+            // NOTE: We're cloning the variables here because we're moving the inputs into an async
+            // task.
             let url = url.clone();
-            let api_events_tx = api_event_tx.clone();
+            let api_events_tx = api_events_tx.clone();
             let ping_rx = ping_rx.resubscribe();
             let shutdown_rx = shutdown_rx.resubscribe();
+
             tokio::spawn(async move {
-                handle_connection(url, api_events_tx, ping_rx, shutdown_rx).await;
+                retry_with_backoff_if(
+                    MAX_RETRIES,
+                    // NOTE: this needs to be a closure because it must be re-called upon failure. 
+                    // As such we also need to clone the inputs again.
+                        move || {
+                            let url = url.clone();
+                            let api_events_tx = api_events_tx.clone();
+                            let ping_rx = ping_rx.resubscribe();
+                            let shutdown_rx = shutdown_rx.resubscribe();
+
+                            async move {
+                                handle_connection(url, api_events_tx, ping_rx, shutdown_rx).await
+                            }
+                        },
+                    |err| {
+                        // Retry unless shutdown signal is received.
+                        !matches!(
+                            err,
+                            ConnectionHandlerError::ProcessorInterrupted(InterruptReason::Shutdown)
+                        )
+                    },
+                )
+                .await
             });
         }
 
@@ -137,47 +178,31 @@ async fn handle_connection(
     api_events_tx: mpsc::Sender<CommitmentEvent>,
     ping_rx: broadcast::Receiver<()>,
     shutdown_rx: broadcast::Receiver<()>,
-) {
-    // TODO: fill this
+) -> Result<(), ConnectionHandlerError> {
     let ws_config = WebSocketConfig { ..Default::default() };
+    match connect_async_with_config(url.to_string(), Some(ws_config), false).await {
+        Ok((stream, response)) => {
+            info!(?url, ?response, "opened websocket connection");
+            let (write_sink, read_stream) = stream.split();
 
-    loop {
-        let should_retry =
-            match connect_async_with_config(url.to_string(), Some(ws_config), false).await {
-                Ok((stream, response)) => {
-                    info!(?url, ?response, "opened websocket connection");
-                    let (write_sink, read_stream) = stream.split();
-
-                    // For each opened connection, create a new commitment processor
-                    // able to handle incoming message requests.
-                    let commitment_request_processor = CommitmentRequestProcessor::new(
-                        url.clone(),
-                        api_events_tx.clone(),
-                        write_sink,
-                        read_stream,
-                        ping_rx.resubscribe(),
-                        shutdown_rx.resubscribe(),
-                    );
-                    // Run the commitment processor indefinitely, reconnecting on failure.
-                    commitment_request_processor.await
-                }
-                Err(e) => {
-                    error!(?e, ?url, "failed to connect");
-                    true
-                }
-            };
-
-        if !should_retry {
-            warn!("shutting down connection to {}", url);
-            break;
+            // For each opened connection, create a new commitment processor
+            // able to handle incoming message requests.
+            let commitment_request_processor = CommitmentRequestProcessor::new(
+                url.clone(),
+                api_events_tx.clone(),
+                write_sink,
+                read_stream,
+                ping_rx.resubscribe(),
+                shutdown_rx.resubscribe(),
+            );
+            // Run the commitment processor indefinitely, reconnecting on failure.
+            let interrupt_reason = commitment_request_processor.await;
+            Err(ConnectionHandlerError::ProcessorInterrupted(interrupt_reason))
         }
-
-        // retry_with_backoff(MAX_RETRIES, fut)
-
-        // Reconnect on failure
-        // TODO: add backoff
-        warn!(?url, "connection lost. reconnecting...");
-        tokio::time::sleep(Duration::from_secs(5)).await;
+        Err(e) => {
+            error!(?e, ?url, "failed to connect");
+            Err(ConnectionHandlerError::OnConnectionError(e))
+        }
     }
 }
 
@@ -230,7 +255,7 @@ impl CommitmentRequestProcessor {
 
 impl Future for CommitmentRequestProcessor {
     // The output of this future is a boolean indicating whether reconnection is needed.
-    type Output = bool;
+    type Output = InterruptReason;
 
     fn poll(
         self: Pin<&mut Self>,
@@ -242,13 +267,32 @@ impl Future for CommitmentRequestProcessor {
         loop {
             let mut progress = false;
 
-            // 1. Handle incoming websocket messages from the read stream.
+            // 1. Handle commitment request responses after they've been processed.
+            while let Poll::Ready(Some(response)) =
+                this.pending_commitment_responses.poll_next_unpin(cx)
+            {
+                progress = true;
+                let Ok(result_commitment) = response else {
+                    error!("failed to receive commitment response. dropped sender");
+                    continue;
+                };
+
+                if let Ok(commitment) = result_commitment {
+                    trace!(?rpc_url, ?commitment, "received commitment response");
+                    // TODO: check whether this format is correct + handle errors.
+                    let message = Message::text(serde_json::to_string(&commitment).unwrap());
+                    // Add the message to the outgoing messages queue
+                    this.outgoing_messages.push_back(message);
+                }
+            }
+
+            // 2. Handle incoming websocket messages from the read stream.
             while let Poll::Ready(maybe_message) = this.read_stream.poll_next_unpin(cx) {
                 progress = true;
 
                 let Some(res_message) = maybe_message else {
-                    warn!("websocket connection with {} closed by server", rpc_url);
-                    return Poll::Ready(true);
+                    warn!(?rpc_url, "websocket read streaam terminated");
+                    return Poll::Ready(InterruptReason::ReadStreamTerminated);
                 };
 
                 match res_message {
@@ -270,32 +314,12 @@ impl Future for CommitmentRequestProcessor {
                     }
                     Ok(Message::Close(_)) => {
                         warn!(?rpc_url, "websocket connection closed by server");
-                        return Poll::Ready(true);
+                        return Poll::Ready(InterruptReason::ConnectionClosed);
                     }
                     Ok(_) => {} // ignore other message types
                     Err(e) => {
                         error!(?e, ?rpc_url, "error reading message from websocket connection");
-                        return Poll::Ready(true);
                     }
-                }
-            }
-
-            // 2. Handle commitment request responses after they've been processed.
-            while let Poll::Ready(Some(response)) =
-                this.pending_commitment_responses.poll_next_unpin(cx)
-            {
-                progress = true;
-                let Ok(result_commitment) = response else {
-                    error!("failed to receive commitment response. dropped sender");
-                    continue;
-                };
-
-                if let Ok(commitment) = result_commitment {
-                    trace!(?rpc_url, ?commitment, "received commitment response");
-                    // TODO: check whether this format is correct + handle errors.
-                    let message = Message::text(serde_json::to_string(&commitment).unwrap());
-                    // Add the message to the outgoing messages queue
-                    this.outgoing_messages.push_back(message);
                 }
             }
 
@@ -308,7 +332,7 @@ impl Future for CommitmentRequestProcessor {
 
                         // Try to send the message to the sink, for later flushing.
                         if let Err(e) = this.write_sink.start_send_unpin(message) {
-                            error!(?e, ?rpc_url, "failed to send message to websocket connection");
+                            error!(?e, ?rpc_url, "failed to send message to websocket write sink");
                             // NOTE: Should we return here?
                             // return Poll::Ready(());
                         }
@@ -328,7 +352,7 @@ impl Future for CommitmentRequestProcessor {
 
             // 4. Ensure the write sink is flushed so that message are sent to the caller server.
             //
-            // NOTE: We're not considering "progress" flushing the sink, i.e. `Poll::Ready(None)`.
+            // NOTE: We're not considering "progress" flushing the sink, i.e. `Poll::Ready(())`.
             // That is because flushing an empty sink would lead to run this loop indefinitely
             if let Poll::Ready(Err(e)) = this.write_sink.poll_flush_unpin(cx) {
                 error!(?e, "failed to flush websocket write sink");
@@ -344,7 +368,6 @@ impl Future for CommitmentRequestProcessor {
                 }
                 Err(TryRecvError::Closed) => {
                     error!("ping channel for keep-alive messages closed");
-                    return Poll::Ready(false);
                 }
                 Err(TryRecvError::Lagged(lost)) => {
                     error!("ping channel for keep-alives lagged by {} messages", lost)
@@ -356,11 +379,10 @@ impl Future for CommitmentRequestProcessor {
             match this.shutdown_rx.try_recv() {
                 Ok(_) => {
                     info!("received shutdown signal. closing websocket connection...");
-                    return Poll::Ready(false);
+                    return Poll::Ready(InterruptReason::Shutdown);
                 }
                 Err(TryRecvError::Closed) => {
                     error!("shutdown channel closed");
-                    return Poll::Ready(false);
                 }
                 _ => {}
             }
