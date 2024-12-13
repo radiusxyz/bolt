@@ -1,6 +1,10 @@
 use std::{str::FromStr, sync::Arc};
 
-use alloy::{primitives::Address, rpc::types::beacon::BlsSignature, signers::Signature};
+use alloy::{
+    primitives::{Address, FixedBytes},
+    rpc::types::beacon::BlsSignature,
+    signers::Signature,
+};
 use cb_common::{
     commit::{
         client::SignerClient,
@@ -13,7 +17,6 @@ use commit_boost::prelude::SignProxyRequest;
 use ethereum_consensus::crypto::bls::PublicKey as BlsPublicKey;
 use parking_lot::RwLock;
 use reqwest::Url;
-use ssz::Decode;
 use thiserror::Error;
 use tracing::{debug, error, info};
 
@@ -143,8 +146,9 @@ impl CommitBoostSigner {
     pub async fn sign_commit_boost_root(&self, data: [u8; 32]) -> SignerResult<BlsSignature> {
         // convert the pubkey from ethereum_consensus to commit-boost format
         // TODO: compat: this is the only way to obtain a BlsPubkey for now unfortunately
-        let pubkey = cb_common::signer::BlsPublicKey::from_ssz_bytes(self.pubkey().as_ref())
-            .expect("pubkey bytes conversion");
+        let pubkey = cb_common::signer::BlsPublicKey::from(FixedBytes::<48>::from_slice(
+            self.pubkey().as_ref(),
+        ));
 
         let request = SignConsensusRequest { pubkey, object_root: data };
 
@@ -183,19 +187,6 @@ impl SignerECDSA for CommitBoostSigner {
     }
 }
 
-fn parse_address_from_url(url: Url) -> eyre::Result<String> {
-    let str = url.as_str();
-
-    // take the host out of the URL, e.g. "http://localhost:425" -> localhost:425
-    // and also "remotehost:2425" -> remotehost:2425
-    let without_base = url.as_str().split("://").last().unwrap_or(str);
-    let hostname = without_base.split(':').next().unwrap_or(without_base);
-    let port = without_base.split(':').last().ok_or_else(|| eyre::eyre!("No port found"))?;
-    let port = port.trim_end_matches('/');
-
-    Ok(format!("{}:{}", hostname, port))
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -209,20 +200,12 @@ mod test {
         rand::thread_rng().fill(&mut rnd);
         let consensus_pubkey = BlsPublicKey::try_from(rnd[..48].as_ref()).unwrap();
 
-        let cb_pubkey = cb_common::signer::BlsPublicKey::from_ssz_bytes(consensus_pubkey.as_ref())
-            .expect("pubkey bytes conversion");
+        let cb_pubkey = cb_common::signer::BlsPublicKey::from(FixedBytes::<48>::from_slice(
+            consensus_pubkey.as_ref(),
+        ));
 
         // make sure the bytes haven't changed
         assert_eq!(consensus_pubkey.to_vec(), cb_pubkey.to_vec());
-    }
-
-    #[test]
-    fn test_url_parse_address() {
-        let url = Url::parse("http://localhost:8080").unwrap();
-        assert_eq!(parse_address_from_url(url).unwrap(), "localhost:8080");
-
-        let url = Url::parse("remotehost:2425").unwrap();
-        assert_eq!(parse_address_from_url(url).unwrap(), "remotehost:2425");
     }
 
     #[tokio::test]

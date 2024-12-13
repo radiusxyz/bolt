@@ -10,7 +10,6 @@ use std::{
 use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
 use lighthouse_bls::Keypair;
 use lighthouse_eth2_keystore::Keystore;
-use ssz::Encode;
 
 use crate::{builder::signature::compute_signing_root, config::ChainConfig, crypto::bls::BLSSig};
 
@@ -128,12 +127,12 @@ impl KeystoreSigner {
             .keypairs
             .iter()
             // `as_ssz_bytes` returns the raw bytes we need
-            .find(|kp| kp.pk.as_ssz_bytes() == public_key.as_ref())
+            .find(|kp| kp.pk.serialize() == public_key.as_ref())
             .ok_or(KeystoreError::UnknownPublicKey(public_key.to_string()))?;
 
         let signing_root = compute_signing_root(root, domain);
 
-        let sig = sk.sk.sign(signing_root.into()).as_ssz_bytes();
+        let sig = sk.sk.sign(signing_root.into()).serialize();
         let sig = BLSSig::try_from(sig.as_slice())
             .map_err(|e| KeystoreError::SignatureLength(hex::encode(sig), format!("{e:?}")))?;
 

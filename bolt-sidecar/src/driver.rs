@@ -1,9 +1,8 @@
 use std::{fmt, sync::Arc, time::Instant};
 
+use alloy::consensus::Typed2718;
 use alloy::{
-    consensus::{Transaction, TxType},
-    rpc::types::beacon::events::HeadEvent,
-    signers::local::PrivateKeySigner,
+    consensus::TxType, rpc::types::beacon::events::HeadEvent, signers::local::PrivateKeySigner,
 };
 use ethereum_consensus::{
     clock::{self, SlotStream, SystemTimeProvider},
