@@ -18,9 +18,8 @@ use crate::{
     api::{
         builder::{start_builder_proxy_server, BuilderProxyConfig},
         commitments::{
-            firewall_recv::CommitmentsFirewallRecv,
-            server::{CommitmentEvent, CommitmentsApiServer},
-            spec::CommitmentError,
+            delegation::receiver::CommitmentsReceiver,
+            server::{spec::CommitmentError, CommitmentEvent, CommitmentsApiServer},
         },
         spec::ConstraintsApi,
     },
@@ -231,7 +230,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         });
 
         let api_events_rx = if let Some(urls) = opts.commitment_opts.firewall_rpcs.clone() {
-            CommitmentsFirewallRecv::new(
+            CommitmentsReceiver::new(
                 opts.commitment_opts.operator_private_key.clone(),
                 opts.chain.chain,
                 urls,

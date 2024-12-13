@@ -12,18 +12,18 @@ use serde_json::Value;
 use tracing::{debug, error, info, instrument};
 
 use crate::{
-    api::commitments::headers::auth_from_headers,
+    api::commitments::server::headers::auth_from_headers,
     common::BOLT_SIDECAR_VERSION,
     primitives::{commitment::SignatureError, InclusionRequest},
 };
 
 use super::{
     jsonrpc::{JsonPayload, JsonResponse},
-    server::CommitmentsApiInner,
     spec::{
         CommitmentError, CommitmentsApi, RejectionError, GET_METADATA_METHOD, GET_VERSION_METHOD,
         REQUEST_INCLUSION_METHOD,
     },
+    CommitmentsApiInner,
 };
 
 /// Handler function for the root JSON-RPC path.
