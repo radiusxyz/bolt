@@ -126,7 +126,6 @@ impl KeystoreSigner {
         let sk = self
             .keypairs
             .iter()
-            // `as_ssz_bytes` returns the raw bytes we need
             .find(|kp| kp.pk.serialize() == public_key.as_ref())
             .ok_or(KeystoreError::UnknownPublicKey(public_key.to_string()))?;
 

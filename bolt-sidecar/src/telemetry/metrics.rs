@@ -63,7 +63,8 @@ impl ApiMetrics {
         );
     }
 
-    /// Counters ----------------------------------------------------------------
+    // Counters ----------------------------------------------------------------
+
     pub fn increment_total_http_requests(method: String, path: String, status: String) {
         counter!(
             HTTP_REQUESTS_DURATION_SECONDS,
