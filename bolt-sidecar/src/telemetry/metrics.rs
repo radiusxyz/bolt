@@ -64,7 +64,6 @@ impl ApiMetrics {
     }
 
     /// Counters ----------------------------------------------------------------
-
     pub fn increment_total_http_requests(method: String, path: String, status: String) {
         counter!(
             HTTP_REQUESTS_DURATION_SECONDS,
@@ -117,7 +116,6 @@ impl ApiMetrics {
     }
 
     /// Gauges ----------------------------------------------------------------
-
     pub fn set_latest_head(slot: u32) {
         gauge!(LATEST_HEAD).set(slot);
     }
@@ -127,7 +125,6 @@ impl ApiMetrics {
     }
 
     /// Mixed ----------------------------------------------------------------
-
     /// Observes the duration of an HTTP request by storing it in a histogram,
     /// and incrementing the total number of HTTP requests received.
     pub fn observe_http_request(duration: Duration, method: String, path: String, status: String) {

@@ -227,6 +227,7 @@ impl StateFetcher for StateClient {
 
 #[cfg(test)]
 impl StateClient {
+    /// Return a reference to the inner `ExecutionClient`.
     pub fn inner(&self) -> &ExecutionClient {
         &self.client
     }

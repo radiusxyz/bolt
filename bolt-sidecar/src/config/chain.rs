@@ -183,18 +183,22 @@ impl ChainConfig {
 
 #[cfg(test)]
 impl ChainConfig {
+    /// Create a new chain configuration for Mainnet.
     pub fn mainnet() -> Self {
         Self { chain: Chain::Mainnet, ..Default::default() }
     }
 
+    /// Create a new chain configuration for Holesky.
     pub fn holesky() -> Self {
         Self { chain: Chain::Holesky, ..Default::default() }
     }
 
+    /// Create a new chain configuration for Helder.
     pub fn helder() -> Self {
         Self { chain: Chain::Helder, ..Default::default() }
     }
 
+    /// Create a new chain configuration for Kurtosis.
     pub fn kurtosis(slot_time_in_seconds: u64, commitment_deadline: u64) -> Self {
         Self {
             chain: Chain::Kurtosis,
