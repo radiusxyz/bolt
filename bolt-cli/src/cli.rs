@@ -75,7 +75,7 @@ pub struct DelegateCommand {
 
     /// The source of the private key.
     #[clap(subcommand)]
-    pub source: SecretsSource,
+    pub source: KeysSource,
 }
 
 /// Command for outputting a list of pubkeys in JSON format.
@@ -327,45 +327,6 @@ pub enum Action {
 
 #[derive(Debug, Clone, Parser)]
 pub enum KeysSource {
-    /// Use directly local public keys as source.
-    PublicKeys {
-        /// The public keys in hex format. Multiple public keys must be seperated by commas.
-        #[clap(long, env = "PUBLIC_KEYS", value_delimiter = ',', hide_env_values = true)]
-        public_keys: Vec<String>,
-    },
-
-    /// Use local secret keys to generate the associated public keys.
-    SecretKeys {
-        /// The private key in hex format. Multiple secret keys must be seperated by commas.
-        #[clap(long, env = "SECRET_KEYS", value_delimiter = ',', hide_env_values = true)]
-        secret_keys: Vec<String>,
-    },
-
-    /// Use an EIP-2335 filesystem keystore directory as source for public keys.
-    LocalKeystore {
-        /// The path to the keystore file.
-        #[clap(long, env = "KEYSTORE_PATH")]
-        path: String,
-    },
-
-    /// Use a remote DIRK keystore as source for public keys.
-    Dirk {
-        /// The options for connecting to the DIRK keystore.
-        #[clap(flatten)]
-        opts: DirkOpts,
-    },
-
-    /// Use a remote web3signer keystore as source for the public keys.
-    #[clap(name = "web3signer")]
-    Web3Signer {
-        /// The options for connecting to the web3signer keystore.
-        #[clap(flatten)]
-        opts: Web3SignerOpts,
-    },
-}
-
-#[derive(Debug, Clone, Parser)]
-pub enum SecretsSource {
     /// Use local secret keys to generate the signed messages.
     SecretKeys {
         /// The private key in hex format.
