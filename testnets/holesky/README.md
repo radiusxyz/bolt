@@ -685,6 +685,11 @@ as PBS relays when running Bolt:
 | Aestus     | Holesky | https://0x8d6ff9fdf3b8c05293f6c240f57034c6c5244d7ecb2b9a6e597de575b373610d6345f5060c150012d1cc42d38b8383ac@preconfs-holesky.aestus.live     |
 | Bloxroute  | Holesky | https://0x821f2a65afb70e7f2e820a925a9b4c80a159620582c1766b1b09729fec178b11ea22abb3a51f07b288be815a1a2ff516@bloxroute.holesky.blxrbdn.com    |
 
+**Note for Lido CSM validators**
+
+If you are part of the Lido CSM program, you can use the following relays: `Chainbound`, `Titan` and `Aestus`.
+See the [related Lido forum discussion](https://research.lido.fi/t/rmc-proposal-add-relays-supporting-proposer-commitments-to-the-holesky-allow-list/8992/4) for more information.
+
 ## Command-line options
 
 For completeness, here are all the command-line options available for the Bolt
@@ -1135,24 +1140,22 @@ In particular, you'll need to point any external MEV relays to the sidecar URL.
 Doing so can be done by tweaking the following configuration files:
 
 #### `execution_config.json`
+
 ```json
 {
-    "version": 2, 
-    "fee_recipient": "<FEE_RECIPIENT_ADDRESS>", 
-    "relays": {"<BOLT_SIDECAR_CONSTRAINTS_API_URL>": {}}, 
-    "proposers": []
+  "version": 2,
+  "fee_recipient": "<FEE_RECIPIENT_ADDRESS>",
+  "relays": { "<BOLT_SIDECAR_CONSTRAINTS_API_URL>": {} },
+  "proposers": []
 }
 ```
 
 Then using this config in `vouch.yaml`:
 
 ```yml
-...
+
+---
 blockrelay:
   config:
     url: file:///data/vouch/execution_config.json
-...
 ```
-
-
-
