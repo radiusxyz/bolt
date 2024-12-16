@@ -1,11 +1,14 @@
 use std::{fs, io::Write, path::PathBuf, str::FromStr};
 
 use alloy::{
-    contract::Error as ContractError, primitives::Bytes, sol_types::SolInterface,
+    contract::Error as ContractError,
+    dyn_abi::DynSolType,
+    primitives::{Bytes, U256},
+    sol_types::SolInterface,
     transports::TransportError,
 };
 use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
-use eyre::{Context, Result};
+use eyre::{Context, ContextCompat, Result};
 use serde::Serialize;
 use tracing::info;
 
@@ -26,6 +29,23 @@ pub mod hash;
 
 /// Utilities for working with Consensys' Web3Signer remote keystore.
 pub mod web3signer;
+
+/// Parses an ether value from a string.
+///
+/// The amount can be tagged with a unit, e.g. "1ether".
+///
+/// If the string represents an untagged amount (e.g. "100") then
+/// it is interpreted as wei.
+pub fn parse_ether_value(value: &str) -> Result<U256> {
+    Ok(if value.starts_with("0x") {
+        U256::from_str_radix(value, 16)?
+    } else {
+        DynSolType::coerce_str(&DynSolType::Uint(256), value)?
+            .as_uint()
+            .wrap_err("Could not parse ether value from string")?
+            .0
+    })
+}
 
 /// Parse a BLS public key from a string
 pub fn parse_bls_public_key(delegatee_pubkey: &str) -> Result<BlsPublicKey> {
