@@ -2,24 +2,27 @@ use alloy::{
     primitives::Address,
     providers::{ProviderBuilder, RootProvider},
     sol,
-    transports::http::Http,
+    transports::{http::Http, RpcError},
 };
+use alloy_contract::Error;
 use ethereum_consensus::primitives::BlsPublicKey;
 use eyre::{bail, Context};
 use reqwest::{Client, Url};
 use serde::Serialize;
 
-use tracing::debug;
+use tracing::{debug, warn};
 use BoltManagerContract::{
     BoltManagerContractErrors, BoltManagerContractInstance, ProposerStatus, ValidatorDoesNotExist,
 };
 
-use crate::config::chain::Chain;
+use crate::{common::backoff::retry_with_backoff, config::chain::Chain};
 
 use super::utils::{self, CompressedHash};
 
 /// Maximum number of keys to fetch from the EL node in a single query.
 const MAX_CHUNK_SIZE: usize = 100;
+/// Maximum number of retries for EL node connection attempts
+const MAX_RETRIES: usize = 5;
 
 /// A wrapper over a BoltManagerContract that exposes various utility methods.
 #[derive(Debug, Clone)]
@@ -70,15 +73,38 @@ impl BoltManager {
 
             debug!("fetching proposer statuses for chunk {} of {}", i, chunk_count);
 
-            let returndata = match self.0.getProposerStatuses(hashes_chunk).call().await {
-                Ok(returndata) => returndata,
-                Err(error) => {
-                    let decoded_error = utils::try_parse_contract_error(error)
-                        .wrap_err("Failed to fetch proposer statuses from EL client")?;
+            // Retry the contract call with exponential backoff
+            let returndata = retry_with_backoff(MAX_RETRIES, || async {
+                match self.0.getProposerStatuses(hashes_chunk.clone()).call().await {
+                    Ok(data) => Ok(data),
+                    Err(err) => {
+                        match &err {
+                            Error::TransportError(RpcError::Transport(transport_err)) => {
+                                if transport_err.is_retry_err() {
+                                    warn!(
+                                        "Retryable transport error when connecting to EL node: {}",
+                                        transport_err
+                                    );
+                                    Err(eyre::eyre!("Transport error: {}", transport_err))
+                                } else {
+                                    bail!("Non-retryable transport error when connecting to EL node: {}", transport_err)
+                                }
+                            }
+                            _ => {
+                                // For other errors, parse and return immediately
+                                let decoded_error = utils::try_parse_contract_error(err)
+                                    .wrap_err("Failed to fetch proposer statuses from EL client")?;
 
-                    bail!(generate_bolt_manager_error(decoded_error, commitment_signer_pubkey));
+                                bail!(generate_bolt_manager_error(
+                                    decoded_error,
+                                    commitment_signer_pubkey,
+                                ))
+                            }
+                        }
+                    }
                 }
-            };
+            })
+            .await?;
 
             // Check that all validators are active and have the correct operator
             for status in &returndata.statuses {
@@ -220,8 +246,8 @@ mod tests {
                     .as_ref()).expect("valid bls public key")];
         let res = manager.verify_validator_pubkeys(keys.clone(), commitment_signer_pubkey).await;
         assert!(
-            res.unwrap_err().to_string() ==
-                generate_operator_keys_mismatch_error(
+            res.unwrap_err().to_string()
+                == generate_operator_keys_mismatch_error(
                     pubkey_hash(&keys[0]),
                     commitment_signer_pubkey,
                     operator

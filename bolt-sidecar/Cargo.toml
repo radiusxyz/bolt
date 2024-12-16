@@ -34,6 +34,7 @@ alloy = { version = "0.8.0", features = [
   "provider-trace-api",
   "rpc-types-beacon",
 ] }
+alloy-contract = { version = "0.8.0", default-features = false }
 alloy-rpc-types-engine = { version = "0.8.0", default-features = false, features = ["jwt"] }
 alloy-transport-http = { version = "0.8.0", default-features = false, features = ["jwt-auth"] }
 alloy-provider = { version = "0.8.0", default-features = false, features = ["engine-api"] }

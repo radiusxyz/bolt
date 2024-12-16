@@ -1563,6 +1563,7 @@ version = "0.3.0-alpha"
 dependencies = [
  "account_utils",
  "alloy",
+ "alloy-contract",
  "alloy-node-bindings",
  "alloy-provider",
  "alloy-rpc-types-engine",
