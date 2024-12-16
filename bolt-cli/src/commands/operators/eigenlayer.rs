@@ -244,19 +244,21 @@ impl EigenLayerSubcommand {
 
                 // Check if operator has collateral
                 let mut total_collateral = Uint::from(0);
-                for (name, address) in deployments.collateral {
-                    let stake = match bolt_manager.getOperatorStake(address, address).call().await {
-                        Ok(stake) => stake._0,
-                        Err(e) => {
-                            match try_parse_contract_error::<BoltEigenLayerMiddlewareErrors>(e)? {
-                                BoltEigenLayerMiddlewareErrors::KeyNotFound(_) => Uint::from(0),
-                                other => unreachable!(
-                                    "Unexpected error with selector {:?}",
-                                    other.selector()
-                                ),
+                for (name, collateral) in deployments.collateral {
+                    let stake =
+                        match bolt_manager.getOperatorStake(address, collateral).call().await {
+                            Ok(stake) => stake._0,
+                            Err(e) => {
+                                match try_parse_contract_error::<BoltEigenLayerMiddlewareErrors>(e)?
+                                {
+                                    BoltEigenLayerMiddlewareErrors::KeyNotFound(_) => Uint::from(0),
+                                    other => unreachable!(
+                                        "Unexpected error with selector {:?}",
+                                        other.selector()
+                                    ),
+                                }
                             }
-                        }
-                    };
+                        };
                     if stake > Uint::from(0) {
                         total_collateral += stake;
                         info!(?address, token = %name, amount = ?stake, "Operator has collateral");
