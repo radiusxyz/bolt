@@ -31,6 +31,17 @@ const PING_INTERVAL: Duration = Duration::from_secs(30);
 /// The maximum number of retries to attempt when reconnecting to a websocket server.
 const MAX_RETRIES: usize = 10;
 
+/// The maximum messages size to receive via websocket connection, in bits, set to 32MiB.
+///
+/// It is enough to account for a commitment request with 6 blobs and the largest
+/// memory-consuming transactions you can create. Reference: https://xn--2-umb.com/22/eth-max-mem/
+const MAX_MESSAGE_SIZE: usize = 16 << 23;
+
+/// Whether to use the Nagle algorithm for TCP connections.
+///
+/// Reference: https://en.wikipedia.org/wiki/Nagle%27s_algorithm
+const USE_NAGLE: bool = false;
+
 type ShutdownSignal = Pin<Box<dyn Future<Output = ()> + Send>>;
 
 #[derive(Debug, Error)]
@@ -47,7 +58,6 @@ enum ConnectionHandlerError {
 pub struct CommitmentsReceiver {
     /// The operator's private key to sign authentication requests when opening websocket
     /// connections with RPCs.
-    /// TODO: Change this to SignerECDSA
     operator_private_key: EcdsaSecretKeyWrapper,
     /// The chain ID of the chain the sidecar is running. Used for authentication purposes.
     chain: Chain,
@@ -118,7 +128,6 @@ impl CommitmentsReceiver {
             });
         }
 
-        // TODO: remove this once we have SignerECDSA
         let signer = PrivateKeySigner::from_signing_key(self.operator_private_key.0);
 
         for url in &self.urls {
@@ -183,15 +192,15 @@ async fn handle_connection(
     ping_rx: broadcast::Receiver<()>,
     shutdown_rx: broadcast::Receiver<()>,
 ) -> Result<(), ConnectionHandlerError> {
-    // TODO: check if default is actually ok
-    let ws_config = WebSocketConfig { ..Default::default() };
+    let ws_config =
+        WebSocketConfig { max_message_size: Some(MAX_MESSAGE_SIZE), ..Default::default() };
 
     let mut request = url.clone().into_client_request()?;
     request
         .headers_mut()
         .insert("Authorization", format!("Bearer {}", jwt).parse().expect("valid header"));
 
-    match connect_async_with_config(request, Some(ws_config), false).await {
+    match connect_async_with_config(request, Some(ws_config), USE_NAGLE).await {
         Ok((stream, response)) => {
             info!(?url, ?response, "opened websocket connection");
             let (write_sink, read_stream) = stream.split();
@@ -316,6 +325,8 @@ mod tests {
         info!("Shutting down the servers...");
         shutdown_servers_tx.send(()).unwrap();
     }
+
+    // Creates a websocket server
     async fn create_websocket_server(mut shutdown_rx: broadcast::Receiver<()>) -> u16 {
         let app = Router::new().route(FIREWALL_STREAM_PATH, get(ws_handler));
         // Bind to port 0 to let the OS pick a random port for us.
