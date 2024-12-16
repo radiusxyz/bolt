@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-
+use alloy::consensus::transaction::PooledTransaction;
 use alloy::{
     consensus::Transaction,
     primitives::{Address, TxHash, U256},
@@ -9,6 +8,7 @@ use ethereum_consensus::{
     deneb::mainnet::{Blob, BlobsBundle},
 };
 use reth_primitives::TransactionSigned;
+use std::collections::HashMap;
 use tracing::warn;
 
 use crate::{

@@ -1,11 +1,12 @@
+use alloy::consensus::Transaction;
 use alloy::{
-    consensus::{BlobTransactionValidationError, EnvKzgSettings, Transaction},
+    consensus::{BlobTransactionValidationError, EnvKzgSettings},
     eips::eip4844::MAX_BLOBS_PER_BLOCK,
-    primitives::{Address, U256},
+    primitives::Address,
+    primitives::U256,
     transports::TransportError,
 };
-use reth_primitives::PooledTransactionsElement;
-use std::{collections::HashMap, ops::Deref};
+use std::collections::HashMap;
 use thiserror::Error;
 use tracing::{debug, error, trace, warn};
 
@@ -382,23 +383,18 @@ impl<C: StateFetcher> ExecutionState<C> {
             validate_transaction(&account_state_with_diffs, tx)?;
 
             // Check EIP-4844-specific limits
-            if let Some(transaction) = tx.as_eip4844() {
+            if let Some(transaction) = tx.as_eip4844_with_sidecar() {
                 if let Some(template) = self.block_templates.get(&target_slot) {
                     if template.blob_count() >= MAX_BLOBS_PER_BLOCK {
                         return Err(ValidationError::Eip4844Limit);
                     }
                 }
 
-                let PooledTransactionsElement::BlobTransaction(ref blob_transaction) = tx.deref()
-                else {
-                    unreachable!("EIP-4844 transaction should be a blob transaction")
-                };
-
                 // Calculate max possible increase in blob basefee
                 let max_blob_basefee = calculate_max_basefee(self.blob_basefee, slot_diff)
                     .ok_or(ValidationError::MaxBaseFeeCalcOverflow)?;
 
-                let blob_basefee = blob_transaction.0.tx().max_fee_per_blob_gas().unwrap_or(0);
+                let blob_basefee = transaction.max_fee_per_blob_gas().unwrap_or(0);
 
                 debug!(%max_blob_basefee, %blob_basefee, "Validating blob basefee");
                 if blob_basefee < max_blob_basefee {
@@ -406,8 +402,7 @@ impl<C: StateFetcher> ExecutionState<C> {
                 }
 
                 // Validate blob against KZG settings
-                let sidecar = blob_transaction.0.tx().sidecar();
-                transaction.validate_blob(sidecar, self.kzg_settings.get())?;
+                transaction.validate_blob(self.kzg_settings.get())?;
             }
 
             // Increase the bundle nonce and balance diffs for this sender for the next iteration

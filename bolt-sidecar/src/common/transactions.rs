@@ -1,5 +1,7 @@
-use alloy::{consensus::Transaction, primitives::U256};
-use reth_primitives::PooledTransactionsElement;
+use alloy::{
+    consensus::{transaction::PooledTransaction, Transaction},
+    primitives::U256,
+};
 
 use crate::{primitives::AccountState, state::ValidationError};
 
@@ -34,7 +36,7 @@ pub fn calculate_max_basefee(current: u128, block_diff: u64) -> Option<u128> {
 /// - For legacy transactions: `gas_price * gas_limit + tx_value`.
 /// - For EIP-4844 blob transactions: `max_fee_per_gas * gas_limit + tx_value + max_blob_fee_per_gas
 ///   * blob_gas_used`.
-pub fn max_transaction_cost(transaction: &PooledTransactionsElement) -> U256 {
+pub fn max_transaction_cost(transaction: &PooledTransaction) -> U256 {
     let gas_limit = transaction.gas_limit() as u128;
 
     let mut fee_cap = transaction.max_fee_per_gas();
@@ -53,7 +55,7 @@ pub fn max_transaction_cost(transaction: &PooledTransactionsElement) -> U256 {
 /// 2. The balance of the account must be higher than the transaction's max cost.
 pub fn validate_transaction(
     account_state: &AccountState,
-    transaction: &PooledTransactionsElement,
+    transaction: &PooledTransaction,
 ) -> Result<(), ValidationError> {
     // Check if the nonce is correct (should be the same as the transaction count)
     if transaction.nonce() < account_state.transaction_count {
