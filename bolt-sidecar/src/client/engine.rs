@@ -17,8 +17,11 @@ use alloy_transport_http::{
     AuthLayer, AuthService, HyperClient,
 };
 use http_body_util::Full;
+use lazy_static::lazy_static;
 use reqwest::Url;
 use tower::ServiceBuilder;
+
+use crate::common::BOLT_SIDECAR_VERSION;
 
 /// A Hyper HTTP client with a JWT authentication layer.
 type HyperAuthClient<B = Full<Bytes>> = HyperClient<B, AuthService<Client<HttpConnector, B>>>;
@@ -56,14 +59,16 @@ impl EngineClient {
 
     /// Send a request to identify the engine client version.
     pub async fn engine_client_version(&self) -> TransportResult<Vec<ClientVersionV1>> {
-        // Send a mocked client info to the EL, since this is a required request argument
-        let mocked_cl_info = ClientVersionV1 {
-            code: ClientCode::RH, // pretend we are Reth
-            version: format!("v{}", env!("CARGO_PKG_VERSION")),
-            name: "BoltSidecar".to_string(),
-            commit: "unstable".to_string(),
-        };
-
-        self.inner.get_client_version_v1(mocked_cl_info).await
+        self.inner.get_client_version_v1(MOCKED_ENGINE_VERSION.clone()).await
     }
+}
+
+lazy_static! {
+    /// The mocked engine version for the Bolt sidecar.
+    pub static ref MOCKED_ENGINE_VERSION: ClientVersionV1 = ClientVersionV1 {
+        code: ClientCode::RH, // pretend we are Reth
+        version: BOLT_SIDECAR_VERSION.clone(),
+        name: "BoltSidecar".to_string(),
+        commit: "unstable".to_string(),
+    };
 }

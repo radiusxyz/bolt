@@ -48,3 +48,9 @@ pub mod chain_io;
 /// Utilities for testing
 #[cfg(test)]
 mod test_util;
+
+/// Built-time information about the sidecar binary.
+pub mod built_info {
+    // Docs: https://docs.rs/built/latest/built/
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}

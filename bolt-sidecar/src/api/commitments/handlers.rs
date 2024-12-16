@@ -13,7 +13,7 @@ use tracing::{debug, error, info, instrument};
 
 use crate::{
     api::commitments::headers::auth_from_headers,
-    common::CARGO_PKG_VERSION,
+    common::BOLT_SIDECAR_VERSION,
     primitives::{commitment::SignatureError, InclusionRequest},
 };
 
@@ -36,14 +36,11 @@ pub async fn rpc_entrypoint(
     debug!("Received new request");
 
     match payload.method.as_str() {
-        GET_VERSION_METHOD => {
-            let version_string = format!("bolt-sidecar-v{CARGO_PKG_VERSION}");
-            Ok(Json(JsonResponse {
-                id: payload.id,
-                result: Value::String(version_string),
-                ..Default::default()
-            }))
-        }
+        GET_VERSION_METHOD => Ok(Json(JsonResponse {
+            id: payload.id,
+            result: Value::String(BOLT_SIDECAR_VERSION.clone()),
+            ..Default::default()
+        })),
 
         GET_METADATA_METHOD => {
             let response = JsonResponse {
