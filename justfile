@@ -2,6 +2,16 @@
 default:
   @just --list --unsorted
 
+# run tests in all packages using nextest
+test:
+    @just test-package bolt-cli
+    @just test-package bolt-boost
+    @just test-package bolt-sidecar
+
+# run tests in a specific package using nextest
+test-package package:
+    cd {{ package }} && cargo nextest run
+
 # lint all packages
 lint:
 	@just clippy bolt-cli
