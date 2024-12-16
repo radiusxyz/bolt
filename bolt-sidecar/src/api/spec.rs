@@ -63,6 +63,8 @@ pub enum BuilderApiError {
     FailedDelegating(ErrorResponse),
     #[error("Failed to revoke constraint submission rights: {0:?}")]
     FailedRevoking(ErrorResponse),
+    #[error("No bids found for slot {0}")]
+    NoBids(u64),
     #[error("Failed to fetch local payload for slot {0}")]
     FailedToFetchLocalPayload(u64),
     #[error("Axum error: {0:?}")]
@@ -84,14 +86,15 @@ pub enum BuilderApiError {
 impl IntoResponse for BuilderApiError {
     fn into_response(self) -> Response {
         match self {
-            Self::FailedRegisteringValidators(error) |
-            Self::FailedGettingHeader(error) |
-            Self::FailedGettingPayload(error) |
-            Self::FailedSubmittingConstraints(error) |
-            Self::FailedDelegating(error) |
-            Self::FailedRevoking(error) => {
+            Self::FailedRegisteringValidators(error)
+            | Self::FailedGettingHeader(error)
+            | Self::FailedGettingPayload(error)
+            | Self::FailedSubmittingConstraints(error)
+            | Self::FailedDelegating(error)
+            | Self::FailedRevoking(error) => {
                 (StatusCode::from_u16(error.code).unwrap(), Json(error)).into_response()
             }
+            Self::NoBids(_) => (StatusCode::NO_CONTENT, self.to_string()).into_response(),
             Self::AxumError(err) => (StatusCode::BAD_REQUEST, err.to_string()).into_response(),
             Self::JsonError(err) => (StatusCode::BAD_REQUEST, err.to_string()).into_response(),
             Self::FailedToFetchLocalPayload(_) => {

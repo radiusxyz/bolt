@@ -238,6 +238,10 @@ impl ConstraintsApi for ConstraintsClient {
             .send()
             .await?;
 
+        if response.status() != StatusCode::NO_CONTENT {
+            return Err(BuilderApiError::NoBids(params.slot));
+        }
+
         if response.status() != StatusCode::OK {
             let error = response.json::<ErrorResponse>().await?;
             return Err(BuilderApiError::FailedGettingHeader(error));
