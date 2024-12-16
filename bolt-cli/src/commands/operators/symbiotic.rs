@@ -1,7 +1,7 @@
 use alloy::{
     network::EthereumWallet,
     primitives::{utils::Unit, Uint},
-    providers::{Provider, ProviderBuilder},
+    providers::ProviderBuilder,
     signers::local::PrivateKeySigner,
     sol_types::SolInterface,
 };
@@ -31,9 +31,7 @@ impl SymbioticSubcommand {
                     .wallet(EthereumWallet::from(signer.clone()))
                     .on_http(rpc_url);
 
-                let chain_id = provider.get_chain_id().await?;
-                let chain = Chain::from_id(chain_id)
-                    .unwrap_or_else(|| panic!("chain id {} not supported", chain_id));
+                let chain = Chain::try_from_provider(&provider).await?;
 
                 let deployments = deployments_for_chain(chain);
 
@@ -96,6 +94,7 @@ impl SymbioticSubcommand {
             Self::Deregister { rpc_url, operator_private_key } => {
                 let signer = PrivateKeySigner::from_bytes(&operator_private_key)
                     .wrap_err("valid private key")?;
+
                 let address = signer.address();
 
                 let provider = ProviderBuilder::new()
@@ -103,9 +102,7 @@ impl SymbioticSubcommand {
                     .wallet(EthereumWallet::from(signer))
                     .on_http(rpc_url);
 
-                let chain_id = provider.get_chain_id().await?;
-                let chain = Chain::from_id(chain_id)
-                    .unwrap_or_else(|| panic!("chain id {} not supported", chain_id));
+                let chain = Chain::try_from_provider(&provider).await?;
 
                 let deployments = deployments_for_chain(chain);
 
@@ -145,9 +142,8 @@ impl SymbioticSubcommand {
 
             Self::Status { rpc_url, address } => {
                 let provider = ProviderBuilder::new().on_http(rpc_url.clone());
-                let chain_id = provider.get_chain_id().await?;
-                let chain = Chain::from_id(chain_id)
-                    .unwrap_or_else(|| panic!("chain id {} not supported", chain_id));
+
+                let chain = Chain::try_from_provider(&provider).await?;
 
                 let deployments = deployments_for_chain(chain);
                 let bolt_manager =
