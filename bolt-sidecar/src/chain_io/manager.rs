@@ -1,10 +1,10 @@
 use alloy::{
+    contract::Error,
     primitives::Address,
     providers::{ProviderBuilder, RootProvider},
     sol,
     transports::{http::Http, RpcError},
 };
-use alloy_contract::Error;
 use ethereum_consensus::primitives::BlsPublicKey;
 use eyre::{bail, Context};
 use reqwest::{Client, Url};
