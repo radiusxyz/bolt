@@ -16,7 +16,7 @@ futures = "0.3"
 async-trait = "0.1.82"
 eyre = "0.6.12"
 thiserror = "2.0.6"
-reqwest = "0.12.7"
+reqwest = "0.12.9"
 
 # crypto
 ssz_rs = { git = "https://github.com/ralexstokes/ssz-rs", rev = "ec3073e" }
