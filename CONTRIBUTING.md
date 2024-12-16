@@ -27,7 +27,7 @@ There are several ways you can contribute:
    Fix bugs, improve performance, or add new features by submitting a pull request.
 
 3. **Resolving Issues**  
-   If you're interested in resolving an issue, please comment on the issue to let us know you're working on it. A good place to start looking for work is issues labeled with [good first issue](https://github.com/chainbound/bolt/issues?q=is%3Aissue%20state%3Aopen%20label%3AD-good-first-issue).
+   If you're interested in resolving an issue, please comment on the issue to let us know you want to work on it and outline a plan for tackling it. A good place to start looking for work is issues labeled with [good first issue](https://github.com/chainbound/bolt/issues?q=is%3Aissue%20state%3Aopen%20label%3AD-good-first-issue).
 
 ---
 
@@ -40,9 +40,11 @@ We do not accept contributions focused solely on fixing typos or minor grammatic
 ## Submitting Pull Requests  
 
 Before submitting a pull request:  
-- Make sure your changes are logically grouped and adhere to Rust standards (e.g., run `cargo clippy`).
+- Make sure your changes are logically grouped and adhere to Rust standards (e.g., run `just fmt` and `just clippy`).
 - Include tests for any new functionality or bug fixes.
 - Consider opening a draft pull request if your work is ongoing or you’d like early feedback.
+- Consider [running the devnet locally](README.md#Running-the-devnet) when testing.
+- We use [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) for commit messages.
 
 ---
 
@@ -52,17 +54,7 @@ If your changes include code updates, ensure they are properly tested:
 - **Unit Tests:** For individual functions or components.  
 - **Integration Tests:** For larger, cross-functional features.  
 
-Run `cargo test` locally to confirm all tests pass.
-
----
-
-## Reviewing Pull Requests  
-
-When reviewing contributions, focus on:  
-- The value of the change.  
-- The correctness and clarity of the implementation.  
-
-Provide constructive and actionable feedback to help contributors improve their submissions.
+Run `just test` locally to confirm all tests pass.
 
 ---
 
