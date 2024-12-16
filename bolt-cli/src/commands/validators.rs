@@ -1,7 +1,5 @@
 use alloy::{
-    network::EthereumWallet,
-    providers::{Provider, ProviderBuilder},
-    signers::local::PrivateKeySigner,
+    network::EthereumWallet, providers::ProviderBuilder, signers::local::PrivateKeySigner,
     sol_types::SolInterface,
 };
 use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
@@ -33,11 +31,9 @@ impl ValidatorsCommand {
                 let provider = ProviderBuilder::new()
                     .with_recommended_fillers()
                     .wallet(EthereumWallet::from(signer))
-                    .on_http(rpc_url.clone());
+                    .on_http(rpc_url);
 
-                let chain_id = provider.get_chain_id().await?;
-                let chain = Chain::from_id(chain_id)
-                    .unwrap_or_else(|| panic!("chain id {} not supported", chain_id));
+                let chain = Chain::try_from_provider(&provider).await?;
 
                 let bolt_validators_address = deployments_for_chain(chain).bolt.validators;
 
@@ -105,9 +101,9 @@ impl ValidatorsCommand {
 
             ValidatorsSubcommand::Status { rpc_url, pubkeys_path, pubkeys } => {
                 let provider = ProviderBuilder::new().on_http(rpc_url);
-                let chain_id = provider.get_chain_id().await?;
-                let chain = Chain::from_id(chain_id)
-                    .unwrap_or_else(|| panic!("chain id {} not supported", chain_id));
+
+                let chain = Chain::try_from_provider(&provider).await?;
+
                 let registry = deployments_for_chain(chain).bolt.validators;
 
                 let mut bls_pubkeys = Vec::new();

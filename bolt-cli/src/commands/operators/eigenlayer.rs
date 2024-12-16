@@ -4,7 +4,7 @@ use alloy::{
         utils::{format_ether, Unit},
         Bytes, Uint,
     },
-    providers::{Provider, ProviderBuilder, WalletProvider},
+    providers::ProviderBuilder,
     signers::{local::PrivateKeySigner, SignerSync},
     sol_types::SolInterface,
 };
@@ -40,11 +40,9 @@ impl EigenLayerSubcommand {
                 let provider = ProviderBuilder::new()
                     .with_recommended_fillers()
                     .wallet(EthereumWallet::from(signer))
-                    .on_http(rpc_url.clone());
+                    .on_http(rpc_url);
 
-                let chain_id = provider.get_chain_id().await?;
-                let chain = Chain::from_id(chain_id)
-                    .unwrap_or_else(|| panic!("chain id {} not supported", chain_id));
+                let chain = Chain::try_from_provider(&provider).await?;
 
                 let deployments = deployments_for_chain(chain);
 
@@ -63,13 +61,9 @@ impl EigenLayerSubcommand {
 
                 request_confirmation();
 
-                let token_erc20 = IERC20Instance::new(token, provider.clone());
+                let token_erc20 = IERC20Instance::new(token, provider);
 
-                let balance = token_erc20
-                    .balanceOf(provider.clone().default_signer_address())
-                    .call()
-                    .await?
-                    ._0;
+                let balance = token_erc20.balanceOf(operator).call().await?._0;
 
                 info!("Operator token balance: {}", format_ether(balance));
 
@@ -103,11 +97,9 @@ impl EigenLayerSubcommand {
                 let provider = ProviderBuilder::new()
                     .with_recommended_fillers()
                     .wallet(EthereumWallet::from(signer.clone()))
-                    .on_http(rpc_url.clone());
+                    .on_http(rpc_url);
 
-                let chain_id = provider.get_chain_id().await?;
-                let chain = Chain::from_id(chain_id)
-                    .unwrap_or_else(|| panic!("chain id {} not supported", chain_id));
+                let chain = Chain::try_from_provider(&provider).await?;
 
                 info!(operator = %signer.address(), rpc = %operator_rpc, ?chain, "Registering EigenLayer operator");
 
@@ -120,10 +112,10 @@ impl EigenLayerSubcommand {
                     BoltEigenLayerMiddleware::new(bolt_avs_address, provider.clone());
 
                 let avs_directory =
-                    AVSDirectory::new(deployments.eigen_layer.avs_directory, provider.clone());
+                    AVSDirectory::new(deployments.eigen_layer.avs_directory, provider);
                 let signature_digest_hash = avs_directory
                     .calculateOperatorAVSRegistrationDigestHash(
-                        provider.clone().default_signer_address(),
+                        signer.address(),
                         bolt_avs_address,
                         salt,
                         expiry,
@@ -183,9 +175,7 @@ impl EigenLayerSubcommand {
                     .wallet(EthereumWallet::from(signer))
                     .on_http(rpc_url);
 
-                let chain_id = provider.get_chain_id().await?;
-                let chain = Chain::from_id(chain_id)
-                    .unwrap_or_else(|| panic!("chain id {} not supported", chain_id));
+                let chain = Chain::try_from_provider(&provider).await?;
 
                 info!(operator = %address, ?chain, "Deregistering EigenLayer operator");
 
@@ -229,9 +219,8 @@ impl EigenLayerSubcommand {
 
             Self::Status { rpc_url: rpc, address } => {
                 let provider = ProviderBuilder::new().on_http(rpc.clone());
-                let chain_id = provider.get_chain_id().await?;
-                let chain = Chain::from_id(chain_id)
-                    .unwrap_or_else(|| panic!("chain id {} not supported", chain_id));
+
+                let chain = Chain::try_from_provider(&provider).await?;
 
                 let deployments = deployments_for_chain(chain);
                 let bolt_manager =

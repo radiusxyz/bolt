@@ -1,6 +1,10 @@
 use std::path::PathBuf;
 
-use alloy::primitives::{Address, FixedBytes, B256, U256};
+use alloy::{
+    primitives::{Address, FixedBytes, B256, U256},
+    providers::Provider,
+    transports::Transport,
+};
 use clap::{
     builder::styling::{AnsiColor, Color, Style},
     Parser, Subcommand, ValueEnum,
@@ -466,6 +470,7 @@ impl Chain {
         }
     }
 
+    /// Get the chain ID for the given chain. Returns `None` if the chain ID is not supported.
     pub fn from_id(id: u64) -> Option<Self> {
         match id {
             1 => Some(Self::Mainnet),
@@ -474,6 +479,21 @@ impl Chain {
             7014190335 => Some(Self::Helder),
             _ => None,
         }
+    }
+
+    /// Get the chain ID for the given chain. Returns an error if the chain ID is not supported.
+    pub fn try_from_id(id: u64) -> eyre::Result<Self> {
+        Self::from_id(id).ok_or_else(|| eyre::eyre!("chain id {} not supported", id))
+    }
+
+    /// Tries to get the chain ID from an online provider.
+    pub async fn try_from_provider<T, P>(provider: &P) -> eyre::Result<Self>
+    where
+        T: Transport + Clone,
+        P: Provider<T>,
+    {
+        let chain_id = provider.get_chain_id().await?;
+        Self::try_from_id(chain_id)
     }
 }
 
