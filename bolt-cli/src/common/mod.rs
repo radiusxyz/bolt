@@ -36,6 +36,9 @@ pub mod web3signer;
 ///
 /// If the string represents an untagged amount (e.g. "100") then
 /// it is interpreted as wei.
+///
+/// This Snippet is copied from Foundry's Cast CLI.
+/// Ref: https://github.com/foundry-rs/foundry/blob/206dab285437bd6889463ab006b6a5fb984079d8/crates/cli/src/utils/mod.rs#L137
 pub fn parse_ether_value(value: &str) -> Result<U256> {
     Ok(if value.starts_with("0x") {
         U256::from_str_radix(value, 16)?
