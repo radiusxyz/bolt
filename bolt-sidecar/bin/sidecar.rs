@@ -1,7 +1,9 @@
 use eyre::bail;
 use tracing::info;
 
-use bolt_sidecar::{config::Opts, telemetry::init_telemetry_stack, SidecarDriver};
+use bolt_sidecar::{
+    common::BOLT_SIDECAR_VERSION, config::Opts, telemetry::init_telemetry_stack, SidecarDriver,
+};
 
 const BOLT: &str = r#"
 ██████╗  ██████╗ ██╗  ████████╗
@@ -14,6 +16,7 @@ const BOLT: &str = r#"
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     println!("{}", BOLT);
+    println!("Running version: {}", BOLT_SIDECAR_VERSION.clone());
 
     let opts = Opts::try_parse()?;
 
