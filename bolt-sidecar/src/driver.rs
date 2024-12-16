@@ -1,8 +1,9 @@
 use std::{fmt, sync::Arc, time::Instant};
 
-use alloy::consensus::Typed2718;
 use alloy::{
-    consensus::TxType, rpc::types::beacon::events::HeadEvent, signers::local::PrivateKeySigner,
+    consensus::{TxType, Typed2718},
+    rpc::types::beacon::events::HeadEvent,
+    signers::local::PrivateKeySigner,
 };
 use ethereum_consensus::{
     clock::{self, SlotStream, SystemTimeProvider},
@@ -163,34 +164,34 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         let validator_pubkeys = if let Some(delegations_path) =
             &opts.constraint_signing.delegations_path
         {
+            info!("Reading signed delegations from disk");
             let delegations = read_signed_delegations_from_file(delegations_path)?;
             let keys = delegations.iter().map(|d| d.validator_pubkey.clone()).collect::<Vec<_>>();
             constraints_client.add_delegations(delegations);
             keys
         } else {
-            // If no delegations are provided, we just use the public keys from the signer.
+            info!("No delegations provided, using public keys from the provided signer");
             Vec::from_iter(constraint_signer.available_pubkeys())
         };
 
         if opts.unsafe_disable_onchain_checks {
-            warn!("Skipping validators and operator public keys verification, --unsafe-disable-onchain-checks is 'true'");
+            warn!("Skipping validators and operator public keys verification: --unsafe-disable-onchain-checks is 'true'");
         } else if let Some(manager) =
             BoltManager::from_chain(opts.execution_api_url.clone(), *opts.chain)
         {
-            // Verify the operator and validator keys with the bolt manager
             info!(
                 validator_pubkeys = %validator_pubkeys.len(),
-                "Verifying validators and operator keys with Bolt Manager, this may take a while..."
+                "Verifying validators and operator keys with BoltManager..."
             );
 
             manager
                 .verify_validator_pubkeys(validator_pubkeys, commitment_signer.public_key())
                 .await?;
 
-            info!("Successfully verified validators and operator keys with Bolt Manager.");
+            info!("Successfully verified validators and operator keys with BoltManager");
         } else {
             warn!(
-                "Bolt Manager is not deployed on {}, skipping validators and operator public keys verification",
+                "BoltManager is not deployed on {}, skipping validators and operator public keys verification",
                 opts.chain.name()
             );
         }
