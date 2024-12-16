@@ -228,7 +228,8 @@ pub enum EigenLayerSubcommand {
         /// The name of the strategy to deposit into.
         #[clap(long, env = "EIGENLAYER_STRATEGY")]
         strategy: EigenLayerStrategy,
-        /// The amount to deposit into the strategy, in ETH
+        /// The amount to deposit into the strategy, in units (e.g. '1ether', '10gwei')
+        /// If no unit is provided, it is assumed to be in wei.
         #[clap(long, env = "EIGENLAYER_STRATEGY_DEPOSIT_AMOUNT", value_parser = parse_ether_value)]
         amount: U256,
     },

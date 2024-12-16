@@ -372,7 +372,7 @@ Options:
       --strategy <STRATEGY>
           The name of the strategy to deposit into [env: EIGENLAYER_STRATEGY=] [possible values: st-eth, r-eth, w-eth, cb-eth, m-eth]
       --amount <AMOUNT>
-          The amount to deposit into the strategy. (examples: "1eth", "0.2eth", "100gwei") [env: EIGENLAYER_STRATEGY_DEPOSIT_AMOUNT=]
+          The amount to deposit into the strategy. (examples: "1ether", "0.2ether", "100gwei") [env: EIGENLAYER_STRATEGY_DEPOSIT_AMOUNT=]
   -h, --help
           Print help
 ```
