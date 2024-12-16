@@ -279,7 +279,7 @@ First, you need to install the
    - `--rpc-url` is the URL of the Ethereum node to send transactions to (e.g. Geth)
    - `--operator-private-key` is the private key of your registered operator address
    - `--strategy` is the **NAME** of the strategy to deposit into. [possible values: st-eth, r-eth, w-eth, cb-eth, m-eth].
-   - `--amount` is the amount to deposit into the strategy (in ETH) (e.g. '1' for 1 ETH).
+   - `--amount` is the amount to deposit into the strategy (e.g. '1ether', '0.1ether', '100gwei', etc.)
 
 3. Register into the Bolt AVS:
 
