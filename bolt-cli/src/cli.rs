@@ -94,6 +94,9 @@ pub struct PubkeysCommand {
 #[derive(Debug, Clone, Parser)]
 pub struct SendCommand {
     /// bolt RPC URL to send requests to and fetch lookahead info from.
+    ///
+    /// Leaving this empty will default to the canonical bolt RPC URL, which
+    /// automatically manages increasing nonces on preconfirmed state.
     #[clap(long, env = "BOLT_RPC_URL", default_value = "https://rpc-holesky.bolt.chainbound.io")]
     pub bolt_rpc_url: Url,
 
