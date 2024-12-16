@@ -89,6 +89,19 @@ contract BoltValidatorsV3 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpg
         return vals;
     }
 
+    /// @notice Get validators by range
+    /// @param start Start index
+    /// @param end End index
+    /// @return ValidatorInfo[] Array of validator info structs
+    function getValidatorsByRange(uint256 start, uint256 end) public view returns (ValidatorInfo[] memory) {
+        ValidatorsLib._Validator[] memory _vals = VALIDATORS.getByRange(start, end);
+        ValidatorInfo[] memory vals = new ValidatorInfo[](_vals.length);
+        for (uint256 i = 0; i < _vals.length; i++) {
+            vals[i] = _getValidatorInfo(_vals[i]);
+        }
+        return vals;
+    }
+
     /// @notice Get a validator by its BLS public key
     /// @param pubkey BLS public key of the validator
     /// @return ValidatorInfo struct
