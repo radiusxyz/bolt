@@ -85,9 +85,19 @@ impl BoltManager {
                 if !status.active {
                     if let Some(pubkey) = hashes_with_preimages.get(&status.pubkeyHash) {
                         bail!(
-                            "validator with public key {} and public key hash {} is not active in Bolt",
+                            "The operator address {} is not 
+                            active for providing commitments for the validator with public key:
+                            {}.
+                            
+                            This most likely means that the operator does not have sufficient
+                            collateral staked in Bolt. Please double check with the `bolt` CLI
+                            with the following command:
+
+                            `bolt operators <RESTAKING_PROTOCOL> status --rpc-url <RPC_URL> --address {}`
+                            ",
+                            status.operator,
                             pubkey,
-                            status.pubkeyHash
+                            status.operator
                         );
                     } else {
                         bail!(
