@@ -281,16 +281,15 @@ contract BoltManagerV3 is IBoltManagerV3, OwnableUpgradeable, UUPSUpgradeable {
         operators.set(operatorAddr, operator);
     }
 
-    function updateOperatorRPC(address operatorAddr, string calldata rpc) external onlyMiddleware {
-        if (!operators.contains(operatorAddr)) {
+    /// @notice Updates the RPC endpoint of an operator. Must be called by the operator address EOA.
+    /// @param operatorAddr The operator address to update the RPC endpoint for.
+    /// @param rpc The new RPC endpoint of the operator.
+    function updateOperatorRPC(string calldata rpc) public {
+        if (!operators.contains(msg.sender)) {
             revert OperatorNotRegistered();
         }
 
-        if (operators.get(operatorAddr).middleware != msg.sender) {
-            revert UnauthorizedMiddleware();
-        }
-
-        operators.get(operatorAddr).rpc = rpc;
+        operators.updateRPC(msg.sender, rpc);
     }
 
     /// @notice De-registers an operator from Bolt. Only callable by a supported middleware contract.

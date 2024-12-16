@@ -58,6 +58,12 @@ library EnumerableMapV3 {
         return self._values[bytes32(uint256(uint160(key)))];
     }
 
+    function updateRPC(OperatorMap storage self, address key, string memory rpc) internal {
+        bytes32 keyBytes = bytes32(uint256(uint160(key)));
+        Operator storage operator = self._values[keyBytes];
+        operator.rpc = rpc;
+    }
+
     function keys(
         OperatorMap storage self
     ) internal view returns (address[] memory) {
