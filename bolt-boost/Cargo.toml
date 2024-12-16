@@ -40,7 +40,7 @@ alloy = { version = "0.8.0", features = [
     "rpc-types-beacon",
     "rpc-types-engine",
 ] }
-alloy-rlp = "0.3.9"
+alloy-rlp = "0.3.10"
 
 # commit-boost
 # pinned to rev be able to bump alloy
