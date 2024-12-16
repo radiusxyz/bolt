@@ -7,7 +7,7 @@ use alloy::{
 use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
 use eyre::{Context, Result};
 use serde::Serialize;
-use tracing::{error, info};
+use tracing::info;
 
 /// BoltManager contract bindings.
 pub mod bolt_manager;
@@ -69,14 +69,12 @@ pub fn write_to_file<T: Serialize>(out: &str, data: &T) -> Result<()> {
 pub fn try_parse_contract_error<T: SolInterface>(error: ContractError) -> Result<T, ContractError> {
     match error {
         ContractError::TransportError(TransportError::ErrorResp(resp)) => {
-            let data = resp.data.clone().unwrap_or_default();
+            let Some(data) = resp.data else {
+                return Err(ContractError::TransportError(TransportError::ErrorResp(resp)));
+            };
+
             let data = data.get().trim_matches('"');
             let data = Bytes::from_str(data).unwrap_or_default();
-
-            if data.is_empty() {
-                error!("Could not decode error data from transport response.");
-                return Err(ContractError::TransportError(TransportError::ErrorResp(resp)));
-            }
 
             T::abi_decode(&data, true).map_err(Into::into)
         }
