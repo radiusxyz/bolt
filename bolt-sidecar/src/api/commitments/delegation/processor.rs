@@ -10,10 +10,10 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tracing::{error, info, trace, warn};
 
-use crate::api::commitments::server::spec::CommitmentError;
+use crate::api::commitments::server::spec::{CommitmentError, RejectionError};
 use crate::api::commitments::server::CommitmentEvent;
 use crate::primitives::commitment::SignedCommitment;
-use crate::primitives::{CommitmentRequest, InclusionRequest};
+use crate::primitives::CommitmentRequest;
 
 /// The reason for interrupting the [CommitmentRequestProcessor] future.
 #[derive(Debug)]
@@ -88,6 +88,10 @@ impl Future for CommitmentRequestProcessor {
 
         loop {
             let mut progress = false;
+            // It is good practice to first prioritze local work done
+            // Reference: https://github.com/libp2p/rust-libp2p/blob/3c1f856e868fac094fe0fb0fa860c19fdff8c9ca/docs/coding-guidelines.md#prioritize-local-work-over-new-work-from-a-remote
+
+            // Local work tasks
 
             // 1. Handle commitment request responses after they've been processed.
             while let Poll::Ready(Some(response)) =
@@ -101,51 +105,13 @@ impl Future for CommitmentRequestProcessor {
 
                 if let Ok(commitment) = result_commitment {
                     trace!(?rpc_url, ?commitment, "received commitment response");
-                    // TODO: check whether this format is correct + handle errors.
                     let message = Message::text(serde_json::to_string(&commitment).unwrap());
                     // Add the message to the outgoing messages queue
                     this.outgoing_messages.push_back(message);
                 }
             }
 
-            // 2. Handle incoming websocket messages from the read stream.
-            while let Poll::Ready(maybe_message) = this.read_stream.poll_next_unpin(cx) {
-                progress = true;
-
-                let Some(res_message) = maybe_message else {
-                    warn!(?rpc_url, "websocket read streaam terminated");
-                    return Poll::Ready(InterruptReason::ReadStreamTerminated);
-                };
-
-                match res_message {
-                    Ok(Message::Text(text)) => {
-                        trace!(?rpc_url, text, "received text message from websocket connection");
-                        // Create the channel to send and receive the commitment response
-                        let (tx, rx) = oneshot::channel();
-
-                        // TODO: parse the text into a commitment request
-                        let request = CommitmentRequest::Inclusion(InclusionRequest::default());
-                        let event = CommitmentEvent { request, response: tx };
-
-                        if let Err(err) = this.api_events_tx.try_send(event) {
-                            error!(?err, "failed to forward commitment event to channel");
-                        }
-
-                        // add the pending response to this buffer for later processing
-                        this.pending_commitment_responses.push(rx);
-                    }
-                    Ok(Message::Close(_)) => {
-                        warn!(?rpc_url, "websocket connection closed by server");
-                        return Poll::Ready(InterruptReason::ConnectionClosed);
-                    }
-                    Ok(_) => {} // ignore other message types
-                    Err(e) => {
-                        error!(?e, ?rpc_url, "error reading message from websocket connection");
-                    }
-                }
-            }
-
-            // 3. Process outgoing messages
+            // 2. Process outgoing messages
             while let Some(message) = this.outgoing_messages.pop_front() {
                 // Check if the write sink is able to receive data.
                 match this.write_sink.poll_ready_unpin(cx) {
@@ -172,7 +138,7 @@ impl Future for CommitmentRequestProcessor {
                 }
             }
 
-            // 4. Ensure the write sink is flushed so that message are sent to the caller server.
+            // 3. Ensure the write sink is flushed so that message are sent to the caller server.
             //
             // NOTE: We're not considering "progress" flushing the sink, i.e. `Poll::Ready(())`.
             // That is because flushing an empty sink would lead to run this loop indefinitely
@@ -182,7 +148,68 @@ impl Future for CommitmentRequestProcessor {
                 // return Poll::Ready(());
             }
 
-            // 5. Handle ping messages
+            // 4. Handle shutdown signals before accepting any new work
+            match this.shutdown_rx.try_recv() {
+                Ok(_) => {
+                    info!("received shutdown signal. closing websocket connection...");
+                    return Poll::Ready(InterruptReason::Shutdown);
+                }
+                Err(TryRecvError::Closed) => {
+                    error!("shutdown channel closed");
+                }
+                _ => {}
+            }
+
+            // Incoming work tasks
+
+            // 5. Handle incoming websocket messages from the read stream.
+            while let Poll::Ready(maybe_message) = this.read_stream.poll_next_unpin(cx) {
+                progress = true;
+
+                let Some(res_message) = maybe_message else {
+                    warn!(?rpc_url, "websocket read streaam terminated");
+                    return Poll::Ready(InterruptReason::ReadStreamTerminated);
+                };
+
+                match res_message {
+                    Ok(Message::Text(text)) => {
+                        trace!(?rpc_url, text, "received text message from websocket connection");
+                        // Create the channel to send and receive the commitment response
+                        let (tx, rx) = oneshot::channel();
+
+                        let request = serde_json::from_str::<CommitmentRequest>(&text)
+                            .map_err(|e| CommitmentError::Rejected(RejectionError::Json(e)));
+
+                        match request {
+                            Ok(request) => {
+                                let event = CommitmentEvent { request, response: tx };
+                                if let Err(err) = this.api_events_tx.try_send(event) {
+                                    error!(?err, "failed to forward commitment event to channel");
+                                }
+                            }
+                            Err(err) => {
+                                warn!(?err, ?rpc_url, "failed to parse commitment request");
+                                if let Err(e) = tx.send(Err(err)) {
+                                    error!(?e, "failed to send rejection through channel");
+                                }
+                            }
+                        }
+
+                        // add the pending response to this buffer for later processing
+                        this.pending_commitment_responses.push(rx);
+                    }
+                    Ok(Message::Close(_)) => {
+                        warn!(?rpc_url, "websocket connection closed by server");
+                        return Poll::Ready(InterruptReason::ConnectionClosed);
+                    }
+                    Ok(_) => {} // ignore other message types
+                    Err(e) => {
+                        error!(?e, ?rpc_url, "error reading message from websocket connection");
+                    }
+                }
+            }
+
+            // 6. Handle ping messages
             match this.ping_rx.try_recv() {
                 Ok(_) => {
                     progress = true;
@@ -193,18 +220,6 @@ impl Future for CommitmentRequestProcessor {
                 }
                 Err(TryRecvError::Lagged(lost)) => {
                     error!("ping channel for keep-alives lagged by {} messages", lost)
-                }
-                _ => {}
-            }
-
-            // 6. Handle shutdown signals
-            match this.shutdown_rx.try_recv() {
-                Ok(_) => {
-                    info!("received shutdown signal. closing websocket connection...");
-                    return Poll::Ready(InterruptReason::Shutdown);
-                }
-                Err(TryRecvError::Closed) => {
-                    error!("shutdown channel closed");
                 }
                 _ => {}
             }

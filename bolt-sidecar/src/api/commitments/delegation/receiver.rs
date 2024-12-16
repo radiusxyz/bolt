@@ -244,7 +244,10 @@ mod tests {
         api::commitments::delegation::{jwt::ProposerAuthClaims, receiver::CommitmentsReceiver},
         common::secrets::EcdsaSecretKeyWrapper,
         config::chain::Chain,
-        primitives::commitment::{InclusionCommitment, SignedCommitment},
+        primitives::{
+            commitment::{InclusionCommitment, SignedCommitment},
+            CommitmentRequest, InclusionRequest,
+        },
     };
 
     const FIREWALL_STREAM_PATH: &str = "/api/v1/firewall_stream";
@@ -395,11 +398,19 @@ mod tests {
         // Spawn a task that will push several messages to the client (does not matter what client does)
         let mut send_task = tokio::spawn(async move {
             let n_msg = 20;
+            let commitment_request = CommitmentRequest::Inclusion(InclusionRequest::default());
+            let commitment_request_msg =
+                Message::Text(serde_json::to_string(&commitment_request).unwrap());
+
             for i in 0..n_msg {
                 // In case of any websocket error, we exit.
-                if let Err(err) =
-                    sender.send(Message::Text(format!("Server message {i} ..."))).await
-                {
+                let msg = if i % 5 == 0 {
+                    Message::Text("This is an invalid message and should be rejected".to_string())
+                } else {
+                    commitment_request_msg.clone()
+                };
+
+                if let Err(err) = sender.send(msg).await {
                     error!("Error sending message {i}: {err}");
                     return i;
                 }
