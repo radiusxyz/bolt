@@ -13,6 +13,7 @@ import {IVault} from "@symbiotic/interfaces/vault/IVault.sol";
 /// 2. forge script script/holesky/Symbiotic.s.sol --rpc-url $RPC_HOLESKY --private-key $NETWORK_PRIVATE_KEY --broadcast -vvvv --sig "run(string memory arg)" registerMiddleware
 /// 3. forge script script/holesky/Symbiotic.s.sol --rpc-url $RPC_HOLESKY --private-key $NETWORK_PRIVATE_KEY --broadcast -vvvv --sig "run(string memory arg)" setMaxNetworkLimit
 /// 4. forge script script/holesky/Symbiotic.s.sol --rpc-url $RPC_HOLESKY --private-key $VAULT_PRIVATE_KEY --broadcast -vvvv --sig "run(string memory arg)" setNetworkLimit
+/// 5. forge script script/holesky/Symbiotic.s.sol --rpc-url $RPC_HOLESKY --private-key $VAULT_PRIVATE_KEY --broadcast -vvvv --sig "run(string memory arg)" setOperatorNetworkShares
 contract SymbioticHelper is Script {
     function run(
         string memory arg
@@ -75,6 +76,25 @@ contract SymbioticHelper is Script {
                 INetworkRestakeDelegator(delegator).setNetworkLimit(subnetwork, amount);
                 console.log("Set vault network limit for vault (%s)", vaults[i]);
             }
+            console.log("Set network limit for all vaults");
+
+            // NOTE: requires msg.sender == vaultAdmin
+        } else if (keccak256(abi.encode(arg)) == keccak256(abi.encode("setOperatorNetworkShares"))) {
+            // NOTE: change this to the subnetwork you want to set the operator network shares for
+            bytes32 subnetwork = 0xb017002D8024d8c8870A5CECeFCc63887650D2a4000000000000000000000000;
+            address operator = 0x57b6FdEF3A23B81547df68F44e5524b987755c99;
+            uint256 amount = 1_000_000_000_000_000_000; // 1 ETH, customize as needed
+
+            address[] memory vaults = readVaults();
+
+            console.log("Minting the operator network shares for all vaults");
+            for (uint256 i = 0; i < vaults.length; i++) {
+                address delegator = IVault(vaults[i]).delegator();
+                INetworkRestakeDelegator(delegator).setOperatorNetworkShares(subnetwork, operator, amount);
+                console.log("Set operator network shares for vault (%s)", vaults[i]);
+            }
+
+            console.log("Set operator network shares for all vaults");
         }
 
         vm.stopBroadcast();
