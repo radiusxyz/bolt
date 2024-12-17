@@ -8,7 +8,7 @@ use ethereum_consensus::{
     deneb::mainnet::SignedBlindedBeaconBlock, Fork,
 };
 use reqwest::Url;
-use tracing::error;
+use tracing::{error, span_enabled, trace, warn, Level};
 
 use crate::{
     api::{
@@ -140,6 +140,24 @@ impl BuilderApi for ConstraintsClient {
             .filter(|d| validator_pubkeys.contains(&d.message.validator_pubkey))
             .cloned()
             .collect::<Vec<_>>();
+
+        if filtered_delegations.is_empty() {
+            warn!("No delegations found for the incoming validator registrations");
+            // Works also with directives like `RUST_LOG=bolt_sidecar=trace`
+            if span_enabled!(Level::TRACE) {
+                let delegations_pubkeys = self
+                    .delegations
+                    .iter()
+                    .map(|d| &d.message.validator_pubkey)
+                    .collect::<HashSet<_>>();
+                let without_delegations = validator_pubkeys
+                    .iter()
+                    .filter(|p| !delegations_pubkeys.contains(*p))
+                    .collect::<Vec<_>>();
+                trace!("validator public keys without delegations: {:?}", without_delegations);
+            }
+            return Ok(());
+        }
 
         if let Err(err) = self.delegate(&filtered_delegations).await {
             error!(?err, "Failed to propagate delegations during validator registration");
