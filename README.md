@@ -149,6 +149,7 @@ Make sure you have the following requirements on your machine:
 - [Kurtosis CLI](https://docs.kurtosis.com/install/) installed
 - [Foundry](https://book.getfoundry.sh/getting-started/installation) installed
 - [Rust & Cargo](https://www.rust-lang.org/tools/install) installed
+- [`cargo nextest`](https://nexte.st/)
 
 > [!NOTE]
 > The Kurtosis CLI version tested is `0.88.16`. Some issues may arise if you are

@@ -2,6 +2,20 @@
 default:
   @just --list --unsorted
 
+# run tests in all packages or a specific package
+test package='':
+    @if [[ "{{package}}" == "" ]]; then \
+        just _test-package bolt-cli; \
+        just _test-package bolt-boost; \
+        just _test-package bolt-sidecar; \
+    else \
+        just _test-package {{package}}; \
+    fi
+
+# run tests in a specific package using nextest
+_test-package package:
+    cd {{ package }} && cargo nextest run
+
 # lint all packages
 lint:
 	@just clippy bolt-cli
