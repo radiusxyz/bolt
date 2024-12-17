@@ -69,7 +69,7 @@ pub struct DelegateCommand {
     pub out: String,
 
     /// The chain for which the delegation message is intended.
-    #[clap(long, env = "CHAIN", default_value = "mainnet")]
+    #[clap(long, env = "CHAIN")]
     pub chain: Chain,
 
     /// The action to perform. The tool can be used to generate
