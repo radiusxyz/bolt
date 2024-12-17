@@ -43,7 +43,7 @@ Before submitting a pull request:
 - Make sure your changes are logically grouped and adhere to Rust standards (e.g., run `just fmt` and `just clippy`).
 - Include tests for any new functionality or bug fixes.
 - Consider opening a draft pull request if your work is ongoing or you’d like early feedback.
-- Consider [running the devnet locally](README.md#Running-the-devnet) when testing.
+- Consider [running the devnet locally](README.md#running-the-devnet) when testing.
 - We use [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) for commit messages.
 
 ---
