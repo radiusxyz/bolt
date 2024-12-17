@@ -40,6 +40,7 @@ This document provides instructions for running Bolt on the Holesky testnet.
     * [Using a ERC-2335 Keystore](#using-a-erc-2335-keystore)
   * [Avoid restarting the beacon node](#avoid-restarting-the-beacon-node)
   * [Vouch configuration](#vouch-configuration)
+      * [`execution_config.json`](#execution_configjson)
 
 <!-- vim-markdown-toc -->
 
@@ -403,7 +404,7 @@ Options:
       --salt <SALT>
           The salt for the operator signature [env: OPERATOR_SIGNATURE_SALT=]
       --expiry <EXPIRY>
-          The expiry timestamp for the operator signature [env: OPERATOR_SIGNATURE_EXPIRY=]
+          The expiry UTC timestamp in seconds for the operator signature [env: OPERATOR_SIGNATURE_EXPIRY=]
   -h, --help
           Print help
 ```
@@ -417,7 +418,7 @@ A note on the `--salt` and `--expiry` parameters:
   echo -n "0x"; head -c 32 /dev/urandom | hexdump -e '32/1 "%02x" "\n"'
   ```
 
-- `expiry` -- the timestamp of the signature expiry in seconds. To generate it
+- `expiry` -- the UTC timestamp in seconds of the signature expiry. To generate it
   on both Linux and MacOS run the following command, replacing
   `<EXPIRY_TIMESTAMP>` with the desired timestamp:
 
@@ -1153,7 +1154,6 @@ Doing so can be done by tweaking the following configuration files:
 Then using this config in `vouch.yaml`:
 
 ```yml
-
 ---
 blockrelay:
   config:
