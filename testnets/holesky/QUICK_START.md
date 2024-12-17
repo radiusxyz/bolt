@@ -313,7 +313,7 @@ First, you need to install the
      echo -n "0x"; head -c 32 /dev/urandom | hexdump -e '32/1 "%02x" "\n"'
      ```
 
-   - `--expiry` is the timestamp of the signature expiry in seconds.
+   - `--expiry` is the UTC timestamp in seconds of the signature expiry.
      To generate it on both Linux and MacOS run the following command, replacing <EXPIRY_TIMESTAMP>
      with the desired timestamp:
 
