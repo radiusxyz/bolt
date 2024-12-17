@@ -1,15 +1,16 @@
 use alloy::{
+    contract::Error,
     primitives::Address,
     providers::{ProviderBuilder, RootProvider},
     sol,
-    transports::http::Http,
+    transports::{http::Http, RpcError},
 };
 use ethereum_consensus::primitives::BlsPublicKey;
 use eyre::{bail, Context};
 use reqwest::{Client, Url};
 use serde::Serialize;
 
-use tracing::debug;
+use tracing::{debug, warn};
 use BoltManagerContract::{
     BoltManagerContractErrors, BoltManagerContractInstance, ProposerStatus, ValidatorDoesNotExist,
 };
@@ -20,6 +21,8 @@ use super::utils::{self, CompressedHash};
 
 /// Maximum number of keys to fetch from the EL node in a single query.
 const MAX_CHUNK_SIZE: usize = 100;
+/// Maximum number of retries for EL node connection attempts
+const MAX_RETRIES: usize = 20;
 
 /// A wrapper over a BoltManagerContract that exposes various utility methods.
 #[derive(Debug, Clone)]
@@ -70,13 +73,46 @@ impl BoltManager {
 
             debug!("fetching proposer statuses for chunk {} of {}", i, chunk_count);
 
-            let returndata = match self.0.getProposerStatuses(hashes_chunk).call().await {
-                Ok(returndata) => returndata,
-                Err(error) => {
-                    let decoded_error = utils::try_parse_contract_error(error)
-                        .wrap_err("Failed to fetch proposer statuses from EL client")?;
+            let mut retries = 0;
+            let returndata = loop {
+                retries += 1;
+                if retries > MAX_RETRIES {
+                    bail!("Max retries reached when fetching proposer statuses from EL client");
+                }
 
-                    bail!(generate_bolt_manager_error(decoded_error, commitment_signer_pubkey));
+                match self.0.getProposerStatuses(hashes_chunk.clone()).call().await {
+                    Ok(data) => break data,
+                    Err(Error::TransportError(RpcError::Transport(transport_err))) => {
+                        // `retry_with_backoff_if` is not used here because we need to check
+                        // that the error is retryable.
+                        if transport_err.to_string().contains("error sending request for url") {
+                            warn!(
+                                "Retryable transport error when connecting to EL node: {}",
+                                transport_err
+                            );
+                            // Crude increasing backoff
+                            tokio::time::sleep(std::time::Duration::from_millis(
+                                100 * retries as u64,
+                            ))
+                            .await;
+                            continue;
+                        } else {
+                            warn!(
+                                "Non-retryable transport error when connecting to EL node: {}",
+                                transport_err
+                            );
+                            return Err(transport_err.into());
+                        }
+                    }
+                    Err(err) => {
+                        // For other errors, parse and return immediately
+                        let decoded_error = utils::try_parse_contract_error(err)
+                            .wrap_err("Failed to fetch proposer statuses from EL client")?;
+
+                        bail!(
+                            generate_bolt_manager_error(decoded_error, commitment_signer_pubkey,)
+                        );
+                    }
                 }
             };
 
@@ -191,9 +227,12 @@ sol! {
 #[cfg(test)]
 mod tests {
     use ::hex::FromHex;
-    use alloy::{hex, primitives::Address};
+    use alloy::hex;
+    use alloy::primitives::Address;
+    use alloy_node_bindings::Anvil;
     use ethereum_consensus::primitives::BlsPublicKey;
     use reqwest::Url;
+    use std::time::Duration;
 
     use crate::{
         chain_io::{manager::generate_operator_keys_mismatch_error, utils::pubkey_hash},
@@ -230,8 +269,8 @@ mod tests {
                     .as_ref()).expect("valid bls public key")];
         let res = manager.verify_validator_pubkeys(keys.clone(), commitment_signer_pubkey).await;
         assert!(
-            res.unwrap_err().to_string() ==
-                generate_operator_keys_mismatch_error(
+            res.unwrap_err().to_string()
+                == generate_operator_keys_mismatch_error(
                     pubkey_hash(&keys[0]),
                     commitment_signer_pubkey,
                     operator
@@ -244,5 +283,47 @@ mod tests {
             .await
             .expect("active validator and correct operator");
         assert!(res[0].active);
+    }
+
+    #[tokio::test]
+    async fn test_verify_validator_pubkeys_retry() {
+        let _ = tracing_subscriber::fmt::try_init();
+
+        // Point to an EL node that is not yet online
+        let url = Url::parse("http://localhost:10000").expect("valid url");
+
+        let manager =
+            BoltManager::from_chain(url, Chain::Holesky).expect("manager deployed on Holesky");
+
+        let keys = vec![
+            BlsPublicKey::try_from(
+                hex!("87cbbfe6f08a0fd424507726cfcf5b9df2b2fd6b78a65a3d7bb6db946dca3102eb8abae32847d5a9a27e414888414c26")
+                    .as_ref()).expect("valid bls public key")];
+        let commitment_signer_pubkey = Address::ZERO;
+
+        tokio::spawn(async move {
+            // Sleep for a bit so verify_validator_pubkeys is called before the anvil is up
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            let anvil = Anvil::new()
+                .fork(Url::parse("http://remotebeast:48545").unwrap())
+                .port(10000u16)
+                .spawn();
+            println!("{}", anvil.endpoint());
+            tokio::time::sleep(Duration::from_secs(10)).await;
+        });
+
+        let operator =
+            Address::from_hex("725028b0b7c3db8b8242d35cd3a5779838b217b1").expect("valid address");
+
+        let result = manager.verify_validator_pubkeys(keys.clone(), commitment_signer_pubkey).await;
+
+        assert!(
+            result.unwrap_err().to_string()
+                == generate_operator_keys_mismatch_error(
+                    pubkey_hash(&keys[0]),
+                    commitment_signer_pubkey,
+                    operator
+                )
+        );
     }
 }
