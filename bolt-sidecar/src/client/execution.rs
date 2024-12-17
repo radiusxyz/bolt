@@ -1,12 +1,11 @@
 use std::ops::{Deref, DerefMut};
 
-use alloy::rpc::client::RpcClient;
 use alloy::{
     eips::BlockNumberOrTag,
     primitives::{Address, Bytes, TxHash, B256, U256, U64},
     providers::{ProviderBuilder, RootProvider},
     rpc::{
-        client::{BatchRequest, ClientBuilder},
+        client::{BatchRequest, ClientBuilder, RpcClient},
         types::{Block, FeeHistory, TransactionReceipt},
     },
     transports::{http::Http, TransportErrorKind, TransportResult},

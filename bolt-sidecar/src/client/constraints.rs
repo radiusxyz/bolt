@@ -130,6 +130,7 @@ impl BuilderApi for ConstraintsClient {
         if self.delegations.is_empty() {
             return Ok(());
         }
+
         let validator_pubkeys =
             registrations.iter().map(|r| &r.message.public_key).collect::<HashSet<_>>();
 
