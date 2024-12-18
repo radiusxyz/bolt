@@ -143,6 +143,9 @@ mod tests {
             pricing.calculate_min_priority_fee(incoming_gas, preconfirmed_gas).unwrap();
 
         // Expected fee: ~19 Gwei
+        // This will likely never happen, since you want to reserve some gas
+        // on top of the block for MEV, but enforcing this is not the responsibility
+        // of the pricing model.
         assert!(
             (min_fee_wei as f64 - 19_175_357_339.0).abs() < 1_000.0,
             "Expected ~19,175,357,339 Wei, got {} Wei",
