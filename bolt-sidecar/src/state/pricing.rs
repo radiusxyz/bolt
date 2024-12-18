@@ -31,14 +31,14 @@ pub enum PricingError {
 
 impl Default for PreconfPricing {
     fn default() -> Self {
-        Self::new()
+        Self::new(30_000_000)
     }
 }
 
 impl PreconfPricing {
     /// Initializes a new PreconfPricing with default parameters.
-    pub fn new() -> Self {
-        Self { block_gas_limit: 30_000_000, base_multiplier: 0.019, gas_scalar: 1.02e-6 }
+    pub fn new(block_gas_limit: u64) -> Self {
+        Self { block_gas_limit, base_multiplier: 0.019, gas_scalar: 1.02e-6 }
     }
 
     /// Calculate the minimum priority fee for a preconfirmation based on
@@ -104,7 +104,7 @@ mod tests {
 
     #[test]
     fn test_min_priority_fee_zero_preconfirmed() {
-        let pricing = PreconfPricing::new();
+        let pricing = PreconfPricing::default();
 
         // Test minimum fee (21k gas ETH transfer, 0 preconfirmed)
         let incoming_gas = 21_000;
@@ -122,7 +122,7 @@ mod tests {
 
     #[test]
     fn test_min_priority_fee_medium_load() {
-        let pricing = PreconfPricing::new();
+        let pricing = PreconfPricing::default();
 
         // Test medium load (21k gas, 15M preconfirmed)
         let incoming_gas = 21_000;
@@ -140,7 +140,7 @@ mod tests {
 
     #[test]
     fn test_min_priority_fee_max_load() {
-        let pricing = PreconfPricing::new();
+        let pricing = PreconfPricing::default();
 
         // Test last preconfirmed transaction (21k gas, almost 30M preconfirmed)
         let incoming_gas = 21_000;
@@ -160,8 +160,63 @@ mod tests {
     }
 
     #[test]
+    fn test_min_priority_fee_zero_preconfirmed_36m() {
+        let pricing = PreconfPricing::new(36_000_000);
+
+        // Test minimum fee (21k gas ETH transfer, 0 preconfirmed)
+        let incoming_gas = 21_000;
+        let preconfirmed_gas = 0;
+        let min_fee_wei =
+            pricing.calculate_min_priority_fee(incoming_gas, preconfirmed_gas).unwrap();
+
+        assert!(
+            (min_fee_wei as f64 - 513_931_726.0).abs() < 1_000.0,
+            "Expected ~513,931,726 Wei, got {} Wei",
+            min_fee_wei
+        );
+    }
+
+    #[test]
+    fn test_min_priority_fee_medium_load_36m() {
+        let pricing = PreconfPricing::new(36_000_000);
+
+        // Test medium load (21k gas, 18M preconfirmed)
+        let incoming_gas = 21_000;
+        let preconfirmed_gas = 18_000_000;
+        let min_fee_wei =
+            pricing.calculate_min_priority_fee(incoming_gas, preconfirmed_gas).unwrap();
+
+        assert!(
+            (min_fee_wei as f64 - 1_001_587_240.0).abs() < 1_000.0,
+            "Expected ~1,001,587,240 Wei, got {} Wei",
+            min_fee_wei
+        );
+    }
+
+    #[test]
+    fn test_min_priority_fee_max_load_36m() {
+        let pricing = PreconfPricing::new(36_000_000);
+
+        // Test last preconfirmed transaction (21k gas, almost 30M preconfirmed)
+        let incoming_gas = 21_000;
+        let preconfirmed_gas = 36_000_000 - 21_000;
+        let min_fee_wei =
+            pricing.calculate_min_priority_fee(incoming_gas, preconfirmed_gas).unwrap();
+
+        // Expected fee: ~19 Gwei
+        // This will likely never happen, since you want to reserve some gas
+        // on top of the block for MEV, but enforcing this is not the responsibility
+        // of the pricing model.
+        assert!(
+            (min_fee_wei as f64 - 19_175_357_339.0).abs() < 1_000.0,
+            "Expected ~19,175,357,339 Wei, got {} Wei",
+            min_fee_wei
+        );
+    }
+
+    #[test]
     fn test_error_exceeds_block_limit() {
-        let pricing = PreconfPricing::new();
+        let pricing = PreconfPricing::default();
 
         let incoming_gas = 21_000;
         let preconfirmed_gas = 30_000_001;
@@ -172,7 +227,7 @@ mod tests {
 
     #[test]
     fn test_error_insufficient_gas() {
-        let pricing = PreconfPricing::new();
+        let pricing = PreconfPricing::default();
 
         let incoming_gas = 15_000_001;
         let preconfirmed_gas = 15_000_000;
@@ -186,7 +241,7 @@ mod tests {
 
     #[test]
     fn test_error_zero_incoming_gas() {
-        let pricing = PreconfPricing::new();
+        let pricing = PreconfPricing::default();
 
         let incoming_gas = 0;
         let preconfirmed_gas = 0;
