@@ -96,13 +96,12 @@ impl BoltManager {
                             ))
                             .await;
                             continue;
-                        } else {
-                            warn!(
-                                "Non-retryable transport error when connecting to EL node: {}",
-                                transport_err
-                            );
-                            return Err(transport_err.into());
                         }
+                        warn!(
+                            "Non-retryable transport error when connecting to EL node: {}",
+                            transport_err
+                        );
+                        return Err(transport_err.into());
                     }
                     Err(err) => {
                         // For other errors, parse and return immediately
