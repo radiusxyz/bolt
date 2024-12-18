@@ -112,10 +112,10 @@ mod tests {
         let min_fee_wei =
             pricing.calculate_min_priority_fee(incoming_gas, preconfirmed_gas).unwrap();
 
-        // Expected fee: ~0.61 Gwei
+        // Pricing model article expects fee of 0.61 Gwei
         assert!(
             (min_fee_wei as f64 - 613_499_092.0).abs() < 1_000.0,
-            "Expected ~610,000,000 Wei, got {} Wei",
+            "Expected ~613,499,092 Wei, got {} Wei",
             min_fee_wei
         );
     }
@@ -130,7 +130,7 @@ mod tests {
         let min_fee_wei =
             pricing.calculate_min_priority_fee(incoming_gas, preconfirmed_gas).unwrap();
 
-        // Expected fee: ~1.17 Gwei
+        // Pricing model article expects fee of ~1.17 Gwei
         assert!(
             (min_fee_wei as f64 - 1_189_738_950.0).abs() < 1_000.0,
             "Expected ~1,189,738,950 Wei, got {} Wei",
