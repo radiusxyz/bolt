@@ -28,10 +28,10 @@ impl TransactionExt for PooledTransaction {
     fn value(&self) -> U256 {
         match self {
             Self::Legacy(transaction) => transaction.tx().value,
-            Self::Eip2930(transaction) => transaction.tx().value,
             Self::Eip1559(transaction) => transaction.tx().value,
+            Self::Eip2930(transaction) => transaction.tx().value,
             Self::Eip4844(transaction) => transaction.tx().tx().value,
-            _ => unimplemented!(),
+            Self::Eip7702(transaction) => transaction.tx().value,
         }
     }
 
@@ -45,10 +45,10 @@ impl TransactionExt for PooledTransaction {
     fn size(&self) -> usize {
         match self {
             Self::Legacy(transaction) => transaction.tx().size(),
-            Self::Eip2930(transaction) => transaction.tx().size(),
             Self::Eip1559(transaction) => transaction.tx().size(),
+            Self::Eip2930(transaction) => transaction.tx().size(),
             Self::Eip4844(blob_tx) => blob_tx.tx().tx().size(),
-            _ => unimplemented!(),
+            Self::Eip7702(transaction) => transaction.tx().size(),
         }
     }
 }
@@ -143,15 +143,15 @@ impl FullTransaction {
     pub fn into_signed(self) -> TransactionSigned {
         match self.tx {
             PooledTransaction::Legacy(tx) => tx.into(),
-            PooledTransaction::Eip2930(tx) => tx.into(),
             PooledTransaction::Eip1559(tx) => tx.into(),
+            PooledTransaction::Eip2930(tx) => tx.into(),
             PooledTransaction::Eip4844(tx) => {
                 let sig = *tx.signature();
                 let hash = *tx.hash();
                 let inner_tx = tx.into_parts().0.into_parts().0;
                 Signed::new_unchecked(inner_tx, sig, hash).into()
             }
-            _ => unimplemented!(),
+            PooledTransaction::Eip7702(tx) => tx.into(),
         }
     }
 
