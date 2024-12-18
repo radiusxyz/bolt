@@ -1,11 +1,13 @@
 use alloy::{
     consensus::{
-        transaction::PooledTransaction, BlobTransactionSidecar, Transaction, TxType, Typed2718,
+        transaction::PooledTransaction, BlobTransactionSidecar, Signed, Transaction, TxType,
+        Typed2718,
     },
     eips::eip2718::{Decodable2718, Encodable2718},
     hex,
     primitives::{Address, U256},
 };
+use reth_primitives::TransactionSigned;
 use serde::{de, ser::SerializeSeq};
 use std::{borrow::Cow, fmt};
 
@@ -135,6 +137,22 @@ impl FullTransaction {
     /// Returns the inner transaction.
     pub fn into_inner(self) -> PooledTransaction {
         self.tx
+    }
+
+    /// Returns the signed transaction.
+    pub fn into_signed(self) -> TransactionSigned {
+        match self.tx {
+            PooledTransaction::Legacy(tx) => tx.into(),
+            PooledTransaction::Eip2930(tx) => tx.into(),
+            PooledTransaction::Eip1559(tx) => tx.into(),
+            PooledTransaction::Eip4844(tx) => {
+                let sig = *tx.signature();
+                let hash = *tx.hash();
+                let inner_tx = tx.into_parts().0.into_parts().0;
+                Signed::new_unchecked(inner_tx, sig, hash).into()
+            }
+            _ => unimplemented!(),
+        }
     }
 
     /// Returns the sender of the transaction, if recovered.
