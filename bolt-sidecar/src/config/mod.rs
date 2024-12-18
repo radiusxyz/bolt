@@ -113,7 +113,16 @@ impl Opts {
     pub fn try_parse() -> eyre::Result<Self> {
         read_env_file()?;
 
-        Ok(Self::parse())
+        let opts = Self::parse();
+        opts.validate()?;
+        Ok(opts)
+    }
+
+    fn validate(&self) -> eyre::Result<()> {
+        if self.commitment_opts.firewall_rpcs.is_some() && self.limits.min_priority_fee.is_some() {
+            bail!("min priority fee cannot be set when using the firewall RPCs");
+        }
+        Ok(())
     }
 }
 

@@ -33,12 +33,8 @@ pub struct LimitsOpts {
     )]
     pub max_committed_gas_per_slot: NonZero<u64>,
     /// Min priority fee to accept for a commitment
-    #[clap(
-        long,
-        env = "BOLT_SIDECAR_MIN_PRIORITY_FEE",
-        default_value_t = LimitsOpts::default().min_priority_fee
-    )]
-    pub min_priority_fee: u128,
+    #[clap(long, env = "BOLT_SIDECAR_MIN_PRIORITY_FEE")]
+    pub min_priority_fee: Option<u128>,
     /// The maximum size in MiB of the [crate::state::ExecutionState] ScoreCache that holds account
     /// states. Each [crate::primitives::AccountState] is 48 bytes, its score is [usize] bytes, and
     /// its key is 20 bytes, so the default value of 1024 KiB = 1 MiB can hold around 15k account
@@ -58,7 +54,7 @@ impl Default for LimitsOpts {
                 .expect("Valid non-zero"),
             max_committed_gas_per_slot: NonZero::new(DEFAULT_MAX_COMMITTED_GAS)
                 .expect("Valid non-zero"),
-            min_priority_fee: DEFAULT_MIN_PRIORITY_FEE,
+            min_priority_fee: Some(DEFAULT_MIN_PRIORITY_FEE),
             max_account_states_size: NonZero::new(1_024).expect("Valid non-zero"),
         }
     }

@@ -306,9 +306,11 @@ impl<C: StateFetcher> ExecutionState<C> {
             return Err(ValidationError::BaseFeeTooLow(max_basefee));
         }
 
-        // Ensure max_priority_fee_per_gas is greater than or equal to min_priority_fee
-        if !req.validate_min_priority_fee(max_basefee, self.limits.min_priority_fee) {
-            return Err(ValidationError::MaxPriorityFeePerGasTooLow);
+        if let Some(min_priority_fee) = self.limits.min_priority_fee {
+            // Ensure max_priority_fee_per_gas is greater than or equal to min_priority_fee
+            if !req.validate_min_priority_fee(max_basefee, min_priority_fee) {
+                return Err(ValidationError::MaxPriorityFeePerGasTooLow);
+            }
         }
 
         if target_slot < self.slot {
@@ -935,7 +937,8 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let limits = LimitsOpts { min_priority_fee: 2 * GWEI_TO_WEI as u128, ..Default::default() };
+        let limits =
+            LimitsOpts { min_priority_fee: Some(2 * GWEI_TO_WEI as u128), ..Default::default() };
 
         let mut state = ExecutionState::new(client.clone(), limits).await?;
 
@@ -973,7 +976,8 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let limits = LimitsOpts { min_priority_fee: 2 * GWEI_TO_WEI as u128, ..Default::default() };
+        let limits =
+            LimitsOpts { min_priority_fee: Some(2 * GWEI_TO_WEI as u128), ..Default::default() };
 
         let mut state = ExecutionState::new(client.clone(), limits).await?;
 
@@ -1016,7 +1020,8 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let limits = LimitsOpts { min_priority_fee: 2 * GWEI_TO_WEI as u128, ..Default::default() };
+        let limits =
+            LimitsOpts { min_priority_fee: Some(2 * GWEI_TO_WEI as u128), ..Default::default() };
 
         let mut state = ExecutionState::new(client.clone(), limits).await?;
 
@@ -1149,7 +1154,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let limits = LimitsOpts { min_priority_fee: 1000000000, ..Default::default() };
+        let limits = LimitsOpts { min_priority_fee: Some(1000000000), ..Default::default() };
         let mut state = ExecutionState::new(client.clone(), limits).await?;
 
         let sender = anvil.addresses().first().unwrap();
