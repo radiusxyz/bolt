@@ -121,6 +121,25 @@ mod tests {
     }
 
     #[test]
+    fn test_min_priority_fee_zero_big_preconfirmed() {
+        let pricing = PreconfPricing::default();
+
+        // Test minimum fee (210k gas ETH transfer, 0 preconfirmed)
+        let incoming_gas = 210_000;
+        let preconfirmed_gas = 0;
+        let min_fee_wei =
+            pricing.calculate_min_priority_fee(incoming_gas, preconfirmed_gas).unwrap();
+
+        // This preconf uses 10x more gas than the 21k preconf,
+        // but the fee is only slightly higher.
+        assert!(
+            (min_fee_wei as f64 - 615_379_171.0).abs() < 1_000.0,
+            "Expected ~615,379,171 Wei, got {} Wei",
+            min_fee_wei
+        );
+    }
+
+    #[test]
     fn test_min_priority_fee_medium_load() {
         let pricing = PreconfPricing::default();
 
