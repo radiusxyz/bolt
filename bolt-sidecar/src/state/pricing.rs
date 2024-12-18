@@ -29,6 +29,12 @@ pub enum PricingError {
     },
 }
 
+impl Default for PreconfPricing {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PreconfPricing {
     /// Initializes a new PreconfPricing with default parameters.
     pub fn new() -> Self {
