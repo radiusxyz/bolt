@@ -11,6 +11,10 @@ use tokio::time::Sleep;
 mod execution;
 pub use execution::{ExecutionState, ValidationError};
 
+/// Module to calculate pricing.
+pub mod pricing;
+pub use pricing::PreconfPricing;
+
 /// Module to fetch state from the Execution layer.
 pub mod fetcher;
 pub use fetcher::StateClient;
