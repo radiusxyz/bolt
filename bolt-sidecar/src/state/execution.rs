@@ -126,7 +126,7 @@ impl ValidationError {
 
 impl From<pricing::PricingError> for ValidationError {
     fn from(err: pricing::PricingError) -> Self {
-        ValidationError::Internal(format!("Pricing error: {}", err))
+        Self::Internal(format!("Pricing error: {}", err))
     }
 }
 
