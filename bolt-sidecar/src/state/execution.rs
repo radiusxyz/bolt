@@ -963,7 +963,7 @@ mod tests {
 
         // Create a transaction with a max priority fee that is too low
         let tx = default_test_transaction(*sender, None)
-            .with_max_priority_fee_per_gas(GWEI_TO_WEI as u128);
+            .with_max_priority_fee_per_gas(GWEI_TO_WEI as u128 / 2);
 
         let mut request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
 
@@ -1006,7 +1006,7 @@ mod tests {
 
         // Create a transaction with a gas price that is too low
         let tx = default_test_transaction(*sender, None)
-            .with_gas_price(max_base_fee + GWEI_TO_WEI as u128);
+            .with_gas_price(max_base_fee + GWEI_TO_WEI as u128 / 2);
 
         let mut request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
 
