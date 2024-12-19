@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use alloy::{
     contract::Error,
     primitives::Address,
@@ -9,15 +11,14 @@ use ethereum_consensus::primitives::BlsPublicKey;
 use eyre::{bail, Context};
 use reqwest::{Client, Url};
 use serde::Serialize;
-
 use tracing::{debug, warn};
+
 use BoltManagerContract::{
     BoltManagerContractErrors, BoltManagerContractInstance, ProposerStatus, ValidatorDoesNotExist,
 };
 
-use crate::config::chain::Chain;
-
 use super::utils::{self, CompressedHash};
+use crate::config::chain::Chain;
 
 /// Maximum number of keys to fetch from the EL node in a single query.
 const MAX_CHUNK_SIZE: usize = 100;
@@ -86,15 +87,8 @@ impl BoltManager {
                         // `retry_with_backoff_if` is not used here because we need to check
                         // that the error is retryable.
                         if transport_err.to_string().contains("error sending request for url") {
-                            warn!(
-                                "Retryable transport error when connecting to EL node: {}",
-                                transport_err
-                            );
-                            // Crude increasing backoff
-                            tokio::time::sleep(std::time::Duration::from_millis(
-                                100 * retries as u64,
-                            ))
-                            .await;
+                            warn!("Transport error when connecting to EL node: {}", transport_err);
+                            tokio::time::sleep(Duration::from_millis(100 * retries as u64)).await;
                             continue;
                         }
                         warn!(
@@ -108,9 +102,7 @@ impl BoltManager {
                         let decoded_error = utils::try_parse_contract_error(err)
                             .wrap_err("Failed to fetch proposer statuses from EL client")?;
 
-                        bail!(
-                            generate_bolt_manager_error(decoded_error, commitment_signer_pubkey,)
-                        );
+                        bail!(generate_bolt_manager_error(decoded_error, commitment_signer_pubkey));
                     }
                 }
             };
@@ -226,8 +218,7 @@ sol! {
 #[cfg(test)]
 mod tests {
     use ::hex::FromHex;
-    use alloy::hex;
-    use alloy::primitives::Address;
+    use alloy::{hex, primitives::Address};
     use alloy_node_bindings::Anvil;
     use ethereum_consensus::primitives::BlsPublicKey;
     use reqwest::Url;
@@ -268,8 +259,8 @@ mod tests {
                     .as_ref()).expect("valid bls public key")];
         let res = manager.verify_validator_pubkeys(keys.clone(), commitment_signer_pubkey).await;
         assert!(
-            res.unwrap_err().to_string()
-                == generate_operator_keys_mismatch_error(
+            res.unwrap_err().to_string() ==
+                generate_operator_keys_mismatch_error(
                     pubkey_hash(&keys[0]),
                     commitment_signer_pubkey,
                     operator
@@ -317,8 +308,8 @@ mod tests {
         let result = manager.verify_validator_pubkeys(keys.clone(), commitment_signer_pubkey).await;
 
         assert!(
-            result.unwrap_err().to_string()
-                == generate_operator_keys_mismatch_error(
+            result.unwrap_err().to_string() ==
+                generate_operator_keys_mismatch_error(
                     pubkey_hash(&keys[0]),
                     commitment_signer_pubkey,
                     operator
