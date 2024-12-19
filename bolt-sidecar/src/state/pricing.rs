@@ -1,7 +1,8 @@
 /// Gas limit constants
 pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 30_000_000;
 
-/// Fee calculation constants
+/// Fee calculation constants from
+/// https://research.lido.fi/t/a-pricing-model-for-inclusion-preconfirmations/9136#p-19482-a-model-for-cumulative-proposer-rewards-13
 const BASE_MULTIPLIER: f64 = 0.019;
 const GAS_SCALAR: f64 = 1.02e-6;
 
