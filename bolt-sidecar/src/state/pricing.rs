@@ -56,6 +56,35 @@ impl PreconfPricing {
         incoming_gas: u64,
         preconfirmed_gas: u64,
     ) -> Result<u64, PricingError> {
+        self.validate_fee_inputs(incoming_gas, preconfirmed_gas)?;
+        // T(IG,UG) = 0.019 * ln(1.02⋅10^-6(30M-UG)+1 / 1.02⋅10^-6(30M-UG-IG)+1) / IG
+        // where
+        // IG = Gas used by the incoming transaction
+        // UG = Gas already preconfirmed
+        // T = Inclusion tip per gas
+        // 30M = Current gas limit (36M soon?)
+        let remaining_gas = self.block_gas_limit - preconfirmed_gas;
+        let after_gas = remaining_gas - incoming_gas;
+
+        // Calculate numerator and denominator for the logarithm
+        let numerator = self.gas_scalar * (remaining_gas as f64) + 1.0;
+        let denominator = self.gas_scalar * (after_gas as f64) + 1.0;
+
+        // Calculate gas used
+        let expected_val = self.base_multiplier * (numerator / denominator).ln();
+
+        // Calculate the inclusion tip
+        let inclusion_tip_ether = expected_val / (incoming_gas as f64);
+        let inclusion_tip_wei = (inclusion_tip_ether * 1e18) as u64;
+
+        Ok(inclusion_tip_wei)
+    }
+
+    fn validate_fee_inputs(
+        &self,
+        incoming_gas: u64,
+        preconfirmed_gas: u64,
+    ) -> Result<(), PricingError> {
         // Check if preconfirmed gas exceeds block limit
         if preconfirmed_gas >= self.block_gas_limit {
             return Err(PricingError::ExceedsBlockLimit(preconfirmed_gas, self.block_gas_limit));
@@ -74,27 +103,7 @@ impl PreconfPricing {
                 available: remaining_gas,
             });
         }
-
-        // T(IG,UG) = 0.019 * ln(1.02⋅10^-6(30M-UG)+1 / 1.02⋅10^-6(30M-UG-IG)+1) / IG
-        // where
-        // IG = Gas used by the incoming transaction
-        // UG = Gas already preconfirmed
-        // T = Inclusion tip per gas
-        // 30M = Current gas limit (36M soon?)
-        let after_gas = remaining_gas - incoming_gas;
-
-        // Calculate numerator and denominator for the logarithm
-        let numerator = self.gas_scalar * (remaining_gas as f64) + 1.0;
-        let denominator = self.gas_scalar * (after_gas as f64) + 1.0;
-
-        // Calculate gas used
-        let expected_val = self.base_multiplier * (numerator / denominator).ln();
-
-        // Calculate the inclusion tip
-        let inclusion_tip_ether = expected_val / (incoming_gas as f64);
-        let inclusion_tip_wei = (inclusion_tip_ether * 1e18) as u64;
-
-        Ok(inclusion_tip_wei)
+        Ok(())
     }
 }
 
