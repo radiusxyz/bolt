@@ -21,8 +21,8 @@ pub fn parse_hint_from_engine_response(
 ) -> Result<Option<EngineApiHint>, BuilderError> {
     match client {
         ClientCode::GE => geth::parse_geth_engine_error_hint(error),
-        // TODO: Add Nethermind engine hints parsing
-        // ClientCode::NM => nethermind::parse_nethermind_engine_error_hint(error),
+        ClientCode::NM => nethermind::parse_nethermind_engine_error_hint(error),
+
         _ => {
             error!("Unsupported fallback execution client: {}", client.client_name());
             Err(BuilderError::UnsupportedEngineClient(client))

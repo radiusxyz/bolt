@@ -144,9 +144,8 @@ impl FallbackPayloadBuilder {
 mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use alloy::consensus::constants;
     use alloy::{
-        consensus::proofs,
+        consensus::{constants, proofs},
         eips::eip2718::{Decodable2718, Encodable2718},
         network::{EthereumWallet, TransactionBuilder},
         primitives::{hex, Address},
@@ -195,9 +194,9 @@ mod tests {
         let raw_encoded = tx_signed.encoded_2718();
         let tx_signed_reth = TransactionSigned::decode_2718(&mut raw_encoded.as_slice())?;
 
-        let slot = genesis_time
-            + (SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() / cfg.chain.slot_time())
-            + 1;
+        let slot = genesis_time +
+            (SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() / cfg.chain.slot_time()) +
+            1;
 
         let block = builder.build_fallback_payload(slot, &[tx_signed_reth]).await?;
 
