@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use alloy::{
     consensus::Transaction,
     primitives::{Address, TxHash, U256},
@@ -9,6 +7,7 @@ use ethereum_consensus::{
     deneb::mainnet::{Blob, BlobsBundle},
 };
 use reth_primitives::TransactionSigned;
+use std::collections::HashMap;
 use tracing::warn;
 
 use crate::{
@@ -51,9 +50,7 @@ impl BlockTemplate {
     pub fn as_signed_transactions(&self) -> Vec<TransactionSigned> {
         self.signed_constraints_list
             .iter()
-            .flat_map(|sc| {
-                sc.message.transactions.iter().map(|c| c.clone().into_inner().into_transaction())
-            })
+            .flat_map(|sc| sc.message.transactions.iter().map(|c| c.clone().into_signed()))
             .collect()
     }
 
