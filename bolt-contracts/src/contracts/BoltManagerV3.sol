@@ -282,7 +282,6 @@ contract BoltManagerV3 is IBoltManagerV3, OwnableUpgradeable, UUPSUpgradeable {
     }
 
     /// @notice Updates the RPC endpoint of an operator. Must be called by the operator address EOA.
-    /// @param operatorAddr The operator address to update the RPC endpoint for.
     /// @param rpc The new RPC endpoint of the operator.
     function updateOperatorRPC(string calldata rpc) public {
         if (!operators.contains(msg.sender)) {

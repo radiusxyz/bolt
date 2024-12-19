@@ -6,8 +6,8 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeab
 
 import {BLS12381} from "../lib/bls/BLS12381.sol";
 import {BLSSignatureVerifier} from "../lib/bls/BLSSignatureVerifier.sol";
-import {ValidatorsLib} from "../lib/ValidatorsLib.sol";
-import {IBoltValidatorsV2} from "../interfaces/IBoltValidatorsV2.sol";
+import {ValidatorsLibV2} from "../lib/ValidatorsLibV2.sol";
+import {IBoltValidatorsV3} from "../interfaces/IBoltValidatorsV3.sol";
 import {IBoltParametersV1} from "../interfaces/IBoltParametersV1.sol";
 
 /// @title Bolt Validators
@@ -17,9 +17,9 @@ import {IBoltParametersV1} from "../interfaces/IBoltParametersV1.sol";
 /// See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
 /// To validate the storage layout, use the Openzeppelin Foundry Upgrades toolkit.
 /// You can also validate manually with forge: forge inspect <contract> storage-layout --pretty
-contract BoltValidatorsV3 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpgradeable, UUPSUpgradeable {
+contract BoltValidatorsV3 is IBoltValidatorsV3, BLSSignatureVerifier, OwnableUpgradeable, UUPSUpgradeable {
     using BLS12381 for BLS12381.G1Point;
-    using ValidatorsLib for ValidatorsLib.ValidatorSet;
+    using ValidatorsLibV2 for ValidatorsLibV2.ValidatorSet;
 
     // ========= STORAGE =========
 
@@ -28,7 +28,7 @@ contract BoltValidatorsV3 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpg
 
     /// @notice Validators (aka Blockspace providers)
     /// @dev This struct occupies 6 storage slots.
-    ValidatorsLib.ValidatorSet internal VALIDATORS;
+    ValidatorsLibV2.ValidatorSet internal VALIDATORS;
 
     // --> Storage layout marker: 7 slots
 
@@ -81,7 +81,7 @@ contract BoltValidatorsV3 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpg
     /// @dev This function should be used with caution as it can return a large amount of data.
     /// @return ValidatorInfo[] Array of validator info structs
     function getAllValidators() public view returns (ValidatorInfo[] memory) {
-        ValidatorsLib._Validator[] memory _vals = VALIDATORS.getAll();
+        ValidatorsLibV2._Validator[] memory _vals = VALIDATORS.getAll();
         ValidatorInfo[] memory vals = new ValidatorInfo[](_vals.length);
         for (uint256 i = 0; i < _vals.length; i++) {
             vals[i] = _getValidatorInfo(_vals[i]);
@@ -94,7 +94,7 @@ contract BoltValidatorsV3 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpg
     /// @param end End index
     /// @return ValidatorInfo[] Array of validator info structs
     function getValidatorsByRange(uint256 start, uint256 end) public view returns (ValidatorInfo[] memory) {
-        ValidatorsLib._Validator[] memory _vals = VALIDATORS.getByRange(start, end);
+        ValidatorsLibV2._Validator[] memory _vals = VALIDATORS.getByRange(start, end);
         ValidatorInfo[] memory vals = new ValidatorInfo[](_vals.length);
         for (uint256 i = 0; i < _vals.length; i++) {
             vals[i] = _getValidatorInfo(_vals[i]);
@@ -117,7 +117,7 @@ contract BoltValidatorsV3 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpg
     function getValidatorByPubkeyHash(
         bytes20 pubkeyHash
     ) public view returns (ValidatorInfo memory) {
-        ValidatorsLib._Validator memory _val = VALIDATORS.get(pubkeyHash);
+        ValidatorsLibV2._Validator memory _val = VALIDATORS.get(pubkeyHash);
         return _getValidatorInfo(_val);
     }
 
@@ -290,7 +290,7 @@ contract BoltValidatorsV3 is IBoltValidatorsV2, BLSSignatureVerifier, OwnableUpg
     /// @param _val Validator struct
     /// @return ValidatorInfo struct
     function _getValidatorInfo(
-        ValidatorsLib._Validator memory _val
+        ValidatorsLibV2._Validator memory _val
     ) internal view returns (ValidatorInfo memory) {
         return ValidatorInfo({
             pubkeyHash: _val.pubkeyHash,
