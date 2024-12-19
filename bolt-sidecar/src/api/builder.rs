@@ -89,8 +89,6 @@ where
 
     /// Registers the validators. Just forwards the request to constraints client
     /// and returns the status.
-    ///
-    /// TODO: intercept this to register Bolt validators on-chain as well.
     pub async fn register_validators(
         State(server): State<Arc<Self>>,
         Json(registrations): Json<Vec<SignedValidatorRegistration>>,
@@ -140,9 +138,8 @@ where
         warn!(slot, elapsed = ?start.elapsed(), err = ?err, "Proxy error, fetching local payload instead");
 
         let Some(payload_and_bid) = server.payload_fetcher.fetch_payload(slot).await else {
-            // TODO: handle failure? In this case, we don't have a fallback block
-            // which means we haven't made any commitments. This means the EL should
-            // fallback to local block building.
+            // In this case, we don't have a fallback block which means we haven't made any
+            // commitments. This means the EL should fallback to local block building.
             debug!("No local payload with commitments produced for slot {slot}");
             return Err(BuilderApiError::FailedToFetchLocalPayload(slot));
         };
