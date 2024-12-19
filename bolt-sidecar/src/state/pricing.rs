@@ -1,3 +1,10 @@
+/// Gas limit constants
+pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 30_000_000;
+
+/// Fee calculation constants
+const BASE_MULTIPLIER: f64 = 0.019;
+const GAS_SCALAR: f64 = 1.02e-6;
+
 /// Handles pricing calculations for preconfirmations
 #[derive(Debug)]
 pub struct PreconfPricing {
@@ -31,14 +38,14 @@ pub enum PricingError {
 
 impl Default for PreconfPricing {
     fn default() -> Self {
-        Self::new(30_000_000)
+        Self::new(DEFAULT_BLOCK_GAS_LIMIT)
     }
 }
 
 impl PreconfPricing {
     /// Initializes a new PreconfPricing with default parameters.
     pub fn new(block_gas_limit: u64) -> Self {
-        Self { block_gas_limit, base_multiplier: 0.019, gas_scalar: 1.02e-6 }
+        Self { block_gas_limit, base_multiplier: BASE_MULTIPLIER, gas_scalar: GAS_SCALAR }
     }
 
     /// Calculate the minimum priority fee for a preconfirmation based on
