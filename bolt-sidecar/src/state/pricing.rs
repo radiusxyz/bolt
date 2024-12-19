@@ -56,7 +56,7 @@ impl PreconfPricing {
         incoming_gas: u64,
         preconfirmed_gas: u64,
     ) -> Result<u64, PricingError> {
-        self.validate_fee_inputs(incoming_gas, preconfirmed_gas)?;
+        validate_fee_inputs(incoming_gas, preconfirmed_gas, self.block_gas_limit)?;
         // T(IG,UG) = 0.019 * ln(1.02⋅10^-6(30M-UG)+1 / 1.02⋅10^-6(30M-UG-IG)+1) / IG
         // where
         // IG = Gas used by the incoming transaction
@@ -79,32 +79,32 @@ impl PreconfPricing {
 
         Ok(inclusion_tip_wei)
     }
+}
 
-    fn validate_fee_inputs(
-        &self,
-        incoming_gas: u64,
-        preconfirmed_gas: u64,
-    ) -> Result<(), PricingError> {
-        // Check if preconfirmed gas exceeds block limit
-        if preconfirmed_gas >= self.block_gas_limit {
-            return Err(PricingError::ExceedsBlockLimit(preconfirmed_gas, self.block_gas_limit));
-        }
-
-        // Validate incoming gas
-        if incoming_gas == 0 {
-            return Err(PricingError::InvalidGasLimit { incoming_gas });
-        }
-
-        // Check if there is enough gas remaining in the block
-        let remaining_gas = self.block_gas_limit - preconfirmed_gas;
-        if incoming_gas > remaining_gas {
-            return Err(PricingError::InsufficientGas {
-                requested: incoming_gas,
-                available: remaining_gas,
-            });
-        }
-        Ok(())
+fn validate_fee_inputs(
+    incoming_gas: u64,
+    preconfirmed_gas: u64,
+    gas_limit: u64,
+) -> Result<(), PricingError> {
+    // Check if preconfirmed gas exceeds block limit
+    if preconfirmed_gas >= gas_limit {
+        return Err(PricingError::ExceedsBlockLimit(preconfirmed_gas, gas_limit));
     }
+
+    // Validate incoming gas
+    if incoming_gas == 0 {
+        return Err(PricingError::InvalidGasLimit { incoming_gas });
+    }
+
+    // Check if there is enough gas remaining in the block
+    let remaining_gas = gas_limit - preconfirmed_gas;
+    if incoming_gas > remaining_gas {
+        return Err(PricingError::InsufficientGas {
+            requested: incoming_gas,
+            available: remaining_gas,
+        });
+    }
+    Ok(())
 }
 
 #[cfg(test)]
