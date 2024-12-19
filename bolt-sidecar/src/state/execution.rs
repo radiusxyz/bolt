@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use thiserror::Error;
 use tracing::{debug, error, trace, warn};
 
+use crate::state::pricing;
 use crate::{
     builder::BlockTemplate,
     common::{
@@ -120,6 +121,12 @@ impl ValidationError {
             Self::ChainIdMismatch => "chain_id_mismatch",
             Self::Internal(_) => "internal",
         }
+    }
+}
+
+impl From<pricing::PricingError> for ValidationError {
+    fn from(err: pricing::PricingError) -> Self {
+        ValidationError::Internal(format!("Pricing error: {}", err))
     }
 }
 
@@ -311,8 +318,11 @@ impl<C: StateFetcher> ExecutionState<C> {
             return Err(ValidationError::BaseFeeTooLow(max_basefee));
         }
 
-        // Ensure max_priority_fee_per_gas is greater than or equal to min_priority_fee
-        if !req.validate_min_priority_fee(max_basefee, self.limits.min_priority_fee) {
+        // Create pricing calculator
+        let pricing = pricing::PreconfPricing::new(self.validation_params.block_gas_limit);
+
+        // Ensure max_priority_fee_per_gas is greater than or equal to the calculated min_priority_fee
+        if !req.validate_min_priority_fee(&pricing, template_committed_gas, max_basefee)? {
             return Err(ValidationError::MaxPriorityFeePerGasTooLow);
         }
 
