@@ -1,3 +1,11 @@
+/// Gas limit constants
+pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 30_000_000;
+
+/// Fee calculation constants from
+/// https://research.lido.fi/t/a-pricing-model-for-inclusion-preconfirmations/9136#p-19482-a-model-for-cumulative-proposer-rewards-13
+const BASE_MULTIPLIER: f64 = 0.019;
+const GAS_SCALAR: f64 = 1.02e-6;
+
 /// Handles pricing calculations for preconfirmations
 #[derive(Debug)]
 pub struct PreconfPricing {
@@ -31,14 +39,14 @@ pub enum PricingError {
 
 impl Default for PreconfPricing {
     fn default() -> Self {
-        Self::new(30_000_000)
+        Self::new(DEFAULT_BLOCK_GAS_LIMIT)
     }
 }
 
 impl PreconfPricing {
     /// Initializes a new PreconfPricing with default parameters.
     pub fn new(block_gas_limit: u64) -> Self {
-        Self { block_gas_limit, base_multiplier: 0.019, gas_scalar: 1.02e-6 }
+        Self { block_gas_limit, base_multiplier: BASE_MULTIPLIER, gas_scalar: GAS_SCALAR }
     }
 
     /// Calculate the minimum priority fee for a preconfirmation based on
@@ -56,31 +64,14 @@ impl PreconfPricing {
         incoming_gas: u64,
         preconfirmed_gas: u64,
     ) -> Result<u64, PricingError> {
-        // Check if preconfirmed gas exceeds block limit
-        if preconfirmed_gas >= self.block_gas_limit {
-            return Err(PricingError::ExceedsBlockLimit(preconfirmed_gas, self.block_gas_limit));
-        }
-
-        // Validate incoming gas
-        if incoming_gas == 0 {
-            return Err(PricingError::InvalidGasLimit { incoming_gas });
-        }
-
-        // Check if there is enough gas remaining in the block
-        let remaining_gas = self.block_gas_limit - preconfirmed_gas;
-        if incoming_gas > remaining_gas {
-            return Err(PricingError::InsufficientGas {
-                requested: incoming_gas,
-                available: remaining_gas,
-            });
-        }
-
+        validate_fee_inputs(incoming_gas, preconfirmed_gas, self.block_gas_limit)?;
         // T(IG,UG) = 0.019 * ln(1.02⋅10^-6(30M-UG)+1 / 1.02⋅10^-6(30M-UG-IG)+1) / IG
         // where
         // IG = Gas used by the incoming transaction
         // UG = Gas already preconfirmed
         // T = Inclusion tip per gas
         // 30M = Current gas limit (36M soon?)
+        let remaining_gas = self.block_gas_limit - preconfirmed_gas;
         let after_gas = remaining_gas - incoming_gas;
 
         // Calculate numerator and denominator for the logarithm
@@ -96,6 +87,32 @@ impl PreconfPricing {
 
         Ok(inclusion_tip_wei)
     }
+}
+
+fn validate_fee_inputs(
+    incoming_gas: u64,
+    preconfirmed_gas: u64,
+    gas_limit: u64,
+) -> Result<(), PricingError> {
+    // Check if preconfirmed gas exceeds block limit
+    if preconfirmed_gas >= gas_limit {
+        return Err(PricingError::ExceedsBlockLimit(preconfirmed_gas, gas_limit));
+    }
+
+    // Validate incoming gas
+    if incoming_gas == 0 {
+        return Err(PricingError::InvalidGasLimit { incoming_gas });
+    }
+
+    // Check if there is enough gas remaining in the block
+    let remaining_gas = gas_limit - preconfirmed_gas;
+    if incoming_gas > remaining_gas {
+        return Err(PricingError::InsufficientGas {
+            requested: incoming_gas,
+            available: remaining_gas,
+        });
+    }
+    Ok(())
 }
 
 #[cfg(test)]
