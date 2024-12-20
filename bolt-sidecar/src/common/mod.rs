@@ -30,12 +30,7 @@ lazy_static! {
             });
 
             // If the environment variable is not set either, return an empty string
-            if let Ok(s) = from_env {
-                s
-            } else {
-                println!("Warning: Could not determine the git commit hash");
-                String::new()
-            }
+            from_env.unwrap_or_default()
         })
     );
 }
