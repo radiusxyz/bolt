@@ -257,7 +257,7 @@ impl ConstraintsApi for ConstraintsClient {
             .send()
             .await?;
 
-        if response.status() != StatusCode::NO_CONTENT {
+        if response.status() == StatusCode::NO_CONTENT {
             return Err(BuilderApiError::NoBids(params.slot));
         }
 
