@@ -1,6 +1,6 @@
 services:
   cb_bolt_sidecar:
-    image: ghcr.io/chainbound/bolt-sidecar:v0.3.0-alpha
+    image: ghcr.io/chainbound/bolt-sidecar:v0.3.1-alpha
     container_name: cb_bolt_sidecar
     env_file:
       - bolt-sidecar.env
