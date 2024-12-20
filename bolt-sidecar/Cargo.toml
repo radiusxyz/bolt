@@ -1,6 +1,6 @@
 [package]
 name = "bolt-sidecar"
-version = "0.3.0-alpha"
+version = "0.3.1-alpha"
 edition = "2021"
 default-run = "bolt-sidecar"
 
@@ -30,13 +30,19 @@ ethereum_ssz = "0.8.1"
 
 # alloy
 alloy = { version = "0.8.0", features = [
-  "full",
-  "provider-trace-api",
-  "rpc-types-beacon",
+    "full",
+    "provider-trace-api",
+    "rpc-types-beacon",
 ] }
-alloy-rpc-types-engine = { version = "0.8.0", default-features = false, features = ["jwt"] }
-alloy-transport-http = { version = "0.8.0", default-features = false, features = ["jwt-auth"] }
-alloy-provider = { version = "0.8.0", default-features = false, features = ["engine-api"] }
+alloy-rpc-types-engine = { version = "0.8.0", default-features = false, features = [
+    "jwt",
+] }
+alloy-transport-http = { version = "0.8.0", default-features = false, features = [
+    "jwt-auth",
+] }
+alloy-provider = { version = "0.8.0", default-features = false, features = [
+    "engine-api",
+] }
 
 # reth
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", version = "1.1.4" }
@@ -44,7 +50,7 @@ reth-primitives = { git = "https://github.com/paradigmxyz/reth", version = "1.1.
 reqwest = "0.12"
 
 ethereum-consensus = { git = "https://github.com/ralexstokes/ethereum-consensus", rev = "8fbd8a5" } # Last release in 2022
-beacon-api-client = { git = "https://github.com/ralexstokes/ethereum-consensus", rev = "8fbd8a5" } # Last release in 2022
+beacon-api-client = { git = "https://github.com/ralexstokes/ethereum-consensus", rev = "8fbd8a5" }  # Last release in 2022
 
 # lighthouse
 lighthouse_account_utils = { package = "account_utils", git = "https://github.com/sigp/lighthouse", version = "0.1.0" }
@@ -73,11 +79,13 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt"] }
 
 # telemetry
 metrics = "0.23"
-metrics-exporter-prometheus = { version = "0.15.3", features = ["http-listener"] }
+metrics-exporter-prometheus = { version = "0.15.3", features = [
+    "http-listener",
+] }
 
 # commit-boost
-commit-boost = { git = "https://github.com/Commit-Boost/commit-boost-client", rev = "0f8f69b"  }
-cb-common = { git = "https://github.com/Commit-Boost/commit-boost-client", rev = "0f8f69b"  }
+commit-boost = { git = "https://github.com/Commit-Boost/commit-boost-client", rev = "0f8f69b" }
+cb-common = { git = "https://github.com/Commit-Boost/commit-boost-client", rev = "0f8f69b" }
 
 [dev-dependencies]
 alloy-node-bindings = "0.8.0"                                # must match alloy version
