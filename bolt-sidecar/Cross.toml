@@ -12,5 +12,5 @@ pre-build = [
 
 [build.env]
 volumes = [
-    "GIT_DIR=../.git"
+    "GIT_DIR=./../.git"
 ]
