@@ -59,7 +59,7 @@ lighthouse_bls = { package = "bls", git = "https://github.com/sigp/lighthouse", 
 
 # types
 serde = { version = "1.0.216", features = ["derive"] }
-serde_json = "1.0.133"
+serde_json = "1.0.134"
 parking_lot = "0.12.1"
 async-trait = "0.1.79"
 bytes = "1.6.0"
