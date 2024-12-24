@@ -63,56 +63,49 @@ pub enum CommitmentError {
     InvalidJson(#[from] JsonRejection),
 }
 
+impl From<CommitmentError> for (i32, String) {
+    fn from(err: CommitmentError) -> Self {
+        match err {
+            CommitmentError::Rejected(err) => (-32000, err.to_string()),
+            CommitmentError::Duplicate => (-32001, err.to_string()),
+            CommitmentError::Internal => (-32002, err.to_string()),
+            CommitmentError::NoSignature => (-32003, err.to_string()),
+            CommitmentError::InvalidSignature(err) => (-32004, err.to_string()),
+            CommitmentError::Signature(err) => (-32005, err.to_string()),
+            CommitmentError::Consensus(err) => (-32006, err.to_string()),
+            CommitmentError::Validation(err) => (-32006, err.to_string()),
+            CommitmentError::MalformedHeader => (-32007, err.to_string()),
+            CommitmentError::UnknownMethod => (-32601, err.to_string()),
+            CommitmentError::InvalidJson(err) => (-32600, format!("Invalid request: {err}")),
+        }
+    }
+}
+
+impl From<&CommitmentError> for StatusCode {
+    fn from(err: &CommitmentError) -> Self {
+        match err {
+            CommitmentError::Rejected(_) => StatusCode::BAD_REQUEST,
+            CommitmentError::Duplicate => StatusCode::BAD_REQUEST,
+            CommitmentError::Internal => StatusCode::INTERNAL_SERVER_ERROR,
+            CommitmentError::NoSignature => StatusCode::BAD_REQUEST,
+            CommitmentError::InvalidSignature(_) => StatusCode::BAD_REQUEST,
+            CommitmentError::Signature(_) => StatusCode::BAD_REQUEST,
+            CommitmentError::Consensus(_) => StatusCode::BAD_REQUEST,
+            CommitmentError::Validation(_) => StatusCode::BAD_REQUEST,
+            CommitmentError::MalformedHeader => StatusCode::BAD_REQUEST,
+            CommitmentError::UnknownMethod => StatusCode::BAD_REQUEST,
+            CommitmentError::InvalidJson(_) => StatusCode::BAD_REQUEST,
+        }
+    }
+}
+
 impl IntoResponse for CommitmentError {
     fn into_response(self) -> Response<Body> {
-        match self {
-            Self::Rejected(err) => {
-                (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32000, err.to_string())))
-                    .into_response()
-            }
-            Self::Duplicate => {
-                (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32001, self.to_string())))
-                    .into_response()
-            }
-            Self::Internal => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(JsonResponse::from_error(-32002, self.to_string())),
-            )
-                .into_response(),
-            Self::NoSignature => {
-                (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32003, self.to_string())))
-                    .into_response()
-            }
-            Self::InvalidSignature(err) => {
-                (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32004, err.to_string())))
-                    .into_response()
-            }
-            Self::Signature(err) => {
-                (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32005, err.to_string())))
-                    .into_response()
-            }
-            Self::Consensus(err) => {
-                (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32006, err.to_string())))
-                    .into_response()
-            }
-            Self::Validation(err) => {
-                (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32006, err.to_string())))
-                    .into_response()
-            }
-            Self::MalformedHeader => {
-                (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32007, self.to_string())))
-                    .into_response()
-            }
-            Self::UnknownMethod => {
-                (StatusCode::BAD_REQUEST, Json(JsonResponse::from_error(-32601, self.to_string())))
-                    .into_response()
-            }
-            Self::InvalidJson(err) => (
-                StatusCode::BAD_REQUEST,
-                Json(JsonResponse::from_error(-32600, format!("Invalid request: {err}"))),
-            )
-                .into_response(),
-        }
+        let status_code = StatusCode::from(&self);
+        let (code, err) = self.into();
+        let json = Json(JsonResponse::from_error(code, err));
+
+        (status_code, json).into_response()
     }
 }
 
