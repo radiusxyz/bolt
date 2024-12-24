@@ -48,6 +48,14 @@ impl From<SignedCommitment> for InclusionCommitment {
     }
 }
 
+impl SignedCommitment {
+    pub fn into_inclusion_commitment(self) -> Option<InclusionCommitment> {
+        match self {
+            Self::Inclusion(inclusion) => Some(inclusion),
+        }
+    }
+}
+
 impl CommitmentRequest {
     /// Returns a reference to the inner request if this is an inclusion request, otherwise `None`.
     pub fn as_inclusion_request(&self) -> Option<&InclusionRequest> {

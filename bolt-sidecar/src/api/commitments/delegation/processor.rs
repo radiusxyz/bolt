@@ -1,18 +1,21 @@
 use futures::stream::{FuturesUnordered, SplitSink, SplitStream};
-use futures::{SinkExt, StreamExt};
+use futures::{FutureExt, SinkExt, StreamExt};
 use std::collections::VecDeque;
 use std::task::Poll;
 use std::{future::Future, pin::Pin};
 use tokio::net::TcpStream;
 use tokio::sync::broadcast::error::TryRecvError;
+use tokio::sync::oneshot::error::RecvError;
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tracing::{error, info, trace, warn};
+use uuid::Uuid;
 
 use crate::api::commitments::server::spec::{CommitmentError, RejectionError};
 use crate::api::commitments::server::CommitmentEvent;
-use crate::primitives::commitment::SignedCommitment;
+use crate::primitives::commitment::{InclusionRequestIdentified, SignedCommitment};
+use crate::primitives::misc::IntoIdentified;
 use crate::primitives::CommitmentRequest;
 
 /// The reason for interrupting the [CommitmentRequestProcessor] future.
@@ -24,6 +27,34 @@ pub enum InterruptReason {
     ReadStreamTerminated,
     /// The websocket connection was closed by the server
     ConnectionClosed,
+}
+
+struct PendingCommitmentResponse {
+    id: Uuid,
+    response: oneshot::Receiver<Result<SignedCommitment, CommitmentError>>,
+}
+
+impl PendingCommitmentResponse {
+    fn new(
+        id: Uuid,
+        response: oneshot::Receiver<Result<SignedCommitment, CommitmentError>>,
+    ) -> Self {
+        Self { id, response }
+    }
+}
+
+impl Future for PendingCommitmentResponse {
+    type Output = (Uuid, Result<Result<SignedCommitment, CommitmentError>, RecvError>);
+    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        let id = this.id;
+
+        match this.response.poll_unpin(cx) {
+            Poll::Ready(Ok(response)) => Poll::Ready((id, Ok(response))),
+            Poll::Ready(Err(e)) => Poll::Ready((id, Err(e))),
+            Poll::Pending => Poll::Pending,
+        }
+    }
 }
 
 /// The [CommitmentRequestProcessor] handles incoming commitment requests a the websocket
@@ -46,8 +77,7 @@ pub struct CommitmentRequestProcessor {
     /// NOTE: Is there a better way to avoid this monster type?
     /// SAFETY: the `poll` implementation of this struct promptly handles these responses and
     /// ensures this vector doesn't grow indefinitely.
-    pending_commitment_responses:
-        FuturesUnordered<oneshot::Receiver<Result<SignedCommitment, CommitmentError>>>,
+    pending_commitment_responses: FuturesUnordered<PendingCommitmentResponse>,
     /// The collection of outgoing messages to be sent to the connected websocket server.
     outgoing_messages: VecDeque<Message>,
 }
@@ -98,6 +128,8 @@ impl Future for CommitmentRequestProcessor {
                 this.pending_commitment_responses.poll_next_unpin(cx)
             {
                 progress = true;
+                let (id, response) = response;
+
                 let Ok(result_commitment) = response else {
                     error!("failed to receive commitment response. dropped sender");
                     continue;
@@ -105,6 +137,11 @@ impl Future for CommitmentRequestProcessor {
 
                 if let Ok(commitment) = result_commitment {
                     trace!(?rpc_url, ?commitment, "received commitment response");
+                    let commitment = commitment
+                        .into_inclusion_commitment()
+                        .expect("no other commitment types")
+                        .into_identified(id);
+
                     let message = Message::text(serde_json::to_string(&commitment).unwrap());
                     // Add the message to the outgoing messages queue
                     this.outgoing_messages.push_back(message);
@@ -177,26 +214,34 @@ impl Future for CommitmentRequestProcessor {
                         // Create the channel to send and receive the commitment response
                         let (tx, rx) = oneshot::channel();
 
-                        let request = serde_json::from_str::<CommitmentRequest>(&text)
+                        let request = serde_json::from_str::<InclusionRequestIdentified>(&text)
                             .map_err(|e| CommitmentError::Rejected(RejectionError::Json(e)));
 
-                        match request {
+                        let id = match request {
                             Ok(request) => {
+                                let id = request.id();
+                                let request = CommitmentRequest::Inclusion(request.into_inner());
+
                                 let event = CommitmentEvent { request, response: tx };
                                 if let Err(err) = this.api_events_tx.try_send(event) {
                                     error!(?err, "failed to forward commitment event to channel");
                                 }
+
+                                id
                             }
                             Err(err) => {
                                 warn!(?err, ?rpc_url, "failed to parse commitment request");
                                 if let Err(e) = tx.send(Err(err)) {
                                     error!(?e, "failed to send rejection through channel");
                                 }
+                                continue;
                             }
-                        }
+                        };
+
+                        let pending_response = PendingCommitmentResponse::new(id, rx);
 
                         // add the pending response to this buffer for later processing
-                        this.pending_commitment_responses.push(rx);
+                        this.pending_commitment_responses.push(pending_response);
                     }
                     Ok(Message::Close(_)) => {
                         warn!(?rpc_url, "websocket connection closed by server");

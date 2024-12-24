@@ -247,14 +247,17 @@ mod tests {
     use reqwest::StatusCode;
     use tokio::sync::broadcast;
     use tracing::{debug, error, info, warn};
+    use uuid::Uuid;
 
     use crate::{
         api::commitments::delegation::{jwt::ProposerAuthClaims, receiver::CommitmentsReceiver},
         common::secrets::EcdsaSecretKeyWrapper,
         config::chain::Chain,
         primitives::{
-            commitment::SignedCommitment, misc::IntoSigned, signature::AlloySignatureWrapper,
-            CommitmentRequest, InclusionRequest,
+            commitment::SignedCommitment,
+            misc::{IntoIdentified, IntoSigned},
+            signature::AlloySignatureWrapper,
+            InclusionRequest,
         },
     };
 
@@ -406,16 +409,16 @@ mod tests {
         // Spawn a task that will push several messages to the client (does not matter what client does)
         let mut send_task = tokio::spawn(async move {
             let n_msg = 20;
-            let commitment_request = CommitmentRequest::Inclusion(InclusionRequest::default());
-            let commitment_request_msg =
-                Message::Text(serde_json::to_string(&commitment_request).unwrap());
+            let inclusion_request = InclusionRequest::default().into_identified(Uuid::now_v7());
+            let inclusion_request_msg =
+                Message::Text(serde_json::to_string(&inclusion_request).unwrap());
 
             for i in 0..n_msg {
                 // In case of any websocket error, we exit.
                 let msg = if i % 5 == 0 {
                     Message::Text("This is an invalid message and should be rejected".to_string())
                 } else {
-                    commitment_request_msg.clone()
+                    inclusion_request_msg.clone()
                 };
 
                 if let Err(err) = sender.send(msg).await {
