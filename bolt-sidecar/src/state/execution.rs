@@ -16,7 +16,9 @@ use crate::{
         transactions::{calculate_max_basefee, max_transaction_cost, validate_transaction},
     },
     config::limits::LimitsOpts,
-    primitives::{AccountState, InclusionRequest, SignedConstraints, Slot},
+    primitives::{
+        signature::SignatureError, AccountState, InclusionRequest, SignedConstraints, Slot,
+    },
     telemetry::ApiMetrics,
 };
 
@@ -77,7 +79,7 @@ pub enum ValidationError {
     MaxCommittedGasReachedForSlot(u64, u64),
     /// The signature is invalid.
     #[error("Invalid signature")]
-    Signature(#[from] crate::primitives::commitment::SignatureError),
+    Signature(#[from] SignatureError),
     /// Could not recover signature,
     #[error("Could not recover signer")]
     RecoverSigner,

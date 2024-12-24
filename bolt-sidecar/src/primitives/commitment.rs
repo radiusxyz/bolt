@@ -1,23 +1,22 @@
-use std::str::FromStr;
-
 use alloy::{
     consensus::Transaction,
-    hex,
-    primitives::{keccak256, Address, PrimitiveSignature as Signature, B256},
+    primitives::{keccak256, Address, PrimitiveSignature, B256},
 };
-use serde::{de, Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::crypto::SignerECDSA;
 
-use super::{deserialize_txs, serialize_txs, FullTransaction, TransactionExt};
-
-/// Error type for signature errors.
-#[derive(Debug, thiserror::Error)]
-#[error("Invalid signature")]
-pub struct SignatureError;
+use super::{
+    deserialize_txs,
+    misc::{Identified, IntoSigned, Signed},
+    serialize_txs,
+    signature::{AlloySignatureWrapper, SignatureError},
+    FullTransaction, TransactionExt,
+};
 
 /// Commitment requests sent by users or RPC proxies to the sidecar.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CommitmentRequest {
     /// Request of inclusion of a transaction at a specific slot.
@@ -25,29 +24,21 @@ pub enum CommitmentRequest {
 }
 
 /// A signed commitment with a generic signature.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SignedCommitment {
     /// A signed inclusion commitment.
     Inclusion(InclusionCommitment),
 }
 
-/// A signed inclusion commitment with a generic signature.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct InclusionCommitment {
-    #[serde(flatten)]
-    request: InclusionRequest,
-    #[serde(deserialize_with = "deserialize_sig", serialize_with = "serialize_sig")]
-    signature: Signature,
-}
+/// An inclusion commitment with a generic signature.
+pub type InclusionCommitment = Signed<InclusionRequest, AlloySignatureWrapper>;
 
-#[cfg(test)]
-impl InclusionCommitment {
-    /// Creates a new unchecked inclusion commitment
-    pub fn new_unchecked(request: InclusionRequest, signature: Signature) -> Self {
-        Self { request, signature }
-    }
-}
+/// An inclusion commitment with a UUID identifier.
+pub type InclusionCommitmentIdentified = Identified<InclusionCommitment, Uuid>;
+
+/// An inclusion request with a UUID identifier.
+pub type InclusionRequestIdentified = Identified<InclusionRequest, Uuid>;
 
 impl From<SignedCommitment> for InclusionCommitment {
     fn from(commitment: SignedCommitment) -> Self {
@@ -78,7 +69,7 @@ impl CommitmentRequest {
     }
 
     /// Returns the signature (if signed).
-    pub fn signature(&self) -> Option<&Signature> {
+    pub fn signature(&self) -> Option<&AlloySignatureWrapper> {
         match self {
             Self::Inclusion(req) => req.signature.as_ref(),
         }
@@ -97,7 +88,7 @@ pub struct InclusionRequest {
     /// A valid signature is the only proof that the user actually requested
     /// this specific commitment to be included at the given slot.
     #[serde(skip)]
-    pub signature: Option<Signature>,
+    pub signature: Option<AlloySignatureWrapper>,
     /// The signer of the request (if recovered).
     #[serde(skip)]
     pub signer: Option<Address>,
@@ -111,8 +102,9 @@ impl InclusionRequest {
     ) -> eyre::Result<InclusionCommitment> {
         let digest = self.digest();
         let signature = signer.sign_hash(&digest).await?;
-        let signature = Signature::try_from(signature.as_bytes().as_ref())?;
-        Ok(InclusionCommitment { request: self, signature })
+        let signature = PrimitiveSignature::try_from(signature.as_bytes().as_ref())?;
+        let ic = self.into_signed(signature.into());
+        Ok(ic)
     }
 
     /// Validates the transaction fees against a minimum basefee.
@@ -198,7 +190,7 @@ impl InclusionRequest {
     }
 
     /// Sets the signature.
-    pub fn set_signature(&mut self, signature: Signature) {
+    pub fn set_signature(&mut self, signature: AlloySignatureWrapper) {
         self.signature = Some(signature);
     }
 
@@ -216,24 +208,6 @@ impl InclusionRequest {
 
         Ok(())
     }
-}
-
-fn deserialize_sig<'de, D, T>(deserializer: D) -> Result<T, D::Error>
-where
-    D: Deserializer<'de>,
-    T: FromStr,
-    T::Err: std::fmt::Display,
-{
-    let s = String::deserialize(deserializer)?;
-    T::from_str(s.trim_start_matches("0x")).map_err(de::Error::custom)
-}
-
-fn serialize_sig<S: serde::Serializer>(sig: &Signature, serializer: S) -> Result<S::Ok, S::Error> {
-    let parity = sig.v();
-    // As bytes encodes the parity as 27/28, need to change that.
-    let mut bytes = sig.as_bytes();
-    bytes[bytes.len() - 1] = if parity { 1 } else { 0 };
-    serializer.serialize_str(&hex::encode_prefixed(bytes))
 }
 
 impl InclusionRequest {
@@ -256,30 +230,6 @@ impl InclusionRequest {
 impl From<InclusionRequest> for CommitmentRequest {
     fn from(req: InclusionRequest) -> Self {
         Self::Inclusion(req)
-    }
-}
-
-/// Extension trait for ECDSA signatures.
-pub trait ECDSASignatureExt {
-    /// Returns the ECDSA signature as bytes with the correct parity bit.
-    fn as_bytes_with_parity(&self) -> [u8; 65];
-
-    /// Rethrns the ECDSA signature as a 0x-prefixed hex string with the correct parity bit.
-    fn to_hex(&self) -> String;
-}
-
-impl ECDSASignatureExt for Signature {
-    fn as_bytes_with_parity(&self) -> [u8; 65] {
-        let parity = self.v();
-        // As bytes encodes the parity as 27/28, need to change that.
-        let mut bytes = self.as_bytes();
-        bytes[bytes.len() - 1] = if parity { 1 } else { 0 };
-
-        bytes
-    }
-
-    fn to_hex(&self) -> String {
-        hex::encode_prefixed(self.as_bytes_with_parity())
     }
 }
 

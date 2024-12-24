@@ -184,7 +184,7 @@ mod test {
     use spec::SIGNATURE_HEADER;
 
     use crate::{
-        primitives::commitment::ECDSASignatureExt,
+        primitives::signature::ECDSASignatureExt,
         test_util::{create_signed_inclusion_request, default_test_transaction},
     };
 

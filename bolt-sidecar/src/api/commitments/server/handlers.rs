@@ -14,7 +14,7 @@ use tracing::{debug, error, info, instrument};
 use crate::{
     api::commitments::server::headers::auth_from_headers,
     common::BOLT_SIDECAR_VERSION,
-    primitives::{commitment::SignatureError, InclusionRequest},
+    primitives::{signature::SignatureError, InclusionRequest},
 };
 
 use super::{
@@ -69,7 +69,7 @@ pub async fn rpc_entrypoint(
             debug!(?inclusion_request, "New inclusion request");
 
             // Set the signature here for later processing
-            inclusion_request.set_signature(signature);
+            inclusion_request.set_signature(signature.into());
 
             let digest = inclusion_request.digest();
             let recovered_signer = signature.recover_address_from_prehash(&digest)?;

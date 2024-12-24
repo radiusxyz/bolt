@@ -1,4 +1,4 @@
-use alloy::primitives::SignatureError;
+use alloy::primitives::SignatureError as AlloySignatureError;
 use axum::{
     body::Body,
     extract::rejection::JsonRejection,
@@ -9,7 +9,7 @@ use axum::{
 use thiserror::Error;
 
 use crate::{
-    primitives::{commitment::InclusionCommitment, InclusionRequest},
+    primitives::{commitment::InclusionCommitment, signature::SignatureError, InclusionRequest},
     state::{consensus::ConsensusError, ValidationError},
 };
 
@@ -48,13 +48,13 @@ pub enum CommitmentError {
     NoSignature,
     /// Invalid signature.
     #[error(transparent)]
-    InvalidSignature(#[from] crate::primitives::commitment::SignatureError),
+    InvalidSignature(#[from] SignatureError),
     /// Malformed authentication header.
     #[error("Malformed authentication header")]
     MalformedHeader,
     /// Signature error.
     #[error(transparent)]
-    Signature(#[from] SignatureError),
+    Signature(#[from] AlloySignatureError),
     /// Unknown method.
     #[error("Unknown method")]
     UnknownMethod,

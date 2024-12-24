@@ -1582,6 +1582,7 @@ dependencies = [
  "clap",
  "commit-boost",
  "criterion",
+ "derive_more 1.0.0",
  "dotenvy",
  "eth2_keystore 0.1.0 (git+https://github.com/sigp/lighthouse)",
  "ethereum-consensus",
@@ -1614,6 +1615,7 @@ dependencies = [
  "tracing-subscriber",
  "tree_hash 0.8.0",
  "tree_hash_derive",
+ "uuid 1.11.0",
 ]
 
 [[package]]

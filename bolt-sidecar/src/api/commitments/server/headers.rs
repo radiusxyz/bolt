@@ -3,7 +3,7 @@ use std::str::FromStr;
 use alloy::primitives::{Address, PrimitiveSignature as Signature};
 use axum::http::HeaderMap;
 
-use crate::primitives::commitment::SignatureError;
+use crate::primitives::signature::SignatureError;
 
 use super::spec::{CommitmentError, SIGNATURE_HEADER};
 

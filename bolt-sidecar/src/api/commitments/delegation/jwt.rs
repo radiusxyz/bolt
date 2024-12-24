@@ -1,13 +1,14 @@
 use alloy::{
-    primitives::{keccak256, PrimitiveSignature as Signature},
+    primitives::keccak256,
     signers::{local::PrivateKeySigner, SignerSync},
 };
 use jsonwebtoken::encode;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    common::time::current_timestamp, config::chain::Chain,
-    primitives::commitment::ECDSASignatureExt,
+    common::time::current_timestamp,
+    config::chain::Chain,
+    primitives::signature::{AlloySignatureWrapper, ECDSASignatureExt},
 };
 
 /// A JWT claim for the proposer authentication.
@@ -46,7 +47,7 @@ impl ProposerAuthClaims {
         let digest = [rpc_url.clone(), chain.id().to_string(), expiry.to_string()].concat();
         let digest_hash = keccak256(digest);
         let signature = signer.sign_hash_sync(&digest_hash).expect("failed to sign the digest");
-        let signature = Signature::try_from(signature.as_bytes().as_ref())
+        let signature = AlloySignatureWrapper::try_from(signature.as_bytes().as_ref())
             .expect("failed to convert the signature");
 
         Self { rpc_url, chain_id: chain.id(), expiry, signature: signature.to_hex() }

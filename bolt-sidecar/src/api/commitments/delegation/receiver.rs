@@ -230,7 +230,6 @@ async fn handle_connection(
 mod tests {
     use std::{borrow::Cow, net::SocketAddr, ops::ControlFlow, time::Duration};
 
-    use alloy::primitives::PrimitiveSignature;
     use axum::{
         extract::{
             ws::{CloseFrame, Message, WebSocket},
@@ -254,7 +253,7 @@ mod tests {
         common::secrets::EcdsaSecretKeyWrapper,
         config::chain::Chain,
         primitives::{
-            commitment::{InclusionCommitment, SignedCommitment},
+            commitment::SignedCommitment, misc::IntoSigned, signature::AlloySignatureWrapper,
             CommitmentRequest, InclusionRequest,
         },
     };
@@ -303,11 +302,9 @@ mod tests {
                 if let Some(event) = api_events_rx.recv().await {
                     info!("Received commitment event: {:?}", event);
                     let req = event.request.as_inclusion_request().unwrap().clone();
-                    let dumb_signed_commitment =
-                        SignedCommitment::Inclusion(InclusionCommitment::new_unchecked(
-                            req,
-                            PrimitiveSignature::test_signature(),
-                        ));
+                    let dumb_signed_commitment = SignedCommitment::Inclusion(
+                        req.into_signed(AlloySignatureWrapper::test_signature()),
+                    );
                     event.response.send(Ok(dumb_signed_commitment)).unwrap();
                 }
             }

@@ -3,7 +3,7 @@ use std::env;
 use alloy::{
     eips::eip2718::Encodable2718,
     network::{EthereumWallet, TransactionBuilder},
-    primitives::{Address, PrimitiveSignature as Signature, U256},
+    primitives::{Address, U256},
     rpc::types::TransactionRequest,
     signers::{
         k256::{ecdsa::SigningKey as K256SigningKey, SecretKey as K256SecretKey},
@@ -24,8 +24,8 @@ use crate::{
     config::{ChainConfig, Opts},
     crypto::{ecdsa::SignableECDSA, SignableBLS},
     primitives::{
-        ConstraintsMessage, DelegationMessage, FullTransaction, InclusionRequest,
-        RevocationMessage, SignedConstraints, SignedDelegation, SignedRevocation,
+        signature::AlloySignatureWrapper, ConstraintsMessage, DelegationMessage, FullTransaction,
+        InclusionRequest, RevocationMessage, SignedConstraints, SignedDelegation, SignedRevocation,
     },
     signer::local::LocalSigner,
 };
@@ -182,7 +182,7 @@ pub(crate) async fn create_signed_inclusion_request(
     request.recover_signers()?;
 
     let signature = signer.sign_hash(&request.digest()).await?;
-    request.set_signature(Signature::try_from(signature.as_bytes().as_ref()).unwrap());
+    request.set_signature(AlloySignatureWrapper::try_from(signature.as_bytes().as_ref()).unwrap());
     request.set_signer(signer.address());
 
     Ok(request)
