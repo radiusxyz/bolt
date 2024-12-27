@@ -114,7 +114,10 @@ impl ConsensusState {
     /// If the request is valid, return the validator public key for the target slot.
     pub fn validate_request(&self, req: &InclusionRequest) -> Result<BlsPublicKey, ConsensusError> {
         // Check if the slot is in the current epoch or next epoch (if unsafe lookahead is enabled)
-        if req.slot < self.epoch.start_slot || req.slot >= self.furthest_slot() {
+        if req.slot < self.epoch.start_slot ||
+            req.slot >= self.furthest_slot() ||
+            req.slot <= self.latest_slot
+        {
             return Err(ConsensusError::InvalidSlot(req.slot));
         }
 

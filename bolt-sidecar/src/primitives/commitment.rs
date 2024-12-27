@@ -211,7 +211,7 @@ impl InclusionRequest {
     /// Recovers the signer of all transactions in the request.
     pub fn recover_signers(&mut self) -> Result<(), SignatureError> {
         for tx in &mut self.txs {
-            let signer = tx.recover_signer().ok_or(SignatureError)?;
+            let signer = tx.recover_signer().map_err(|_| SignatureError)?;
             tx.sender = Some(signer);
         }
 

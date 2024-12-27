@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use alloy::{
     contract::Error,
     primitives::Address,
@@ -9,15 +11,14 @@ use ethereum_consensus::primitives::BlsPublicKey;
 use eyre::{bail, Context};
 use reqwest::{Client, Url};
 use serde::Serialize;
-
 use tracing::{debug, warn};
+
 use BoltManagerContract::{
     BoltManagerContractErrors, BoltManagerContractInstance, ProposerStatus, ValidatorDoesNotExist,
 };
 
-use crate::config::chain::Chain;
-
 use super::utils::{self, CompressedHash};
+use crate::config::chain::Chain;
 
 /// Maximum number of keys to fetch from the EL node in a single query.
 const MAX_CHUNK_SIZE: usize = 100;
@@ -86,32 +87,22 @@ impl BoltManager {
                         // `retry_with_backoff_if` is not used here because we need to check
                         // that the error is retryable.
                         if transport_err.to_string().contains("error sending request for url") {
-                            warn!(
-                                "Retryable transport error when connecting to EL node: {}",
-                                transport_err
-                            );
-                            // Crude increasing backoff
-                            tokio::time::sleep(std::time::Duration::from_millis(
-                                100 * retries as u64,
-                            ))
-                            .await;
+                            warn!("Transport error when connecting to EL node: {}", transport_err);
+                            tokio::time::sleep(Duration::from_millis(100 * retries as u64)).await;
                             continue;
-                        } else {
-                            warn!(
-                                "Non-retryable transport error when connecting to EL node: {}",
-                                transport_err
-                            );
-                            return Err(transport_err.into());
                         }
+                        warn!(
+                            "Non-retryable transport error when connecting to EL node: {}",
+                            transport_err
+                        );
+                        return Err(transport_err.into());
                     }
                     Err(err) => {
                         // For other errors, parse and return immediately
                         let decoded_error = utils::try_parse_contract_error(err)
                             .wrap_err("Failed to fetch proposer statuses from EL client")?;
 
-                        bail!(
-                            generate_bolt_manager_error(decoded_error, commitment_signer_pubkey,)
-                        );
+                        bail!(generate_bolt_manager_error(decoded_error, commitment_signer_pubkey));
                     }
                 }
             };

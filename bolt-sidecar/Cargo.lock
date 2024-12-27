@@ -127,9 +127,9 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "alloy"
-version = "0.8.0"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "689e271a72a5c0b05bfdf41c9d0424f11e9df721385dc5bd9045a51f9ea3313b"
+checksum = "59febb24956a41c29bb5f450978fbe825bd6456b3f80586c8bd558dc882e7b6a"
 dependencies = [
  "alloy-consensus",
  "alloy-contract",
@@ -438,9 +438,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-provider"
-version = "0.8.0"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5115c74c037714e1b02a86f742289113afa5d494b5ea58308ba8aa378e739101"
+checksum = "dc2dfaddd9a30aa870a78a4e1316e3e115ec1e12e552cbc881310456b85c1f24"
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
@@ -590,9 +590,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-engine"
-version = "0.8.0"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ca5898f753ff0d15a0dc955c169523d8fee57e05bb5a38a398b3451b0b988be"
+checksum = "03bd16fa4959255ebf4a7702df08f325e5631df5cdca07c8a8e58bdc10fe02e3"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -778,9 +778,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport-http"
-version = "0.8.0"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e24412cf72f79c95cd9b1d9482e3a31f9d94c24b43c4b3b710cc8d4341eaab0"
+checksum = "2ed40eb1e1265b2911512f6aa1dcece9702d078f5a646730c45e39e2be00ac1c"
 dependencies = [
  "alloy-json-rpc",
  "alloy-rpc-types-engine",
@@ -1562,7 +1562,7 @@ dependencies = [
 
 [[package]]
 name = "bolt-sidecar"
-version = "0.3.0-alpha"
+version = "0.3.1-alpha"
 dependencies = [
  "account_utils",
  "alloy",
@@ -1613,7 +1613,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
- "tree_hash 0.8.0",
+ "tree_hash 0.9.0",
  "tree_hash_derive",
  "uuid 1.11.0",
 ]
@@ -7077,9 +7077,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.133"
+version = "1.0.134"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7fceb2473b9166b2294ef05efcb65a3db80803f0b03ef86a5fc88a2b85ee377"
+checksum = "d00f4175c42ee48b15416f6193a959ba3a0d67fc699a0db9ad12df9f83991c7d"
 dependencies = [
  "itoa",
  "memchr",
@@ -8293,6 +8293,19 @@ dependencies = [
  "alloy-primitives 0.8.15",
  "ethereum_hashing 0.7.0",
  "smallvec",
+]
+
+[[package]]
+name = "tree_hash"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3cc60ae4c4236ee721305d0f0b5aa3e8ef5b66f3fa61d17072430bc246d6694a"
+dependencies = [
+ "alloy-primitives 0.8.15",
+ "ethereum_hashing 0.7.0",
+ "ethereum_ssz 0.8.1",
+ "smallvec",
+ "typenum",
 ]
 
 [[package]]

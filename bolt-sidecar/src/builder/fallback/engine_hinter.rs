@@ -20,6 +20,9 @@ use crate::{
 
 use super::engine_hints::parse_hint_from_engine_response;
 
+/// The maximum number of hint iterations to try before giving up.
+const MAX_HINT_ITERATIONS: u64 = 20;
+
 /// The [EngineHinter] is responsible for gathering "hints" from the
 /// engine API error responses to complete the sealed block.
 ///
@@ -58,7 +61,6 @@ impl EngineHinter {
 
         // Loop until we get a valid payload from the engine API. On each iteration,
         // we build a new block header with the hints from the context and fetch the next hint.
-        let max_iterations = 20;
         let mut iteration = 0;
         loop {
             debug!(%iteration, "Fetching hint from engine API");
@@ -76,6 +78,7 @@ impl EngineHinter {
 
             // attempt to fetch the next hint from the engine API payload response
             let hint = self.next_hint(exec_payload, &ctx).await?;
+            debug!(?hint, "Received hint from engine API");
 
             if matches!(hint, EngineApiHint::ValidPayload) {
                 return Ok(sealed_block);
@@ -85,8 +88,8 @@ impl EngineHinter {
             ctx.hints.populate_new(hint);
 
             iteration += 1;
-            if iteration >= max_iterations {
-                return Err(BuilderError::ExceededMaxHintIterations(max_iterations));
+            if iteration >= MAX_HINT_ITERATIONS {
+                return Err(BuilderError::ExceededMaxHintIterations(MAX_HINT_ITERATIONS));
             }
         }
     }
@@ -121,7 +124,8 @@ impl EngineHinter {
         // Parse the hint from the engine API response, based on the EL client code
         let Some(hint) = parse_hint_from_engine_response(ctx.el_client_code, &validation_error)?
         else {
-            return Err(BuilderError::FailedToParseHintsFromEngine);
+            let el_name = ctx.el_client_code.client_name().to_string();
+            return Err(BuilderError::FailedToParseHintsFromEngine(el_name));
         };
 
         Ok(hint)

@@ -144,23 +144,21 @@ impl CommitBoostSigner {
 
     /// Sign an object root with the Commit Boost domain.
     pub async fn sign_commit_boost_root(&self, data: [u8; 32]) -> SignerResult<BlsSignature> {
-        // convert the pubkey from ethereum_consensus to commit-boost format
-        // TODO: compat: this is the only way to obtain a BlsPubkey for now unfortunately
-        let pubkey = cb_common::signer::BlsPublicKey::from(FixedBytes::<48>::from_slice(
-            self.pubkey().as_ref(),
-        ));
+        // convert the pubkey from ethereum_consensus to alloy
+        let alloy_pubkey = FixedBytes::<48>::from_slice(self.pubkey().as_ref());
+        let pubkey = cb_common::signer::BlsPublicKey::from(alloy_pubkey);
 
         let request = SignConsensusRequest { pubkey, object_root: data };
 
         debug!(?request, "Requesting signature from commit_boost");
 
-        Ok(self
+        let sig = self
             .signer_client
             .request_consensus_signature(request)
             .await
-            // TODO: compat: this is necessary until commit-boost bumps their alloy version
-            .map(|sig| BlsSignature::from_slice(sig.as_ref()))
-            .map_err(CommitBoostError::SignerClientError)?)
+            .map_err(CommitBoostError::SignerClientError)?;
+
+        Ok(sig)
     }
 }
 
