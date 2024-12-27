@@ -227,8 +227,7 @@ sol! {
 #[cfg(test)]
 mod tests {
     use ::hex::FromHex;
-    use alloy::hex;
-    use alloy::primitives::Address;
+    use alloy::{hex, primitives::Address};
     use alloy_node_bindings::Anvil;
     use ethereum_consensus::primitives::BlsPublicKey;
     use reqwest::Url;
@@ -269,8 +268,8 @@ mod tests {
                     .as_ref()).expect("valid bls public key")];
         let res = manager.verify_validator_pubkeys(keys.clone(), commitment_signer_pubkey).await;
         assert!(
-            res.unwrap_err().to_string()
-                == generate_operator_keys_mismatch_error(
+            res.unwrap_err().to_string() ==
+                generate_operator_keys_mismatch_error(
                     pubkey_hash(&keys[0]),
                     commitment_signer_pubkey,
                     operator
@@ -318,8 +317,8 @@ mod tests {
         let result = manager.verify_validator_pubkeys(keys.clone(), commitment_signer_pubkey).await;
 
         assert!(
-            result.unwrap_err().to_string()
-                == generate_operator_keys_mismatch_error(
+            result.unwrap_err().to_string() ==
+                generate_operator_keys_mismatch_error(
                     pubkey_hash(&keys[0]),
                     commitment_signer_pubkey,
                     operator

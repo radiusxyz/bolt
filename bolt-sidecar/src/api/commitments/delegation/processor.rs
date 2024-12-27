@@ -1,22 +1,27 @@
-use futures::stream::{FuturesUnordered, SplitSink, SplitStream};
-use futures::{FutureExt, SinkExt, StreamExt};
-use std::collections::VecDeque;
-use std::task::Poll;
-use std::{future::Future, pin::Pin};
-use tokio::net::TcpStream;
-use tokio::sync::broadcast::error::TryRecvError;
-use tokio::sync::oneshot::error::RecvError;
-use tokio::sync::{broadcast, mpsc, oneshot};
-use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+use futures::{
+    stream::{FuturesUnordered, SplitSink, SplitStream},
+    FutureExt, SinkExt, StreamExt,
+};
+use std::{collections::VecDeque, future::Future, pin::Pin, task::Poll};
+use tokio::{
+    net::TcpStream,
+    sync::{broadcast, broadcast::error::TryRecvError, mpsc, oneshot, oneshot::error::RecvError},
+};
+use tokio_tungstenite::{tungstenite::Message, MaybeTlsStream, WebSocketStream};
 use tracing::{error, info, trace, warn};
 use uuid::Uuid;
 
-use crate::api::commitments::server::spec::{CommitmentError, RejectionError};
-use crate::api::commitments::server::CommitmentEvent;
-use crate::primitives::commitment::{InclusionRequestIdentified, SignedCommitment};
-use crate::primitives::misc::IntoIdentified;
-use crate::primitives::CommitmentRequest;
+use crate::{
+    api::commitments::server::{
+        spec::{CommitmentError, RejectionError},
+        CommitmentEvent,
+    },
+    primitives::{
+        commitment::{InclusionRequestIdentified, SignedCommitment},
+        misc::{Identified, IntoIdentified},
+        CommitmentRequest,
+    },
+};
 
 /// The reason for interrupting the [CommitmentRequestProcessor] future.
 #[derive(Debug)]
@@ -29,29 +34,17 @@ pub enum InterruptReason {
     ConnectionClosed,
 }
 
-struct PendingCommitmentResponse {
-    id: Uuid,
-    response: oneshot::Receiver<Result<SignedCommitment, CommitmentError>>,
-}
-
-impl PendingCommitmentResponse {
-    fn new(
-        id: Uuid,
-        response: oneshot::Receiver<Result<SignedCommitment, CommitmentError>>,
-    ) -> Self {
-        Self { id, response }
-    }
-}
+type PendingCommitmentResponse =
+    Identified<oneshot::Receiver<Result<SignedCommitment, CommitmentError>>, Uuid>;
 
 impl Future for PendingCommitmentResponse {
     type Output = (Uuid, Result<Result<SignedCommitment, CommitmentError>, RecvError>);
     fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
-        let id = this.id;
+        let id = this.id();
 
-        match this.response.poll_unpin(cx) {
-            Poll::Ready(Ok(response)) => Poll::Ready((id, Ok(response))),
-            Poll::Ready(Err(e)) => Poll::Ready((id, Err(e))),
+        match this.inner_mut().poll_unpin(cx) {
+            Poll::Ready(res) => Poll::Ready((id, res)),
             Poll::Pending => Poll::Pending,
         }
     }
@@ -106,7 +99,6 @@ impl CommitmentRequestProcessor {
 }
 
 impl Future for CommitmentRequestProcessor {
-    // The output of this future is a boolean indicating whether reconnection is needed.
     type Output = InterruptReason;
 
     fn poll(
@@ -137,12 +129,16 @@ impl Future for CommitmentRequestProcessor {
 
                 if let Ok(commitment) = result_commitment {
                     trace!(?rpc_url, ?commitment, "received commitment response");
-                    let commitment = commitment
-                        .into_inclusion_commitment()
-                        .expect("no other commitment types")
-                        .into_identified(id);
+                    let message = match &commitment {
+                        SignedCommitment::Inclusion(ic) => {
+                            ic.into_identified(id);
+                            Message::text(
+                                serde_json::to_string(&ic)
+                                    .expect("to stringify inclusion commitment"),
+                            )
+                        }
+                    };
 
-                    let message = Message::text(serde_json::to_string(&commitment).unwrap());
                     // Add the message to the outgoing messages queue
                     this.outgoing_messages.push_back(message);
                 }
@@ -158,8 +154,7 @@ impl Future for CommitmentRequestProcessor {
                         // Try to send the message to the sink, for later flushing.
                         if let Err(e) = this.write_sink.start_send_unpin(message) {
                             error!(?e, ?rpc_url, "failed to send message to websocket write sink");
-                            // NOTE: Should we return here?
-                            // return Poll::Ready(());
+                            continue;
                         }
                     }
                     Poll::Pending => {
@@ -169,8 +164,7 @@ impl Future for CommitmentRequestProcessor {
                     }
                     Poll::Ready(Err(e)) => {
                         error!(?e, "sink error while sending message to websocket");
-                        // NOTE: Should we return here?
-                        // return Poll::Ready(());
+                        continue;
                     }
                 }
             }
@@ -181,8 +175,7 @@ impl Future for CommitmentRequestProcessor {
             // That is because flushing an empty sink would lead to run this loop indefinitely
             if let Poll::Ready(Err(e)) = this.write_sink.poll_flush_unpin(cx) {
                 error!(?e, "failed to flush websocket write sink");
-                // NOTE: Should we return here?
-                // return Poll::Ready(());
+                continue;
             }
 
             // 4. Handle shutdown signals before accepting any new work
@@ -238,7 +231,7 @@ impl Future for CommitmentRequestProcessor {
                             }
                         };
 
-                        let pending_response = PendingCommitmentResponse::new(id, rx);
+                        let pending_response = PendingCommitmentResponse::new(rx, id);
 
                         // add the pending response to this buffer for later processing
                         this.pending_commitment_responses.push(pending_response);

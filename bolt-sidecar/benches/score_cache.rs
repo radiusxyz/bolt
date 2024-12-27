@@ -128,7 +128,8 @@ fn create_hashmap_filled(size: usize) -> HashMap<usize, usize> {
 }
 
 fn configure_criterion() -> Criterion {
-    Criterion::default().measurement_time(std::time::Duration::from_secs(10)) // Increase to 10 seconds
+    Criterion::default().measurement_time(std::time::Duration::from_secs(10)) // Increase to 10
+                                                                              // seconds
 }
 
 criterion_group!(

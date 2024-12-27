@@ -84,17 +84,17 @@ impl From<CommitmentError> for (i32, String) {
 impl From<&CommitmentError> for StatusCode {
     fn from(err: &CommitmentError) -> Self {
         match err {
-            CommitmentError::Rejected(_) => StatusCode::BAD_REQUEST,
-            CommitmentError::Duplicate => StatusCode::BAD_REQUEST,
-            CommitmentError::Internal => StatusCode::INTERNAL_SERVER_ERROR,
-            CommitmentError::NoSignature => StatusCode::BAD_REQUEST,
-            CommitmentError::InvalidSignature(_) => StatusCode::BAD_REQUEST,
-            CommitmentError::Signature(_) => StatusCode::BAD_REQUEST,
-            CommitmentError::Consensus(_) => StatusCode::BAD_REQUEST,
-            CommitmentError::Validation(_) => StatusCode::BAD_REQUEST,
-            CommitmentError::MalformedHeader => StatusCode::BAD_REQUEST,
-            CommitmentError::UnknownMethod => StatusCode::BAD_REQUEST,
-            CommitmentError::InvalidJson(_) => StatusCode::BAD_REQUEST,
+            CommitmentError::Rejected(_)
+            | CommitmentError::Duplicate
+            | CommitmentError::NoSignature
+            | CommitmentError::InvalidSignature(_)
+            | CommitmentError::Signature(_)
+            | CommitmentError::Consensus(_)
+            | CommitmentError::Validation(_)
+            | CommitmentError::MalformedHeader
+            | CommitmentError::UnknownMethod
+            | CommitmentError::InvalidJson(_) => Self::BAD_REQUEST,
+            CommitmentError::Internal => Self::INTERNAL_SERVER_ERROR,
         }
     }
 }

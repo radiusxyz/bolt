@@ -49,6 +49,7 @@ impl From<SignedCommitment> for InclusionCommitment {
 }
 
 impl SignedCommitment {
+    /// Returns the inner commitment if this is an inclusion commitment, otherwise `None`.
     pub fn into_inclusion_commitment(self) -> Option<InclusionCommitment> {
         match self {
             Self::Inclusion(inclusion) => Some(inclusion),

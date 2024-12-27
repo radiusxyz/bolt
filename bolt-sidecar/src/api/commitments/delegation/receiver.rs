@@ -1,26 +1,30 @@
 use alloy::signers::local::PrivateKeySigner;
 use futures::StreamExt;
-use std::fmt::Debug;
-use std::fmt::{self, Formatter};
-use std::time::Duration;
-use std::{future::Future, pin::Pin};
+use std::{
+    fmt::{self, Debug, Formatter},
+    future::Future,
+    pin::Pin,
+    time::Duration,
+};
 use thiserror::Error;
 use tokio::sync::{broadcast, mpsc};
-use tokio_tungstenite::connect_async_with_config;
-use tokio_tungstenite::tungstenite::client::IntoClientRequest;
-use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
+use tokio_tungstenite::{
+    connect_async_with_config,
+    tungstenite::{client::IntoClientRequest, protocol::WebSocketConfig},
+};
 use tracing::{error, info};
 
 use reqwest::Url;
 
-use crate::api::commitments::delegation::processor::CommitmentRequestProcessor;
-use crate::api::commitments::server::CommitmentEvent;
-use crate::common::backoff::retry_with_backoff_if;
-use crate::common::secrets::EcdsaSecretKeyWrapper;
-use crate::config::chain::Chain;
+use crate::{
+    api::commitments::{
+        delegation::processor::CommitmentRequestProcessor, server::CommitmentEvent,
+    },
+    common::{backoff::retry_with_backoff_if, secrets::EcdsaSecretKeyWrapper},
+    config::chain::Chain,
+};
 
-use super::jwt::ProposerAuthClaims;
-use super::processor::InterruptReason;
+use super::{jwt::ProposerAuthClaims, processor::InterruptReason};
 
 /// The interval at which to send ping messages from connected clients.
 #[cfg(test)]
@@ -118,8 +122,7 @@ impl CommitmentsReceiver {
             }
         });
 
-        let signal = self.signal.take();
-        if let Some(signal) = signal {
+        if let Some(signal) = self.signal.take() {
             tokio::spawn(async move {
                 signal.await;
                 if let Err(err) = shutdown_tx.send(()) {
@@ -273,8 +276,8 @@ mod tests {
 
         let operator_private_key = EcdsaSecretKeyWrapper::random();
 
-        // Create a Single-Producer-Multiple-Consumer (SPMC) channel via a broadcast that sends a shutdown
-        // signal to all websocket servers.
+        // Create a Single-Producer-Multiple-Consumer (SPMC) channel via a broadcast that sends a
+        // shutdown signal to all websocket servers.
         let (shutdown_servers_tx, shutdown_servers_rx) = broadcast::channel::<()>(1);
 
         let (shutdown_connections_tx, mut shutdown_connections_rx) = broadcast::channel::<()>(1);
@@ -402,11 +405,13 @@ mod tests {
             info!("Pinged {who}...");
         }
 
-        // By splitting socket we can send and receive at the same time. In this example we will send
-        // unsolicited messages to client based on some sort of server's internal event (i.e .timer).
+        // By splitting socket we can send and receive at the same time. In this example we will
+        // send unsolicited messages to client based on some sort of server's internal event
+        // (i.e .timer).
         let (mut sender, mut receiver) = socket.split();
 
-        // Spawn a task that will push several messages to the client (does not matter what client does)
+        // Spawn a task that will push several messages to the client (does not matter what client
+        // does)
         let mut send_task = tokio::spawn(async move {
             let n_msg = 20;
             let inclusion_request = InclusionRequest::default().into_identified(Uuid::now_v7());
