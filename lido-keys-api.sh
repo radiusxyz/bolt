@@ -18,5 +18,11 @@ res=$(curl -s http://34.88.187.80:30303/v1/preconfs/lido-bolt/validators/$pubkey
 
 operator_rpc=$(echo $res | jq -r '.rpcUrl')
 
+# check that operator_rpc is not empty
+if [[ -z "$operator_rpc" ]]; then
+    echo "Error: Operator RPC URL is not found."
+    exit 1
+fi
+
 # 2. use bolt cli to send a preconfirmation to that operator
 bolt send --private-key $private_key --max-fee 4 --priority-fee 3 --override-bolt-sidecar-url $operator_rpc
