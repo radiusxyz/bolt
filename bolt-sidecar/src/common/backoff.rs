@@ -12,7 +12,7 @@ where
 {
     let backoff = ExponentialBackoff::from_millis(100)
         .factor(2)
-        .max_delay(Duration::from_secs(1))
+        .max_delay(Duration::from_secs(2))
         .take(max_retries)
         .map(jitter);
 
@@ -30,7 +30,7 @@ where
 {
     let backoff = ExponentialBackoff::from_millis(100)
         .factor(2)
-        .max_delay(Duration::from_secs(1))
+        .max_delay(Duration::from_secs(2))
         .take(max_retries)
         .map(jitter);
 

@@ -34,7 +34,7 @@ const PING_INTERVAL: Duration = Duration::from_secs(3);
 const PING_INTERVAL: Duration = Duration::from_secs(30);
 
 /// The maximum number of retries to attempt when reconnecting to a websocket server.
-const MAX_RETRIES: usize = 10;
+const MAX_RETRIES: usize = 1000;
 
 /// The maximum messages size to receive via websocket connection, in bits, set to 32MiB.
 ///
@@ -119,8 +119,8 @@ impl CommitmentsReceiver {
 
             loop {
                 ping_interval.tick().await;
-                if let Err(err) = task_ping_ch.0.send(()) {
-                    error!(?err, "internal error while sending ping task: dropped receiver")
+                if task_ping_ch.0.send(()).is_err() {
+                    error!("internal error while sending ping task: dropped receiver")
                 }
             }
         });
@@ -128,8 +128,8 @@ impl CommitmentsReceiver {
         if let Some(signal) = self.signal.take() {
             tokio::spawn(async move {
                 signal.await;
-                if let Err(err) = shutdown_tx.send(()) {
-                    error!(?err, "failed to send shutdown signal");
+                if shutdown_tx.send(()).is_err() {
+                    error!("failed to send shutdown signal: dropped receiver");
                 }
             });
         }
@@ -167,7 +167,12 @@ impl CommitmentsReceiver {
                         let shutdown_rx = shutdown_rx.resubscribe();
 
                         async move {
-                            handle_connection(url, jwt, api_events_tx, ping_rx, shutdown_rx).await
+                            handle_connection(url, jwt, api_events_tx, ping_rx, shutdown_rx)
+                                .await
+                                .map_err(|e| {
+                                    error!(?e, "error while handling websocket connection");
+                                    e
+                                })
                         }
                     },
                     |err| {
@@ -225,10 +230,7 @@ async fn handle_connection(
             let interrupt_reason = commitment_request_processor.await;
             Err(ConnectionHandlerError::ProcessorInterrupted(interrupt_reason))
         }
-        Err(e) => {
-            error!(?e, ?url, "failed to connect");
-            Err(ConnectionHandlerError::OnConnectionError(e))
-        }
+        Err(e) => Err(ConnectionHandlerError::OnConnectionError(e)),
     }
 }
 
