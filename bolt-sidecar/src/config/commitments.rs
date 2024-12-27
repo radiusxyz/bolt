@@ -28,7 +28,7 @@ pub struct CommitmentOpts {
     /// Secret ECDSA key used to sign commitment messages on behalf of your validators.
     /// This MUST be set to the private key of your operator address registered in a restaking
     /// protocol.
-    #[clap(long, env = "BOLT_SIDECAR_COMMITMENT_PRIVATE_KEY")]
+    #[clap(long, env = "BOLT_SIDECAR_OPERATOR_PRIVATE_KEY")]
     pub operator_private_key: EcdsaSecretKeyWrapper,
 }
 
