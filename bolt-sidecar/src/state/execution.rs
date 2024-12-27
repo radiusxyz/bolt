@@ -66,6 +66,9 @@ pub enum ValidationError {
     /// The sender does not have enough balance to pay for the transaction.
     #[error("Not enough balance to pay for value + maximum fee")]
     InsufficientBalance,
+    /// Pricing calculation error.
+    #[error("Pricing calculation error: {0}")]
+    Pricing(#[from] pricing::PricingError),
     /// There are too many EIP-4844 transactions in the target block.
     #[error("Too many EIP-4844 transactions in target block")]
     Eip4844Limit,
@@ -113,6 +116,7 @@ impl ValidationError {
             Self::MaxPriorityFeePerGasTooHigh => "max_priority_fee_per_gas_too_high",
             Self::MaxPriorityFeePerGasTooLow => "max_priority_fee_per_gas_too_low",
             Self::InsufficientBalance => "insufficient_balance",
+            Self::Pricing(_) => "pricing",
             Self::Eip4844Limit => "eip4844_limit",
             Self::SlotTooLow(_) => "slot_too_low",
             Self::MaxCommitmentsReachedForSlot(_, _) => "max_commitments_reached_for_slot",
@@ -122,12 +126,6 @@ impl ValidationError {
             Self::ChainIdMismatch => "chain_id_mismatch",
             Self::Internal(_) => "internal",
         }
-    }
-}
-
-impl From<pricing::PricingError> for ValidationError {
-    fn from(err: pricing::PricingError) -> Self {
-        Self::Internal(format!("Pricing error: {}", err))
     }
 }
 
