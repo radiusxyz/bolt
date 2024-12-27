@@ -22,6 +22,7 @@ use crate::{
     telemetry::ApiMetrics,
 };
 
+use super::PreconfPricing;
 use super::{account_state::AccountStateCache, fetcher::StateFetcher};
 
 /// Possible commitment validation errors.
@@ -173,6 +174,8 @@ pub struct ExecutionState<C> {
     client: C,
     /// Other values used for validation
     validation_params: ValidationParams,
+    /// Pricing calculator for preconfirmations.
+    pricing: PreconfPricing,
 }
 
 /// Other values used for validation.
@@ -229,6 +232,7 @@ impl<C: StateFetcher> ExecutionState<C> {
             kzg_settings: EnvKzgSettings::default(),
             // TODO: add a way to configure these values from CLI
             validation_params: ValidationParams::new(gas_limit),
+            pricing: PreconfPricing::new(gas_limit),
         })
     }
 
@@ -318,11 +322,8 @@ impl<C: StateFetcher> ExecutionState<C> {
             return Err(ValidationError::BaseFeeTooLow(max_basefee));
         }
 
-        // Create pricing calculator
-        let pricing = pricing::PreconfPricing::new(self.validation_params.block_gas_limit);
-
         // Ensure max_priority_fee_per_gas is greater than or equal to the calculated min_priority_fee
-        if !req.validate_min_priority_fee(&pricing, template_committed_gas, max_basefee)? {
+        if !req.validate_min_priority_fee(&self.pricing, template_committed_gas, max_basefee)? {
             return Err(ValidationError::MaxPriorityFeePerGasTooLow);
         }
 
