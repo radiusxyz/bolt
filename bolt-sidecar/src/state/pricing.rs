@@ -196,6 +196,27 @@ mod tests {
     }
 
     #[test]
+    fn test_priority_fee_all_gas() {
+        let pricing = PreconfPricing::default();
+
+        // Test one preconf for all the available gas
+        let incoming_gas = 30_000_000;
+        let preconfirmed_gas = 0;
+        let min_fee_wei =
+            pricing.calculate_min_priority_fee(incoming_gas, preconfirmed_gas).unwrap();
+
+        // Expected fee: ~19 Gwei
+        // This will likely never happen, since you want to reserve some gas
+        // on top of the block for MEV, but enforcing this is not the responsibility
+        // of the pricing model.
+        assert!(
+            (min_fee_wei as f64 - 2_186_999_509.0).abs() < 1_000.0,
+            "Expected ~2,186,999,509 Wei, got {} Wei",
+            min_fee_wei
+        );
+    }
+
+    #[test]
     fn test_min_priority_fee_zero_preconfirmed_36m() {
         let pricing = PreconfPricing::new(36_000_000);
 
