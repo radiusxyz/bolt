@@ -143,16 +143,18 @@ mod tests {
 
         // Test minimum fee (210k gas ETH transfer, 0 preconfirmed)
         let big_gas = 210_000;
-        let preconfirmed_gas = 0;
-        let big_fee = pricing.calculate_min_priority_fee(big_gas, preconfirmed_gas).unwrap();
+        let preconfirmed_gas_big = 0;
+        let big_fee = pricing.calculate_min_priority_fee(big_gas, preconfirmed_gas_big).unwrap();
 
         // Test minimum fee (10x21k gas ETH transfer, 0 preconfirmed)
         let small_gas = 21_000;
+        let mut preconfirmed_gas_small = 0;
         let mut small_fee_sum = 0;
         for _ in 0..10 {
             let small_fee =
-                pricing.calculate_min_priority_fee(small_gas, preconfirmed_gas).unwrap();
+                pricing.calculate_min_priority_fee(small_gas, preconfirmed_gas_small).unwrap();
             small_fee_sum += small_fee;
+            preconfirmed_gas_small += small_gas;
         }
 
         // A preconf that uses
