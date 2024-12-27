@@ -191,7 +191,7 @@ impl InclusionRequest {
             let min_priority_fee =
                 pricing.calculate_min_priority_fee(tx.gas_limit(), preconfirmed_gas)?;
 
-            let tip = tx.effective_tip_per_gas(max_base_fee).unwrap_or(0);
+            let tip = tx.effective_tip_per_gas(max_base_fee).unwrap_or_default();
             if tip < min_priority_fee as u128 {
                 return Ok(false);
             }
