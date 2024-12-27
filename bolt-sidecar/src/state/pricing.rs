@@ -142,17 +142,27 @@ mod tests {
         let pricing = PreconfPricing::default();
 
         // Test minimum fee (210k gas ETH transfer, 0 preconfirmed)
-        let incoming_gas = 210_000;
+        let big_gas = 210_000;
         let preconfirmed_gas = 0;
-        let min_fee_wei =
-            pricing.calculate_min_priority_fee(incoming_gas, preconfirmed_gas).unwrap();
+        let big_fee = pricing.calculate_min_priority_fee(big_gas, preconfirmed_gas).unwrap();
 
+        // Test minimum fee (10x21k gas ETH transfer, 0 preconfirmed)
+        let small_gas = 21_000;
+        let mut small_fee_sum = 0;
+        for _ in 0..10 {
+            let small_fee =
+                pricing.calculate_min_priority_fee(small_gas, preconfirmed_gas).unwrap();
+            small_fee_sum += small_fee;
+        }
+
+        // A preconf that uses
         // This preconf uses 10x more gas than the 21k preconf,
         // but the fee is only slightly higher.
         assert!(
-            (min_fee_wei as f64 - 615_379_171.0).abs() < 1_000.0,
-            "Expected ~615,379,171 Wei, got {} Wei",
-            min_fee_wei
+            (big_fee as f64 - small_fee_sum as f64).abs() < 1_000.0,
+            "Expected big preconf to cost the same as many small ones, big {} Wei, small {} Wei",
+            big_fee,
+            small_fee_sum
         );
     }
 
