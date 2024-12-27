@@ -207,6 +207,8 @@ impl Future for CommitmentRequestProcessor {
                         // Create the channel to send and receive the commitment response
                         let (tx, rx) = oneshot::channel();
 
+                        // TODO: this should be deserialized as general JSON-RPC messages and
+                        // distinguish between methods, in case of "bolt_getVersion" requests.
                         let request = serde_json::from_str::<InclusionRequestIdentified>(&text)
                             .map_err(|e| CommitmentError::Rejected(RejectionError::Json(e)));
 
