@@ -49,7 +49,7 @@ impl PreconfPricing {
         Self { block_gas_limit, base_multiplier: BASE_MULTIPLIER, gas_scalar: GAS_SCALAR }
     }
 
-    /// Calculate the minimum priority fee for a preconfirmation based on
+    /// Calculate the minimum inclusion fee for a preconfirmation based on
     /// https://research.lido.fi/t/a-pricing-model-for-inclusion-preconfirmations/9136
     ///
     /// # Arguments
@@ -57,8 +57,17 @@ impl PreconfPricing {
     /// * `preconfirmed_gas` - Total gas already preconfirmed
     ///
     /// # Returns
-    /// * `Ok(f64)` - The minimum priority fee in Wei
+    /// * `Ok(f64)` - The minimum inclusion fee in Wei per gas
     /// * `Err(PricingError)` - If the calculation cannot be performed
+    ///
+    /// Be careful relying on the result of this when preconfirmed gas is close to 30M
+    /// """
+    /// This being said our model becomes less reliable as the amount of gas
+    /// preconfirmed approaches 30M. There are many reasons for this, but one
+    /// important reason is that we omit large outlier transactions to improve average
+    /// fit, which disproportionately affects the most valuable transactions.
+    /// """
+    ///
     pub fn calculate_min_priority_fee(
         &self,
         incoming_gas: u64,
@@ -75,17 +84,17 @@ impl PreconfPricing {
         let after_gas = remaining_gas - incoming_gas;
 
         // Calculate numerator and denominator for the logarithm
-        let numerator = self.gas_scalar * (remaining_gas as f64) + 1.0;
-        let denominator = self.gas_scalar * (after_gas as f64) + 1.0;
+        let fraction = (self.gas_scalar * (remaining_gas as f64) + 1.0)
+            / (self.gas_scalar * (after_gas as f64) + 1.0);
 
-        // Calculate gas used
-        let expected_val = self.base_multiplier * (numerator / denominator).ln();
+        // Calculate block space value in Ether
+        let block_space_value = self.base_multiplier * fraction.ln();
 
-        // Calculate the inclusion tip
-        let inclusion_tip_ether = expected_val / (incoming_gas as f64);
-        let inclusion_tip_wei = (inclusion_tip_ether * 1e18) as u64;
+        // Convert to Wei
+        let inclusion_tip_wei = (block_space_value * 1e18) as u64;
 
-        Ok(inclusion_tip_wei)
+        // Calculate the fee per gas
+        Ok(inclusion_tip_wei / incoming_gas)
     }
 }
 
@@ -157,11 +166,12 @@ mod tests {
             preconfirmed_gas_small += small_gas;
         }
 
-        // A preconf that uses
-        // This preconf uses 10x more gas than the 21k preconf,
-        // but the fee is only slightly higher.
+        // Moving on the pricing curve in 10 steps should cost
+        // the same as moving in one big step per gas.
+        let small_sum_fee_avg = small_fee_sum / 10;
+
         assert!(
-            (big_fee as f64 - small_fee_sum as f64).abs() < 1_000.0,
+            (big_fee as f64 - small_sum_fee_avg as f64).abs() < 1_000.0,
             "Expected big preconf to cost the same as many small ones, big {} Wei, small {} Wei",
             big_fee,
             small_fee_sum
