@@ -147,38 +147,6 @@ mod tests {
     }
 
     #[test]
-    fn test_min_priority_fee_zero_big_preconfirmed() {
-        let pricing = PreconfPricing::default();
-
-        // Test minimum fee (210k gas ETH transfer, 0 preconfirmed)
-        let big_gas = 210_000;
-        let preconfirmed_gas_big = 0;
-        let big_fee = pricing.calculate_min_priority_fee(big_gas, preconfirmed_gas_big).unwrap();
-
-        // Test minimum fee (10x21k gas ETH transfer, 0 preconfirmed)
-        let small_gas = 21_000;
-        let mut preconfirmed_gas_small = 0;
-        let mut small_fee_sum = 0;
-        for _ in 0..10 {
-            let small_fee =
-                pricing.calculate_min_priority_fee(small_gas, preconfirmed_gas_small).unwrap();
-            small_fee_sum += small_fee;
-            preconfirmed_gas_small += small_gas;
-        }
-
-        // Moving on the pricing curve in 10 steps should cost
-        // the same as moving in one big step per gas.
-        let small_sum_fee_avg = small_fee_sum / 10;
-
-        assert!(
-            (big_fee as f64 - small_sum_fee_avg as f64).abs() < 1_000.0,
-            "Expected big preconf to cost the same as many small ones, big {} Wei, small {} Wei",
-            big_fee,
-            small_fee_sum
-        );
-    }
-
-    #[test]
     fn test_min_priority_fee_medium_load() {
         let pricing = PreconfPricing::default();
 
@@ -214,6 +182,38 @@ mod tests {
             (min_fee_wei as f64 - 19_175_357_339.0).abs() < 1_000.0,
             "Expected ~19,175,357,339 Wei, got {} Wei",
             min_fee_wei
+        );
+    }
+
+    #[test]
+    fn test_min_priority_fee_zero_big_preconfirmed() {
+        let pricing = PreconfPricing::default();
+
+        // Test minimum fee (210k gas ETH transfer, 0 preconfirmed)
+        let big_gas = 210_000;
+        let preconfirmed_gas_big = 0;
+        let big_fee = pricing.calculate_min_priority_fee(big_gas, preconfirmed_gas_big).unwrap();
+
+        // Test minimum fee (10x21k gas ETH transfer, 0 preconfirmed)
+        let small_gas = 21_000;
+        let mut preconfirmed_gas_small = 0;
+        let mut small_fee_sum = 0;
+        for _ in 0..10 {
+            let small_fee =
+                pricing.calculate_min_priority_fee(small_gas, preconfirmed_gas_small).unwrap();
+            small_fee_sum += small_fee;
+            preconfirmed_gas_small += small_gas;
+        }
+
+        // Moving on the pricing curve in 10 steps should cost
+        // the same as moving in one big step per gas.
+        let small_sum_fee_avg = small_fee_sum / 10;
+
+        assert!(
+            (big_fee as f64 - small_sum_fee_avg as f64).abs() < 1_000.0,
+            "Expected big preconf to cost the same as many small ones, big {} Wei, small {} Wei",
+            big_fee,
+            small_fee_sum
         );
     }
 
