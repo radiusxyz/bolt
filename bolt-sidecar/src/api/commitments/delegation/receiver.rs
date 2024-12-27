@@ -4,6 +4,7 @@ use std::{
     fmt::{self, Debug, Formatter},
     future::Future,
     pin::Pin,
+    sync::Arc,
     time::Duration,
 };
 use thiserror::Error;
@@ -106,8 +107,10 @@ impl CommitmentsReceiver {
         // mspc channel where every websocket connection will send commitment events over its own
         // tx to a single receiver.
         let (api_events_tx, api_events_rx) = mpsc::channel(self.urls.len() * 2);
-        let (ping_tx, ping_rx) = broadcast::channel::<()>(1);
+        let ping_ch = Arc::new(broadcast::channel::<()>(1));
         let (shutdown_tx, shutdown_rx) = broadcast::channel::<()>(1);
+
+        let task_ping_ch = ping_ch.clone();
 
         // a task to send pings to open connections to the servers at regular intervals
         tokio::spawn(async move {
@@ -116,8 +119,8 @@ impl CommitmentsReceiver {
 
             loop {
                 ping_interval.tick().await;
-                if let Err(err) = ping_tx.send(()) {
-                    error!(?err, "internal error while sending ping task")
+                if let Err(err) = task_ping_ch.0.send(()) {
+                    error!(?err, "internal error while sending ping task: dropped receiver")
                 }
             }
         });
@@ -138,7 +141,7 @@ impl CommitmentsReceiver {
             // task.
             let url = url.clone();
             let api_events_tx = api_events_tx.clone();
-            let ping_rx = ping_rx.resubscribe();
+            let ping_rx = ping_ch.1.resubscribe();
             let shutdown_rx = shutdown_rx.resubscribe();
             let signer = signer.clone();
 
