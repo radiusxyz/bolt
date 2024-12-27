@@ -392,7 +392,7 @@ Bolt AVS. You can use the `bolt operators eigenlayer register` command for it:
 ```text
 Step 2: Register into the bolt AVS
 
-Usage: bolt operators eigenlayer register --rpc-url <RPC_URL> --operator-private-key <OPERATOR_PRIVATE_KEY> --operator-rpc <OPERATOR_RPC> --salt <SALT> --expiry <EXPIRY>
+Usage: bolt operators eigenlayer register --rpc-url <RPC_URL> --operator-private-key <OPERATOR_PRIVATE_KEY> --operator-rpc <OPERATOR_RPC> --salt <SALT>
 
 Options:
       --rpc-url <RPC_URL>
@@ -403,27 +403,17 @@ Options:
           The URL of the operator RPC [env: OPERATOR_RPC=]
       --salt <SALT>
           The salt for the operator signature [env: OPERATOR_SIGNATURE_SALT=]
-      --expiry <EXPIRY>
-          The expiry UTC timestamp in seconds for the operator signature [env: OPERATOR_SIGNATURE_EXPIRY=]
   -h, --help
           Print help
 ```
 
-A note on the `--salt` and `--expiry` parameters:
+A note on the `--salt` parameter:
 
 - `salt` -- an unique 32 bytes value to avoid replay attacks. To generate it on
   both Linux and MacOS you can run:
 
   ```bash
   echo -n "0x"; head -c 32 /dev/urandom | hexdump -e '32/1 "%02x" "\n"'
-  ```
-
-- `expiry` -- the UTC timestamp in seconds of the signature expiry. To generate it
-  on both Linux and MacOS run the following command, replacing
-  `<EXPIRY_TIMESTAMP>` with the desired timestamp:
-
-  ```bash
-  echo -n "0x"; printf "%064x\n" <EXPIRY_TIMESTAMP>
   ```
 
 Once you have the required values, fill the options and run the script. If the
