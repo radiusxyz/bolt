@@ -118,14 +118,14 @@ impl EigenLayerSubcommand {
                     AVSDirectory::new(deployments.eigen_layer.avs_directory, provider);
                 
                 const EXPIRY_DURATION :TimeDelta = Duration::minutes(20);
-                let expiry_time = Utc::now() + EXPIRY_DURATION;
-
+                let expiry = U256::from((Utc::now() + EXPIRY_DURATION).timestamp());
+                
                 let signature_digest_hash = avs_directory
                     .calculateOperatorAVSRegistrationDigestHash(
                         signer.address(),
                         bolt_avs_address,
                         salt,
-                        U256::from(expiry_time.timestamp()),
+                        expiry,
                     )
                     .call()
                     .await?
@@ -135,7 +135,7 @@ impl EigenLayerSubcommand {
                     Bytes::from(signer.sign_hash_sync(&signature_digest_hash)?.as_bytes());
                 let signature = SignatureWithSaltAndExpiry {
                     signature,
-                    expiry: U256::from(expiry_time.timestamp()),
+                    expiry,
                     salt,
                 };
 
