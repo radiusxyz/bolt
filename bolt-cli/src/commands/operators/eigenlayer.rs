@@ -2,12 +2,15 @@ use alloy::{
     network::EthereumWallet,
     primitives::{
         utils::{format_ether, Unit},
-        Bytes, Uint,
+        Bytes, Uint, U256,
     },
     providers::ProviderBuilder,
     signers::{local::PrivateKeySigner, SignerSync},
     sol_types::SolInterface,
 };
+
+use chrono::{Duration, TimeDelta, Utc};
+
 use eyre::Context;
 use tracing::{info, warn};
 
@@ -90,7 +93,7 @@ impl EigenLayerSubcommand {
                 Ok(())
             }
 
-            Self::Register { rpc_url, operator_rpc, salt, expiry, operator_private_key } => {
+            Self::Register { rpc_url, operator_rpc, salt, operator_private_key } => {
                 let signer = PrivateKeySigner::from_bytes(&operator_private_key)
                     .wrap_err("valid private key")?;
 
@@ -113,6 +116,10 @@ impl EigenLayerSubcommand {
 
                 let avs_directory =
                     AVSDirectory::new(deployments.eigen_layer.avs_directory, provider);
+                
+                const EXPIRY_DURATION :TimeDelta = Duration::minutes(20);
+                let expiry = U256::from((Utc::now() + EXPIRY_DURATION).timestamp());
+                
                 let signature_digest_hash = avs_directory
                     .calculateOperatorAVSRegistrationDigestHash(
                         signer.address(),
@@ -126,7 +133,11 @@ impl EigenLayerSubcommand {
 
                 let signature =
                     Bytes::from(signer.sign_hash_sync(&signature_digest_hash)?.as_bytes());
-                let signature = SignatureWithSaltAndExpiry { signature, expiry, salt };
+                let signature = SignatureWithSaltAndExpiry {
+                    signature,
+                    expiry,
+                    salt,
+                };
 
                 match bolt_eigenlayer_middleware
                     .registerOperator(operator_rpc.to_string(), signature)
@@ -383,7 +394,6 @@ mod tests {
                     operator_private_key: secret_key,
                     operator_rpc: "https://bolt.chainbound.io/rpc".parse().expect("valid url"),
                     salt: B256::ZERO,
-                    expiry: U256::MAX,
                 },
             },
         };

@@ -252,9 +252,6 @@ pub enum EigenLayerSubcommand {
         /// The salt for the operator signature.
         #[clap(long, env = "OPERATOR_SIGNATURE_SALT")]
         salt: B256,
-        /// The expiry timestamp for the operator signature.
-        #[clap(long, env = "OPERATOR_SIGNATURE_EXPIRY")]
-        expiry: U256,
     },
 
     /// Deregister an EigenLayer operator from the bolt AVS.
