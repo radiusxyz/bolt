@@ -24,7 +24,7 @@ tree_hash = "0.8"
 
 # tracing & metrics
 tracing = "0.1.41"
-tracing-subscriber = "0.3.18"
+tracing-subscriber = "0.3.19"
 prometheus = "0.13.4"
 
 # serialization
