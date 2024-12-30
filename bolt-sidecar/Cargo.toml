@@ -76,7 +76,7 @@ commit-boost = { git = "https://github.com/Commit-Boost/commit-boost-client", re
 cb-common = { git = "https://github.com/Commit-Boost/commit-boost-client", rev = "0f8f69b" }
 
 [dev-dependencies]
-alloy-node-bindings = "0.8.0"                                # must match alloy version
+alloy-node-bindings = "0.8.3"                                # must match alloy version
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [build-dependencies]
