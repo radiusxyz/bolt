@@ -100,7 +100,7 @@ impl CommitmentsReceiver {
 
     /// Runs the [CommitmentsReceiver] and returns a receiver for incoming commitment
     /// events.
-    pub async fn run(mut self) -> mpsc::Receiver<CommitmentEvent> {
+    pub fn run(mut self) -> mpsc::Receiver<CommitmentEvent> {
         // mspc channel where every websocket connection will send commitment events over its own
         // tx to a single receiver.
         let (api_events_tx, api_events_rx) = mpsc::channel(self.urls.len() * 2);
@@ -298,7 +298,7 @@ mod tests {
         )
         .with_shutdown(async move { shutdown_connections_rx.recv().await.unwrap() }.boxed());
 
-        let mut api_events_rx = stream.run().await;
+        let mut api_events_rx = stream.run();
 
         info!("Waiting for {CONNECTIONS_SHUTDOWN_IN_SECS} seconds before shutting down the connection...");
         info!("Waiting for {SERVERS_SHUTDOWN_IN_SECS} seconds before shutting down the servers...");

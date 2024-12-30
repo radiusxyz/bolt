@@ -234,7 +234,6 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                 urls,
             )
             .run()
-            .await
         } else {
             let port = opts.commitment_opts.port.unwrap_or(DEFAULT_RPC_PORT);
             // start the commitments api server
