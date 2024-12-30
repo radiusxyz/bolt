@@ -321,7 +321,12 @@ impl<C: StateFetcher> ExecutionState<C> {
         }
 
         // Ensure max_priority_fee_per_gas is greater than or equal to the calculated min_priority_fee
-        if !req.validate_min_priority_fee(&self.pricing, template_committed_gas, max_basefee)? {
+        if !req.validate_min_priority_fee(
+            &self.pricing,
+            template_committed_gas,
+            self.limits.min_inclusion_profit,
+            max_basefee,
+        )? {
             return Err(ValidationError::MaxPriorityFeePerGasTooLow);
         }
 
@@ -838,7 +843,7 @@ mod tests {
         state.update_head(None, slot).await?;
 
         // Set the sender balance to just enough to pay for 1 transaction
-        let balance = U256::from_str("500000000000000").unwrap(); // leave just 0.0005 ETH
+        let balance = U256::from_str("600000000000000").unwrap(); // leave just 0.0005 ETH
         let sender_account = client.get_account_state(sender, None).await.unwrap();
         let balance_to_burn = sender_account.balance - balance;
 
@@ -857,7 +862,8 @@ mod tests {
         let tx = default_test_transaction(*sender, Some(1));
         let mut request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
 
-        assert!(state.validate_request(&mut request).await.is_ok());
+        let validation = state.validate_request(&mut request).await;
+        assert!(validation.is_ok(), "Validation failed: {validation:?}");
 
         let message = ConstraintsMessage::build(Default::default(), request.clone());
         let signature = signer.sign_commit_boost_root(message.digest())?;
@@ -870,10 +876,13 @@ mod tests {
 
         // this should fail because the balance is insufficient as we spent
         // all of it on the previous preconfirmation
-        assert!(matches!(
-            state.validate_request(&mut request).await,
-            Err(ValidationError::InsufficientBalance)
-        ));
+        let validation_result = state.validate_request(&mut request).await;
+
+        assert!(
+            matches!(validation_result, Err(ValidationError::InsufficientBalance)),
+            "Expected InsufficientBalance error, got {:?}",
+            validation_result
+        );
 
         Ok(())
     }
@@ -949,7 +958,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let limits = LimitsOpts { min_priority_fee: 2 * GWEI_TO_WEI as u128, ..Default::default() };
+        let limits = LimitsOpts { ..Default::default() };
 
         let mut state = ExecutionState::new(client.clone(), limits, DEFAULT_GAS_LIMIT).await?;
 
@@ -987,7 +996,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let limits = LimitsOpts { min_priority_fee: 2 * GWEI_TO_WEI as u128, ..Default::default() };
+        let limits = LimitsOpts { ..Default::default() };
 
         let mut state = ExecutionState::new(client.clone(), limits, DEFAULT_GAS_LIMIT).await?;
 
@@ -1030,7 +1039,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let limits = LimitsOpts { min_priority_fee: 2 * GWEI_TO_WEI as u128, ..Default::default() };
+        let limits = LimitsOpts { ..Default::default() };
 
         let mut state = ExecutionState::new(client.clone(), limits, DEFAULT_GAS_LIMIT).await?;
 
@@ -1165,7 +1174,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let limits = LimitsOpts { min_priority_fee: 1000000000, ..Default::default() };
+        let limits = LimitsOpts { min_inclusion_profit: 1_000_000_000, ..Default::default() };
         let mut state = ExecutionState::new(client.clone(), limits, DEFAULT_GAS_LIMIT).await?;
 
         let sender = anvil.addresses().first().unwrap();
@@ -1288,11 +1297,13 @@ mod tests {
             .with_value(uint!(11_000_U256 * Uint::from(ETH_TO_WEI)));
 
         let mut request = create_signed_inclusion_request(&[tx1, tx2, tx3], sender_pk, 10).await?;
+        let validation_result = state.validate_request(&mut request).await;
 
-        assert!(matches!(
-            state.validate_request(&mut request).await,
-            Err(ValidationError::InsufficientBalance)
-        ));
+        assert!(
+            matches!(validation_result, Err(ValidationError::InsufficientBalance)),
+            "Expected InsufficientBalance error, got {:?}",
+            validation_result
+        );
 
         Ok(())
     }

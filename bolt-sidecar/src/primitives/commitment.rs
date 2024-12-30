@@ -181,6 +181,7 @@ impl InclusionRequest {
         &self,
         pricing: &PreconfPricing,
         preconfirmed_gas: u64,
+        min_inclusion_profit: u64,
         max_base_fee: u128,
     ) -> Result<bool, PricingError> {
         // Each included tx will move the price up
@@ -188,8 +189,9 @@ impl InclusionRequest {
         let mut local_preconfirmed_gas = preconfirmed_gas;
         for tx in &self.txs {
             // Calculate minimum required priority fee for this transaction
-            let min_priority_fee =
-                pricing.calculate_min_priority_fee(tx.gas_limit(), preconfirmed_gas)?;
+            let min_priority_fee = pricing
+                .calculate_min_priority_fee(tx.gas_limit(), preconfirmed_gas)?
+                + min_inclusion_profit;
 
             let tip = tx.effective_tip_per_gas(max_base_fee).unwrap_or_default();
             if tip < min_priority_fee as u128 {

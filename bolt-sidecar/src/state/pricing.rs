@@ -57,7 +57,7 @@ impl PreconfPricing {
     /// * `preconfirmed_gas` - Total gas already preconfirmed
     ///
     /// # Returns
-    /// * `Ok(f64)` - The minimum inclusion fee in Wei per gas
+    /// * `Ok(u64)` - The minimum inclusion fee in Wei per gas
     /// * `Err(PricingError)` - If the calculation cannot be performed
     ///
     /// Be careful relying on the result of this when preconfirmed gas is close to 30M
