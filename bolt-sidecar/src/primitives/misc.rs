@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::ops::{Deref, DerefMut};
+use std::{
+    future::Future,
+    ops::{Deref, DerefMut},
+    pin::Pin,
+};
 
 /// A type that wraps another with a signature of it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -160,3 +164,6 @@ where
         }
     }
 }
+
+/// Generic shutdown signal future.
+pub type ShutdownSignal = Pin<Box<dyn Future<Output = ()> + Send>>;

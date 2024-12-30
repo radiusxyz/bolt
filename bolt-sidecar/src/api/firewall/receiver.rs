@@ -2,8 +2,6 @@ use alloy::signers::local::PrivateKeySigner;
 use futures::StreamExt;
 use std::{
     fmt::{self, Debug, Formatter},
-    future::Future,
-    pin::Pin,
     sync::Arc,
     time::Duration,
 };
@@ -21,6 +19,7 @@ use crate::{
     api::commitments::server::CommitmentEvent,
     common::{backoff::retry_with_backoff_if, secrets::EcdsaSecretKeyWrapper},
     config::chain::Chain,
+    primitives::misc::ShutdownSignal,
 };
 
 use super::{
@@ -47,8 +46,6 @@ const MAX_MESSAGE_SIZE: usize = 16 << 23;
 ///
 /// Reference: https://en.wikipedia.org/wiki/Nagle%27s_algorithm
 const USE_NAGLE: bool = false;
-
-type ShutdownSignal = Pin<Box<dyn Future<Output = ()> + Send>>;
 
 #[derive(Debug, Error)]
 enum ConnectionHandlerError {
