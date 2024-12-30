@@ -67,10 +67,8 @@ impl ProposerAuthClaims {
 mod tests {
     use alloy::signers::local::PrivateKeySigner;
 
-    use crate::{
-        api::commitments::delegation::jwt::ProposerAuthClaims, common::time::current_timestamp,
-        config::chain::Chain,
-    };
+    use super::ProposerAuthClaims;
+    use crate::{common::time::current_timestamp, config::chain::Chain};
 
     #[test]
     fn test_encode_decode_proposer_auth_claim() {

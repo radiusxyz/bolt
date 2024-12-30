@@ -18,14 +18,15 @@ use tracing::{error, info};
 use reqwest::Url;
 
 use crate::{
-    api::commitments::{
-        delegation::processor::CommitmentRequestProcessor, server::CommitmentEvent,
-    },
+    api::commitments::server::CommitmentEvent,
     common::{backoff::retry_with_backoff_if, secrets::EcdsaSecretKeyWrapper},
     config::chain::Chain,
 };
 
-use super::{jwt::ProposerAuthClaims, processor::InterruptReason};
+use super::{
+    jwt::ProposerAuthClaims,
+    processor::{CommitmentRequestProcessor, InterruptReason},
+};
 
 /// The interval at which to send ping messages from connected clients.
 #[cfg(test)]
@@ -258,7 +259,6 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
-        api::commitments::delegation::{jwt::ProposerAuthClaims, receiver::CommitmentsReceiver},
         common::secrets::EcdsaSecretKeyWrapper,
         config::chain::Chain,
         primitives::{
@@ -268,6 +268,8 @@ mod tests {
             InclusionRequest,
         },
     };
+
+    use super::*;
 
     const FIREWALL_STREAM_PATH: &str = "/api/v1/firewall_stream";
 

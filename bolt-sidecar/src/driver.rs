@@ -17,10 +17,8 @@ use tracing::{debug, error, info, warn};
 use crate::{
     api::{
         builder::{start_builder_proxy_server, BuilderProxyConfig},
-        commitments::{
-            delegation::receiver::CommitmentsReceiver,
-            server::{spec::CommitmentError, CommitmentEvent, CommitmentsApiServer},
-        },
+        commitments::server::{spec::CommitmentError, CommitmentEvent, CommitmentsApiServer},
+        firewall::receiver::CommitmentsReceiver,
         spec::ConstraintsApi,
     },
     builder::payload_fetcher::LocalPayloadFetcher,
