@@ -116,10 +116,10 @@ impl EigenLayerSubcommand {
 
                 let avs_directory =
                     AVSDirectory::new(deployments.eigen_layer.avs_directory, provider);
-                
-                const EXPIRY_DURATION :TimeDelta = Duration::minutes(20);
+
+                const EXPIRY_DURATION: TimeDelta = Duration::minutes(20);
                 let expiry = U256::from((Utc::now() + EXPIRY_DURATION).timestamp());
-                
+
                 let signature_digest_hash = avs_directory
                     .calculateOperatorAVSRegistrationDigestHash(
                         signer.address(),
@@ -133,11 +133,7 @@ impl EigenLayerSubcommand {
 
                 let signature =
                     Bytes::from(signer.sign_hash_sync(&signature_digest_hash)?.as_bytes());
-                let signature = SignatureWithSaltAndExpiry {
-                    signature,
-                    expiry,
-                    salt,
-                };
+                let signature = SignatureWithSaltAndExpiry { signature, expiry, salt };
 
                 match bolt_eigenlayer_middleware
                     .registerOperator(operator_rpc.to_string(), signature)
@@ -284,7 +280,7 @@ mod tests {
         cli::{Chain, EigenLayerSubcommand, OperatorsCommand, OperatorsSubcommand},
         contracts::{
             deployments_for_chain,
-            eigenlayer::{DelegationManager, IStrategy, OperatorDetails},
+            eigenlayer::{DelegationManager, IStrategy},
             strategy_to_address, EigenLayerStrategy,
         },
     };
@@ -292,17 +288,17 @@ mod tests {
         network::EthereumWallet,
         node_bindings::Anvil,
         primitives::{keccak256, utils::parse_units, Address, B256, U256},
-        providers::{ext::AnvilApi, ProviderBuilder, WalletProvider},
+        providers::{ext::AnvilApi, Provider, ProviderBuilder, WalletProvider},
         signers::local::PrivateKeySigner,
         sol_types::SolValue,
     };
+    use alloy_node_bindings::WEI_IN_ETHER;
     use reqwest::Url;
 
     #[tokio::test]
     async fn test_eigenlayer_flow() {
         let s1 = PrivateKeySigner::random();
         let secret_key = s1.to_bytes();
-        let s2 = PrivateKeySigner::random();
 
         let wallet = EthereumWallet::new(s1);
 
@@ -317,7 +313,10 @@ mod tests {
         let account = provider.default_signer_address();
 
         // Add balance to the operator
-        provider.anvil_set_balance(account, U256::from(u64::MAX)).await.expect("set balance");
+        provider.anvil_set_balance(account, WEI_IN_ETHER).await.expect("set balance");
+
+        let balance = provider.get_balance(account).await.expect("failed getting balance");
+        println!("Signer balance: {balance:?}");
 
         let deployments = deployments_for_chain(Chain::Holesky);
 
@@ -336,22 +335,14 @@ mod tests {
             .await
             .expect("to set storage");
 
-        let random_address = s2.address();
-
         // 1. Register the operator into EigenLayer. This should be done by the operator using the
         //    EigenLayer CLI, but we do it here for testing purposes.
 
         let delegation_manager =
             DelegationManager::new(deployments.eigen_layer.delegation_manager, provider.clone());
+
         let receipt = delegation_manager
-            .registerAsOperator(
-                OperatorDetails {
-                    earningsReceiver: random_address,
-                    delegationApprover: Address::ZERO,
-                    stakerOptOutWindowBlocks: 32,
-                },
-                "https://bolt.chainbound.io/rpc".to_string(),
-            )
+            .registerAsOperator(Address::ZERO, 0, "https://bolt.chainbound.io/rpc".to_string())
             .send()
             .await
             .expect("to send register as operator")
