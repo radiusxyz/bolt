@@ -93,4 +93,23 @@ mod tests {
         assert_eq!(claim.expiry, decoded_claim.expiry);
         assert_eq!(claim.signature, decoded_claim.signature);
     }
+
+    #[test]
+    fn test_jwt_expiry() {
+        let rpc_url = "http://localhost:8545".to_string();
+        let chain = Chain::Mainnet;
+        // Set to 120 seconds past, default validation has a leeway of 60 seconds
+        let expiry = current_timestamp() - 120;
+        let signer = PrivateKeySigner::random();
+
+        let claim = ProposerAuthClaims::new_from_signer(rpc_url, chain, Some(expiry), signer);
+        let jwt = claim.to_jwt().expect("failed to encode the claim");
+        let result = jsonwebtoken::decode::<ProposerAuthClaims>(
+            &jwt,
+            &jsonwebtoken::DecodingKey::from_secret(&[]),
+            &jsonwebtoken::Validation::default(),
+        );
+
+        assert!(result.is_err());
+    }
 }
