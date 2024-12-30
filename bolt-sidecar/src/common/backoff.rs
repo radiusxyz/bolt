@@ -5,9 +5,14 @@ use tokio_retry::{
     Retry,
 };
 
+/// Configuration for retry
+#[derive(Debug)]
 pub struct RetryConfig {
+    /// Initial delay in milliseconds before the first retry
     pub initial_delay_ms: u64,
+    /// Maximum delay in seconds between retries
     pub max_delay_secs: u64,
+    /// Multiplication factor for exponential backoff
     pub factor: u64,
 }
 
