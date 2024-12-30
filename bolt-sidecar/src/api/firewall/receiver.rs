@@ -2,7 +2,6 @@ use alloy::signers::local::PrivateKeySigner;
 use futures::StreamExt;
 use std::{
     fmt::{self, Debug, Formatter},
-    sync::Arc,
     time::Duration,
 };
 use thiserror::Error;
@@ -105,19 +104,16 @@ impl CommitmentsReceiver {
         // mspc channel where every websocket connection will send commitment events over its own
         // tx to a single receiver.
         let (api_events_tx, api_events_rx) = mpsc::channel(self.urls.len() * 2);
-        let ping_ch = Arc::new(broadcast::channel::<()>(1));
+        let (ping_tx, ping_rx) = broadcast::channel::<()>(1);
         let (shutdown_tx, shutdown_rx) = broadcast::channel::<()>(1);
-
-        let task_ping_ch = ping_ch.clone();
 
         // a task to send pings to open connections to the servers at regular intervals
         tokio::spawn(async move {
-            let ping_interval = tokio::time::interval(PING_INTERVAL);
-            tokio::pin!(ping_interval);
+            let mut ping_interval = tokio::time::interval(PING_INTERVAL);
 
             loop {
                 ping_interval.tick().await;
-                if task_ping_ch.0.send(()).is_err() {
+                if ping_tx.send(()).is_err() {
                     error!("internal error while sending ping task: dropped receiver")
                 }
             }
@@ -139,7 +135,7 @@ impl CommitmentsReceiver {
             // task.
             let url = url.clone();
             let api_events_tx = api_events_tx.clone();
-            let ping_rx = ping_ch.1.resubscribe();
+            let ping_rx = ping_rx.resubscribe();
             let shutdown_rx = shutdown_rx.resubscribe();
             let signer = signer.clone();
 
