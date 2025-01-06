@@ -29,13 +29,14 @@ ssz_rs = { git = "https://github.com/ralexstokes/ssz-rs", rev = "ec3073e" }
 ethereum_ssz = "0.8.1"
 
 # alloy
-alloy = { version = "0.8.3", features = ["full", "provider-trace-api", "rpc-types-beacon"] }
-alloy-rpc-types-engine = { version = "0.8.0", default-features = false, features = ["jwt"] }
-alloy-transport-http = { version = "0.8.0", default-features = false, features = ["jwt-auth"] }
-alloy-provider = { version = "0.8.0", default-features = false, features = ["engine-api"] }
+alloy = { version = "0.9.2", features = ["full", "provider-trace-api", "rpc-types-beacon"] }
+alloy-rpc-types-engine = { version = "0.9.2", default-features = false, features = ["jwt"] }
+alloy-transport-http = { version = "0.9.2", default-features = false, features = ["jwt-auth"] }
+alloy-provider = { version = "0.9.2", default-features = false, features = ["engine-api"] }
 
 # reth
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", version = "1.1.4" }
+# TODO: use 1.1.5 when it comes out
+reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "f4ce10b" }
 
 reqwest = "0.12"
 
