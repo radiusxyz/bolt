@@ -5,22 +5,17 @@ use futures::{
 use std::{collections::VecDeque, future::Future, pin::Pin, task::Poll};
 use tokio::{
     net::TcpStream,
-    sync::{broadcast, broadcast::error::TryRecvError, mpsc, oneshot, oneshot::error::RecvError},
+    sync::{broadcast, broadcast::error::TryRecvError, mpsc, oneshot},
 };
 use tokio_tungstenite::{tungstenite::Message, MaybeTlsStream, WebSocketStream};
 use tracing::{error, info, trace, warn};
 use uuid::Uuid;
 
-use crate::{
-    api::commitments::server::{
-        spec::{CommitmentError, RejectionError},
-        CommitmentEvent,
-    },
-    primitives::{
-        commitment::{InclusionRequestIdentified, SignedCommitment},
-        misc::{Identified, IntoIdentified},
-        CommitmentRequest,
-    },
+use crate::primitives::{
+    commitment::SignedCommitment,
+    jsonrpc::{JsonPayload, JsonPayloadUuid, JsonResponse},
+    misc::{Identified, IntoIdentified},
+    CommitmentRequest,
 };
 
 /// The reason for interrupting the [CommitmentRequestProcessor] future.
@@ -34,21 +29,7 @@ pub enum InterruptReason {
     ConnectionClosed,
 }
 
-type PendingCommitmentResponse =
-    Identified<oneshot::Receiver<Result<SignedCommitment, CommitmentError>>, Uuid>;
-
-impl Future for PendingCommitmentResponse {
-    type Output = (Uuid, Result<Result<SignedCommitment, CommitmentError>, RecvError>);
-    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
-        let id = this.id();
-
-        match this.inner_mut().poll_unpin(cx) {
-            Poll::Ready(res) => Poll::Ready((id, res)),
-            Poll::Pending => Poll::Pending,
-        }
-    }
-}
+type PendingCommitmentResponse = oneshot::Receiver<JsonResponse>;
 
 /// The [CommitmentRequestProcessor] handles incoming commitment requests a the websocket
 /// connection, and forwards them to the [CommitmentEvent] tx channel for processing.
@@ -57,7 +38,7 @@ pub struct CommitmentRequestProcessor {
     /// The URL of the connected websocket server.
     url: String,
     /// The channel to send commitment events to be processed.
-    api_events_tx: mpsc::Sender<CommitmentEvent>,
+    api_events_tx: mpsc::Sender<JsonPayload>,
     /// The websocket writer sink.
     write_sink: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
     /// The websocket reader stream.
@@ -79,7 +60,7 @@ impl CommitmentRequestProcessor {
     /// Creates a new instance of the [CommitmentRequestProcessor].
     pub fn new(
         url: String,
-        tx: mpsc::Sender<CommitmentEvent>,
+        tx: mpsc::Sender<JsonPayload>,
         write: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
         read: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
         ping_rx: broadcast::Receiver<()>,
@@ -209,23 +190,23 @@ impl Future for CommitmentRequestProcessor {
 
                         // TODO: this should be deserialized as general JSON-RPC messages and
                         // distinguish between methods, in case of "bolt_getVersion" requests.
-                        let request = serde_json::from_str::<InclusionRequestIdentified>(&text)
-                            .map_err(|e| CommitmentError::Rejected(RejectionError::Json(e)));
+                        let request = serde_json::from_str::<JsonPayloadUuid>(&text)
+                            .map_err(|e| e.to_string());
 
                         let id = match request {
                             Ok(request) => {
-                                let id = request.id();
-                                let request = CommitmentRequest::Inclusion(request.into_inner());
-
-                                let event = CommitmentEvent { request, response: tx };
-                                if let Err(err) = this.api_events_tx.try_send(event) {
-                                    error!(?err, "failed to forward commitment event to channel");
-                                }
+                                let id = request.id;
+                                // let request = CommitmentRequest::Inclusion(request.into_inner());
+                                //
+                                // let event = CommitmentEvent { request, response: tx };
+                                // if let Err(err) = this.api_events_tx.try_send(event) {
+                                //     error!(?err, "failed to forward commitment event to channel");
+                                // }
 
                                 id
                             }
                             Err(err) => {
-                                warn!(?err, ?rpc_url, "failed to parse commitment request");
+                                warn!(?err, ?rpc_url, "failed to parse JSON-RPC request");
                                 if let Err(e) = tx.send(Err(err)) {
                                     error!(?e, "failed to send rejection through channel");
                                 }
@@ -233,10 +214,8 @@ impl Future for CommitmentRequestProcessor {
                             }
                         };
 
-                        let pending_response = PendingCommitmentResponse::new(rx, id);
-
                         // add the pending response to this buffer for later processing
-                        this.pending_commitment_responses.push(pending_response);
+                        this.pending_commitment_responses.push(rx);
                     }
                     Ok(Message::Close(_)) => {
                         warn!(?rpc_url, "websocket connection closed by server");

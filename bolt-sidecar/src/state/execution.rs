@@ -1,9 +1,7 @@
-use alloy::consensus::Transaction;
 use alloy::{
-    consensus::{BlobTransactionValidationError, EnvKzgSettings},
+    consensus::{BlobTransactionValidationError, EnvKzgSettings, Transaction},
     eips::eip4844::MAX_BLOBS_PER_BLOCK,
-    primitives::Address,
-    primitives::U256,
+    primitives::{Address, U256},
     transports::TransportError,
 };
 use std::collections::HashMap;

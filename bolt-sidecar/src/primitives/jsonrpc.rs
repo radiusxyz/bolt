@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonPayload {
@@ -9,6 +10,19 @@ pub struct JsonPayload {
     pub method: String,
     /// Optional ID.
     pub id: Option<Value>,
+    /// The parameters object.
+    pub params: Vec<Value>,
+}
+
+/// A JSON-RPC payload with a mandatory UUID
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JsonPayloadUuid {
+    /// The JSON-RPC version string. MUST be "2.0".
+    pub jsonrpc: String,
+    /// The method string.
+    pub method: String,
+    /// Optional ID.
+    pub id: Uuid,
     /// The parameters object.
     pub params: Vec<Value>,
 }

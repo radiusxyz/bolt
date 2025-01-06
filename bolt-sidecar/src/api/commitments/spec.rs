@@ -9,11 +9,12 @@ use axum::{
 use thiserror::Error;
 
 use crate::{
-    primitives::{commitment::InclusionCommitment, signature::SignatureError, InclusionRequest},
+    primitives::{
+        commitment::InclusionCommitment, jsonrpc::JsonResponse, signature::SignatureError,
+        InclusionRequest,
+    },
     state::{consensus::ConsensusError, ValidationError},
 };
-
-use super::jsonrpc::JsonResponse;
 
 pub(super) const SIGNATURE_HEADER: &str = "x-bolt-signature";
 
@@ -84,16 +85,16 @@ impl From<CommitmentError> for (i32, String) {
 impl From<&CommitmentError> for StatusCode {
     fn from(err: &CommitmentError) -> Self {
         match err {
-            CommitmentError::Rejected(_)
-            | CommitmentError::Duplicate
-            | CommitmentError::NoSignature
-            | CommitmentError::InvalidSignature(_)
-            | CommitmentError::Signature(_)
-            | CommitmentError::Consensus(_)
-            | CommitmentError::Validation(_)
-            | CommitmentError::MalformedHeader
-            | CommitmentError::UnknownMethod
-            | CommitmentError::InvalidJson(_) => Self::BAD_REQUEST,
+            CommitmentError::Rejected(_) |
+            CommitmentError::Duplicate |
+            CommitmentError::NoSignature |
+            CommitmentError::InvalidSignature(_) |
+            CommitmentError::Signature(_) |
+            CommitmentError::Consensus(_) |
+            CommitmentError::Validation(_) |
+            CommitmentError::MalformedHeader |
+            CommitmentError::UnknownMethod |
+            CommitmentError::InvalidJson(_) => Self::BAD_REQUEST,
             CommitmentError::Internal => Self::INTERNAL_SERVER_ERROR,
         }
     }

@@ -12,19 +12,22 @@ use serde_json::Value;
 use tracing::{debug, error, info, instrument};
 
 use crate::{
-    api::commitments::server::headers::auth_from_headers,
+    api::commitments::{
+        server::headers::auth_from_headers,
+        spec::{
+            CommitmentError, CommitmentsApi, RejectionError, GET_METADATA_METHOD,
+            GET_VERSION_METHOD, REQUEST_INCLUSION_METHOD,
+        },
+    },
     common::BOLT_SIDECAR_VERSION,
-    primitives::{signature::SignatureError, InclusionRequest},
+    primitives::{
+        jsonrpc::{JsonPayload, JsonResponse},
+        signature::SignatureError,
+        InclusionRequest,
+    },
 };
 
-use super::{
-    jsonrpc::{JsonPayload, JsonResponse},
-    spec::{
-        CommitmentError, CommitmentsApi, RejectionError, GET_METADATA_METHOD, GET_VERSION_METHOD,
-        REQUEST_INCLUSION_METHOD,
-    },
-    CommitmentsApiInner,
-};
+use super::CommitmentsApiInner;
 
 /// Handler function for the root JSON-RPC path.
 #[instrument(skip_all, name = "POST /rpc", fields(method = %payload.method))]

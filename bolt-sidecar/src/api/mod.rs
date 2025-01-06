@@ -7,6 +7,3 @@ pub mod spec;
 
 /// Commitments-API spec and errors.
 pub mod commitments;
-
-/// Firewall API spec and implementation.
-pub mod firewall;

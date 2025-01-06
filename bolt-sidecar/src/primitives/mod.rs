@@ -42,6 +42,9 @@ pub mod misc;
 /// Signature types and utilities.
 pub mod signature;
 
+/// JSON-RPC helper types and functions.
+pub mod jsonrpc;
+
 /// An alias for a Beacon Chain slot number
 pub type Slot = u64;
 
