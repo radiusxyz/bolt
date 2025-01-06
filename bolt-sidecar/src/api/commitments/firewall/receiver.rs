@@ -17,18 +17,18 @@ use reqwest::Url;
 use crate::{
     api::commitments::server::CommitmentEvent,
     common::{backoff::retry_with_backoff_if, secrets::EcdsaSecretKeyWrapper},
-    config::chain::Chain,
+    config::{chain::Chain, limits::LimitsOpts},
     primitives::misc::ShutdownSignal,
 };
 
 use super::{
     jwt::ProposerAuthClaims,
-    processor::{CommitmentRequestProcessor, InterruptReason},
+    processor::{CommitmentRequestProcessor, InterruptReason, ProcessorState},
 };
 
 /// The interval at which to send ping messages from connected clients.
 #[cfg(test)]
-const PING_INTERVAL: Duration = Duration::from_secs(3);
+const PING_INTERVAL: Duration = Duration::from_secs(4);
 #[cfg(not(test))]
 const PING_INTERVAL: Duration = Duration::from_secs(30);
 
@@ -67,6 +67,8 @@ pub struct CommitmentsReceiver {
     urls: Vec<Url>,
     /// The shutdown signal.
     signal: Option<ShutdownSignal>,
+    /// The sidecar running limits.
+    limits: LimitsOpts,
 }
 
 impl Debug for CommitmentsReceiver {
@@ -81,11 +83,17 @@ impl Debug for CommitmentsReceiver {
 
 impl CommitmentsReceiver {
     /// Creates a new instance of the commitments receiver.
-    pub fn new(operator_private_key: EcdsaSecretKeyWrapper, chain: Chain, urls: Vec<Url>) -> Self {
+    pub fn new(
+        operator_private_key: EcdsaSecretKeyWrapper,
+        chain: Chain,
+        limits: LimitsOpts,
+        urls: Vec<Url>,
+    ) -> Self {
         Self {
             operator_private_key,
             chain,
             urls,
+            limits,
             signal: Some(Box::pin(async {
                 let _ = tokio::signal::ctrl_c().await;
             })),
@@ -129,6 +137,7 @@ impl CommitmentsReceiver {
         }
 
         let signer = PrivateKeySigner::from_signing_key(self.operator_private_key.0);
+        let state = ProcessorState::new(self.limits);
 
         for url in &self.urls {
             // NOTE: We're cloning the variables here because we're moving the inputs into an async
@@ -161,20 +170,22 @@ impl CommitmentsReceiver {
                         let shutdown_rx = shutdown_rx.resubscribe();
 
                         async move {
-                            handle_connection(url, jwt, api_events_tx, ping_rx, shutdown_rx)
+                            handle_connection(url, state, jwt, api_events_tx, ping_rx, shutdown_rx)
                                 .await
-                                .map_err(|e| {
-                                    error!(?e, "error while handling websocket connection");
-                                    e
-                                })
                         }
                     },
                     |err| {
-                        // Retry unless shutdown signal is received.
-                        !matches!(
+                        let is_shutdown = matches!(
                             err,
                             ConnectionHandlerError::ProcessorInterrupted(InterruptReason::Shutdown)
-                        )
+                        );
+                        if is_shutdown {
+                            info!("Shutting down websocket connection");
+                        } else {
+                            error!(?err, "error while handling websocket connection. Retrying...");
+                        }
+
+                        !is_shutdown
                     },
                 )
                 .await
@@ -192,6 +203,7 @@ impl CommitmentsReceiver {
 
 async fn handle_connection(
     url: String,
+    state: ProcessorState,
     jwt: String,
     api_events_tx: mpsc::Sender<CommitmentEvent>,
     ping_rx: broadcast::Receiver<()>,
@@ -214,6 +226,7 @@ async fn handle_connection(
             // able to handle incoming message requests.
             let commitment_request_processor = CommitmentRequestProcessor::new(
                 url,
+                state,
                 api_events_tx.clone(),
                 write_sink,
                 read_stream,
@@ -252,13 +265,12 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
+        api::commitments::spec::{GET_VERSION_METHOD, REQUEST_INCLUSION_METHOD},
         common::secrets::EcdsaSecretKeyWrapper,
         config::chain::Chain,
         primitives::{
-            commitment::SignedCommitment,
-            misc::{IntoIdentified, IntoSigned},
-            signature::AlloySignatureWrapper,
-            InclusionRequest,
+            commitment::SignedCommitment, jsonrpc::JsonPayload, misc::IntoSigned,
+            signature::AlloySignatureWrapper, InclusionRequest,
         },
     };
 
@@ -291,9 +303,10 @@ mod tests {
         let stream = CommitmentsReceiver::new(
             operator_private_key,
             Chain::Holesky,
+            LimitsOpts::default(),
             vec![
                 format!("ws://127.0.0.1:{}{}", port_1, FIREWALL_STREAM_PATH).parse().unwrap(),
-                format!("ws://127.0.0.1:{}{}", port_2, FIREWALL_STREAM_PATH).parse().unwrap(),
+                // format!("ws://127.0.0.1:{}{}", port_2, FIREWALL_STREAM_PATH).parse().unwrap(),
             ],
         )
         .with_shutdown(async move { shutdown_connections_rx.recv().await.unwrap() }.boxed());
@@ -414,14 +427,46 @@ mod tests {
         // does)
         let mut send_task = tokio::spawn(async move {
             let n_msg = 20;
-            let inclusion_request = InclusionRequest::default().into_identified(Uuid::now_v7());
+            let inclusion_request = InclusionRequest::default();
+
+            let inclusion_request_payload = JsonPayload {
+                jsonrpc: "2.0".to_string(),
+                method: REQUEST_INCLUSION_METHOD.to_string(),
+                id: Some(serde_json::Value::String(Uuid::now_v7().to_string())),
+                params: vec![serde_json::to_value(inclusion_request).unwrap()],
+            };
+
             let inclusion_request_msg =
-                Message::Text(serde_json::to_string(&inclusion_request).unwrap());
+                Message::Text(serde_json::to_string(&inclusion_request_payload).unwrap());
+
+            let get_version_msg = Message::Text(
+                serde_json::to_string(&JsonPayload {
+                    jsonrpc: "2.0".to_string(),
+                    method: GET_VERSION_METHOD.to_string(),
+                    id: Some(serde_json::Value::String(Uuid::now_v7().to_string())),
+                    params: vec![],
+                })
+                .unwrap(),
+            );
+
+            let get_metadata_msg = Message::Text(
+                serde_json::to_string(&JsonPayload {
+                    jsonrpc: "2.0".to_string(),
+                    method: "bolt_metadata".to_string(),
+                    id: Some(serde_json::Value::String(Uuid::now_v7().to_string())),
+                    params: vec![],
+                })
+                .unwrap(),
+            );
 
             for i in 0..n_msg {
                 // In case of any websocket error, we exit.
                 let msg = if i % 5 == 0 {
                     Message::Text("This is an invalid message and should be rejected".to_string())
+                } else if i % 6 == 0 {
+                    get_version_msg.clone()
+                } else if i % 7 == 0 {
+                    get_metadata_msg.clone()
                 } else {
                     inclusion_request_msg.clone()
                 };

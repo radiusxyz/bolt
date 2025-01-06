@@ -17,8 +17,11 @@ use tracing::{debug, error, info, warn};
 use crate::{
     api::{
         builder::{start_builder_proxy_server, BuilderProxyConfig},
-        commitments::server::{spec::CommitmentError, CommitmentEvent, CommitmentsApiServer},
-        firewall::receiver::CommitmentsReceiver,
+        commitments::{
+            firewall::receiver::CommitmentsReceiver,
+            server::{CommitmentEvent, CommitmentsApiServer},
+            spec::CommitmentError,
+        },
         spec::ConstraintsApi,
     },
     builder::payload_fetcher::LocalPayloadFetcher,
@@ -231,6 +234,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             CommitmentsReceiver::new(
                 opts.commitment_opts.operator_private_key.clone(),
                 opts.chain.chain,
+                opts.limits,
                 urls,
             )
             .run()

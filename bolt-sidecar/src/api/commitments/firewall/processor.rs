@@ -2,20 +2,36 @@ use futures::{
     stream::{FuturesUnordered, SplitSink, SplitStream},
     FutureExt, SinkExt, StreamExt,
 };
+use serde_json::Value;
 use std::{collections::VecDeque, future::Future, pin::Pin, task::Poll};
 use tokio::{
     net::TcpStream,
-    sync::{broadcast, broadcast::error::TryRecvError, mpsc, oneshot},
+    sync::{
+        broadcast::{self, error::TryRecvError},
+        mpsc,
+        oneshot::{self, error::RecvError},
+    },
 };
 use tokio_tungstenite::{tungstenite::Message, MaybeTlsStream, WebSocketStream};
 use tracing::{error, info, trace, warn};
 use uuid::Uuid;
 
-use crate::primitives::{
-    commitment::SignedCommitment,
-    jsonrpc::{JsonPayload, JsonPayloadUuid, JsonResponse},
-    misc::{Identified, IntoIdentified},
-    CommitmentRequest,
+use crate::{
+    api::commitments::{
+        server::CommitmentEvent,
+        spec::{
+            CommitmentError, RejectionError, GET_METADATA_METHOD, GET_VERSION_METHOD,
+            REQUEST_INCLUSION_METHOD,
+        },
+    },
+    common::BOLT_SIDECAR_VERSION,
+    config::limits::LimitsOpts,
+    primitives::{
+        commitment::SignedCommitment,
+        jsonrpc::{JsonPayloadUuid, JsonResponse},
+        misc::{Identified, IntoIdentified},
+        CommitmentRequest, InclusionRequest,
+    },
 };
 
 /// The reason for interrupting the [CommitmentRequestProcessor] future.
@@ -29,7 +45,35 @@ pub enum InterruptReason {
     ConnectionClosed,
 }
 
-type PendingCommitmentResponse = oneshot::Receiver<JsonResponse>;
+type PendingCommitmentResponse =
+    Identified<oneshot::Receiver<Result<SignedCommitment, CommitmentError>>, Uuid>;
+
+impl Future for PendingCommitmentResponse {
+    type Output = (Uuid, Result<Result<SignedCommitment, CommitmentError>, RecvError>);
+    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+        let id = this.id();
+
+        match this.inner_mut().poll_unpin(cx) {
+            Poll::Ready(res) => Poll::Ready((id, res)),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+/// The internal state of the [CommitmentRequestProcessor].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ProcessorState {
+    /// The running limits of the sidecar.
+    limits: LimitsOpts,
+}
+
+impl ProcessorState {
+    /// Creates a new instance of the [ProcessorState].
+    pub fn new(limits: LimitsOpts) -> Self {
+        Self { limits }
+    }
+}
 
 /// The [CommitmentRequestProcessor] handles incoming commitment requests a the websocket
 /// connection, and forwards them to the [CommitmentEvent] tx channel for processing.
@@ -37,8 +81,10 @@ type PendingCommitmentResponse = oneshot::Receiver<JsonResponse>;
 pub struct CommitmentRequestProcessor {
     /// The URL of the connected websocket server.
     url: String,
+    /// The internal state of the processor.
+    state: ProcessorState,
     /// The channel to send commitment events to be processed.
-    api_events_tx: mpsc::Sender<JsonPayload>,
+    api_events_tx: mpsc::Sender<CommitmentEvent>,
     /// The websocket writer sink.
     write_sink: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
     /// The websocket reader stream.
@@ -60,7 +106,8 @@ impl CommitmentRequestProcessor {
     /// Creates a new instance of the [CommitmentRequestProcessor].
     pub fn new(
         url: String,
-        tx: mpsc::Sender<JsonPayload>,
+        state: ProcessorState,
+        tx: mpsc::Sender<CommitmentEvent>,
         write: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
         read: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
         ping_rx: broadcast::Receiver<()>,
@@ -68,6 +115,7 @@ impl CommitmentRequestProcessor {
     ) -> Self {
         Self {
             url,
+            state,
             api_events_tx: tx,
             write_sink: write,
             read_stream: read,
@@ -188,34 +236,85 @@ impl Future for CommitmentRequestProcessor {
                         // Create the channel to send and receive the commitment response
                         let (tx, rx) = oneshot::channel();
 
-                        // TODO: this should be deserialized as general JSON-RPC messages and
-                        // distinguish between methods, in case of "bolt_getVersion" requests.
                         let request = serde_json::from_str::<JsonPayloadUuid>(&text)
                             .map_err(|e| e.to_string());
 
-                        let id = match request {
+                        let response = match request {
+                            Err(e) => Err(e),
                             Ok(request) => {
                                 let id = request.id;
-                                // let request = CommitmentRequest::Inclusion(request.into_inner());
-                                //
-                                // let event = CommitmentEvent { request, response: tx };
-                                // if let Err(err) = this.api_events_tx.try_send(event) {
-                                //     error!(?err, "failed to forward commitment event to channel");
-                                // }
 
-                                id
-                            }
-                            Err(err) => {
-                                warn!(?err, ?rpc_url, "failed to parse JSON-RPC request");
-                                if let Err(e) = tx.send(Err(err)) {
-                                    error!(?e, "failed to send rejection through channel");
+                                match request.method.as_str() {
+                                    GET_VERSION_METHOD => Ok(JsonResponse {
+                                        id: Some(Value::String(id.to_string())),
+                                        result: Value::String(BOLT_SIDECAR_VERSION.clone()),
+                                        ..Default::default()
+                                    }),
+                                    GET_METADATA_METHOD => Ok(JsonResponse {
+                                        id: Some(Value::String(id.to_string())),
+                                        result: serde_json::to_value(this.state.limits)
+                                            .expect("infallible"),
+                                        ..Default::default()
+                                    }),
+                                    REQUEST_INCLUSION_METHOD => {
+                                        // Parse the inclusion request from the parameters
+                                        let inclusion_request =
+                                            serde_json::from_value::<InclusionRequest>(
+                                                request.params.first().cloned().unwrap_or_default(),
+                                            )
+                                            .map_err(RejectionError::Json)
+                                            .inspect_err(|err| {
+                                                error!(?err, "Failed to parse inclusion request")
+                                            })
+                                            .unwrap(); // TODO: remove this unwrap
+                                        let commitment_request =
+                                            CommitmentRequest::Inclusion(inclusion_request);
+
+                                        let commitment_event = CommitmentEvent {
+                                            request: commitment_request,
+                                            response: tx,
+                                        };
+
+                                        if let Err(e) =
+                                            this.api_events_tx.try_send(commitment_event)
+                                        {
+                                            error!(
+                                                ?e,
+                                                "failed to send commitment event through channel"
+                                            );
+                                            // NOTE: should we return an internal error to the RPC
+                                            // here?
+                                            continue;
+                                        }
+
+                                        // add the pending response to this buffer for later processing
+                                        this.pending_commitment_responses
+                                            .push(PendingCommitmentResponse::new(rx, id));
+
+                                        continue;
+                                    }
+                                    other => Err(format!("unsupported method: {}", other)),
                                 }
-                                continue;
                             }
                         };
 
-                        // add the pending response to this buffer for later processing
-                        this.pending_commitment_responses.push(rx);
+                        match response {
+                            Ok(json_response) => {
+                                let message = Message::text(
+                                    serde_json::to_string(&json_response)
+                                        .expect("to stringify version response"),
+                                );
+
+                                // Push the message to the outgoing messages queue for later
+                                // processing
+                                this.outgoing_messages.push_back(message);
+                            }
+                            Err(err) => {
+                                warn!(?err, ?rpc_url, "failed to parse JSON-RPC request");
+
+                                continue;
+                            }
+                        }
                     }
                     Ok(Message::Close(_)) => {
                         warn!(?rpc_url, "websocket connection closed by server");
