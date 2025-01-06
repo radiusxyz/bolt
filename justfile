@@ -148,6 +148,15 @@ send-preconf count='1':
         --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
         --count {{count}}
 
+send-preconf-rpc count='1' rpc='http://127.0.0.1:8015/rpc':
+  cd bolt-cli && RUST_LOG=info cargo run -- send \
+      --devnet \
+      --devnet.execution_url $(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc) \
+      --devnet.beacon_url $(kurtosis port print bolt-devnet cl-1-lighthouse-geth http) \
+      --devnet.sidecar_url {{ rpc }} \
+      --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
+      --count {{count}}
+
 # manually send a blob preconfirmation to the bolt devnet
 send-blob-preconf count='1':
     cd bolt-cli && RUST_LOG=info cargo run -- send \
