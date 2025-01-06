@@ -1,9 +1,7 @@
-use alloy::consensus::Transaction;
 use alloy::{
-    consensus::{BlobTransactionValidationError, EnvKzgSettings},
+    consensus::{BlobTransactionValidationError, EnvKzgSettings, Transaction},
     eips::eip4844::MAX_BLOBS_PER_BLOCK,
-    primitives::Address,
-    primitives::U256,
+    primitives::{Address, U256},
     transports::TransportError,
 };
 use std::collections::HashMap;
@@ -456,7 +454,7 @@ impl<C: StateFetcher> ExecutionState<C> {
                 // Calculate the total tip revenue for this transaction:
                 // (effective_gas_price - basefee) * gas_used
                 let tip_per_gas = receipt.effective_gas_price - self.basefee;
-                let total_tip = tip_per_gas * receipt.gas_used;
+                let total_tip = tip_per_gas * receipt.gas_used as u128;
 
                 trace!(hash = %receipt.transaction_hash, total_tip, "Receipt found");
 

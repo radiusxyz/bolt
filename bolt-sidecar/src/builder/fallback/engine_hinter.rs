@@ -257,7 +257,6 @@ impl EngineHinterContext {
             extra_data: self.extra_data.clone(),
             // TODO: handle the Pectra-related fields
             requests_hash: None,
-            target_blobs_per_block: None,
         }
     }
 }

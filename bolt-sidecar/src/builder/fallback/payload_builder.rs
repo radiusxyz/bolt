@@ -200,7 +200,7 @@ mod tests {
 
         let block = builder.build_fallback_payload(slot, &[tx_signed_reth]).await?;
 
-        assert_eq!(block.body.transactions.len(), 1);
+        assert_eq!(block.body().transactions.len(), 1);
 
         Ok(())
     }
