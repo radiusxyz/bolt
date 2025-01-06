@@ -186,6 +186,24 @@ mod tests {
     }
 
     #[test]
+    fn test_min_priority_fee_80p() {
+        let pricing = PreconfPricing::default();
+
+        // Test preconfirmed transaction when 80% of the block is already used
+        let incoming_gas = 21_000;
+        let preconfirmed_gas = (30_000_000 as f64 * 0.8) as u64;
+        let min_fee_wei =
+            pricing.calculate_min_priority_fee(incoming_gas, preconfirmed_gas).unwrap();
+
+        // Expected fee: ~
+        assert!(
+            (min_fee_wei as f64 - 2_726_012_676.0).abs() < 1_000.0,
+            "Expected ~2,726,012,676 Wei, got {} Wei",
+            min_fee_wei
+        );
+    }
+
+    #[test]
     fn test_min_priority_fee_zero_big_preconfirmed() {
         let pricing = PreconfPricing::default();
 
