@@ -44,6 +44,10 @@ pub enum Cmd {
 
     /// Useful data generation commands.
     Generate(GenerateCommand),
+
+    /// Output the pubkey hash of a BLS public key.
+    #[clap(hide = true)]
+    PubkeyHash(PubkeyHashCommand),
 }
 
 impl Cmd {
@@ -56,6 +60,7 @@ impl Cmd {
             Self::Validators(cmd) => cmd.run().await,
             Self::Operators(cmd) => cmd.run().await,
             Self::Generate(cmd) => cmd.run(),
+            Self::PubkeyHash(cmd) => cmd.run(),
         }
     }
 }
@@ -321,6 +326,13 @@ pub struct GenerateCommand {
 pub enum GenerateSubcommand {
     /// Generate a BLS keypair.
     Bls,
+}
+
+#[derive(Debug, Clone, Parser)]
+pub struct PubkeyHashCommand {
+    /// The BLS public key to hash.
+    #[clap(value_parser, env = "KEY")]
+    pub key: String,
 }
 
 /// The action to perform.
