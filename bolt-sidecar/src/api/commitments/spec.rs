@@ -10,7 +10,9 @@ use thiserror::Error;
 
 use crate::{
     primitives::{
-        commitment::InclusionCommitment, jsonrpc::JsonResponse, signature::SignatureError,
+        commitment::InclusionCommitment,
+        jsonrpc::{JsonError, JsonResponse},
+        signature::SignatureError,
         InclusionRequest,
     },
     state::{consensus::ConsensusError, ValidationError},
@@ -64,20 +66,22 @@ pub enum CommitmentError {
     InvalidJson(#[from] JsonRejection),
 }
 
-impl From<CommitmentError> for (i32, String) {
+impl From<CommitmentError> for JsonError {
     fn from(err: CommitmentError) -> Self {
         match err {
-            CommitmentError::Rejected(err) => (-32000, err.to_string()),
-            CommitmentError::Duplicate => (-32001, err.to_string()),
-            CommitmentError::Internal => (-32002, err.to_string()),
-            CommitmentError::NoSignature => (-32003, err.to_string()),
-            CommitmentError::InvalidSignature(err) => (-32004, err.to_string()),
-            CommitmentError::Signature(err) => (-32005, err.to_string()),
-            CommitmentError::Consensus(err) => (-32006, err.to_string()),
-            CommitmentError::Validation(err) => (-32006, err.to_string()),
-            CommitmentError::MalformedHeader => (-32007, err.to_string()),
-            CommitmentError::UnknownMethod => (-32601, err.to_string()),
-            CommitmentError::InvalidJson(err) => (-32600, format!("Invalid request: {err}")),
+            CommitmentError::Rejected(err) => Self::new(-32000, err.to_string()),
+            CommitmentError::Duplicate => Self::new(-32001, err.to_string()),
+            CommitmentError::Internal => Self::new(-32002, err.to_string()),
+            CommitmentError::NoSignature => Self::new(-32003, err.to_string()),
+            CommitmentError::InvalidSignature(err) => Self::new(-32004, err.to_string()),
+            CommitmentError::Signature(err) => Self::new(-32005, err.to_string()),
+            CommitmentError::Consensus(err) => Self::new(-32006, err.to_string()),
+            CommitmentError::Validation(err) => Self::new(-32006, err.to_string()),
+            CommitmentError::MalformedHeader => Self::new(-32007, err.to_string()),
+            CommitmentError::UnknownMethod => Self::new(-32601, err.to_string()),
+            CommitmentError::InvalidJson(err) => {
+                Self::new(-32600, format!("Invalid request: {err}"))
+            }
         }
     }
 }
@@ -103,8 +107,7 @@ impl From<&CommitmentError> for StatusCode {
 impl IntoResponse for CommitmentError {
     fn into_response(self) -> Response<Body> {
         let status_code = StatusCode::from(&self);
-        let (code, err) = self.into();
-        let json = Json(JsonResponse::from_error(code, err));
+        let json = Json(JsonResponse::from_error(self.into()));
 
         (status_code, json).into_response()
     }
@@ -120,6 +123,15 @@ pub enum RejectionError {
     /// JSON parsing error.
     #[error("JSON parsing error: {0}")]
     Json(#[from] serde_json::Error),
+}
+
+impl From<RejectionError> for JsonError {
+    fn from(err: RejectionError) -> Self {
+        match err {
+            RejectionError::ValidationFailed(err) => Self::new(-32600, err),
+            RejectionError::Json(err) => Self::new(-32700, err.to_string()),
+        }
+    }
 }
 
 /// Implements the commitments-API: <https://chainbound.github.io/bolt-docs/api/rpc>

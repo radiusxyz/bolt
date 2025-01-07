@@ -8,7 +8,7 @@ use thiserror::Error;
 use tokio::sync::{broadcast, mpsc};
 use tokio_tungstenite::{
     connect_async_with_config,
-    tungstenite::{client::IntoClientRequest, protocol::WebSocketConfig},
+    tungstenite::{self, client::IntoClientRequest, protocol::WebSocketConfig},
 };
 use tracing::{error, info};
 
@@ -69,7 +69,7 @@ pub struct CommitmentsReceiver {
     /// The URLs of the websocket servers to connect to.
     urls: Vec<Url>,
     /// The shutdown signal.
-    signal: Option<ShutdownSignal>,
+    signal: ShutdownSignal,
     /// The sidecar running limits.
     limits: LimitsOpts,
 }
@@ -97,47 +97,29 @@ impl CommitmentsReceiver {
             chain,
             urls,
             limits,
-            signal: Some(Box::pin(async {
+            signal: Box::pin(async {
                 let _ = tokio::signal::ctrl_c().await;
-            })),
+            }),
         }
     }
 
     /// Sets the shutdown signal for the closing the open connections.
     pub fn with_shutdown(mut self, signal: ShutdownSignal) -> Self {
-        self.signal = Some(signal);
+        self.signal = signal;
         self
     }
 
     /// Runs the [CommitmentsReceiver] and returns a receiver for incoming commitment
     /// events.
-    pub fn run(mut self) -> mpsc::Receiver<CommitmentEvent> {
+    pub fn run(self) -> mpsc::Receiver<CommitmentEvent> {
         // mspc channel where every websocket connection will send commitment events over its own
         // tx to a single receiver.
         let (api_events_tx, api_events_rx) = mpsc::channel(self.urls.len() * 2);
         let (ping_tx, ping_rx) = broadcast::channel::<()>(1);
         let (shutdown_tx, shutdown_rx) = broadcast::channel::<()>(1);
 
-        // a task to send pings to open connections to the servers at regular intervals
-        tokio::spawn(async move {
-            let mut ping_interval = tokio::time::interval(PING_INTERVAL);
-
-            loop {
-                ping_interval.tick().await;
-                if ping_tx.send(()).is_err() {
-                    error!("internal error while sending ping task: dropped receiver")
-                }
-            }
-        });
-
-        if let Some(signal) = self.signal.take() {
-            tokio::spawn(async move {
-                signal.await;
-                if shutdown_tx.send(()).is_err() {
-                    error!("failed to send shutdown signal: dropped receiver");
-                }
-            });
-        }
+        PingTicker::new(PING_INTERVAL).spawn(ping_tx);
+        ShutdownTicker::new(self.signal).spawn(shutdown_tx);
 
         let signer = PrivateKeySigner::from_signing_key(self.operator_private_key.0);
         let state = ProcessorState::new(self.limits);
@@ -146,7 +128,7 @@ impl CommitmentsReceiver {
         for url in &self.urls {
             // NOTE: We're cloning the variables here because we're moving the inputs into an async
             // task.
-            let url = url.clone();
+            let url = url.to_string();
             let api_events_tx = api_events_tx.clone();
             let ping_rx = ping_rx.resubscribe();
             let shutdown_rx = shutdown_rx.resubscribe();
@@ -159,8 +141,7 @@ impl CommitmentsReceiver {
                     // NOTE: this needs to be a closure because it must be re-called upon failure.
                     // As such we also need to clone the inputs again.
                     move || {
-                        let url = url.to_string();
-
+                        let url = url.clone();
                         let jwt = ProposerAuthClaims::new_from_signer(
                             url.clone(),
                             self.chain,
@@ -179,19 +160,7 @@ impl CommitmentsReceiver {
                                 .await
                         }
                     },
-                    |err| {
-                        let is_shutdown = matches!(
-                            err,
-                            ConnectionHandlerError::ProcessorInterrupted(InterruptReason::Shutdown)
-                        );
-                        if is_shutdown {
-                            info!("Shutting down websocket connection");
-                        } else {
-                            error!(?err, "error while handling websocket connection. Retrying...");
-                        }
-
-                        !is_shutdown
-                    },
+                    handle_error,
                 )
                 .await
             });
@@ -206,6 +175,7 @@ impl CommitmentsReceiver {
     }
 }
 
+/// Opens the websocket connection and starts the commitment request processor.
 async fn handle_connection(
     url: String,
     state: ProcessorState,
@@ -245,6 +215,84 @@ async fn handle_connection(
     }
 }
 
+/// Handles errors that occur while processing a websocket connection and returns a boolean
+/// indicating whether the connection should be retried.
+fn handle_error(err: &ConnectionHandlerError) -> bool {
+    let mut is_shutdown = false;
+    match err {
+        ConnectionHandlerError::OnConnectionError(e) => match e {
+            tungstenite::Error::Http(response) => {
+                let body = response
+                    .body()
+                    .as_ref()
+                    .map(|b| String::from_utf8_lossy(b))
+                    .unwrap_or_default();
+                let staus = response.status();
+                error!(?staus, ?body, "http error while opening websocket connection. Retrying...");
+            }
+            e => {
+                error!(?e, "error while opening websocket connection. Retrying...");
+            }
+        },
+        ConnectionHandlerError::ProcessorInterrupted(InterruptReason::Shutdown) => {
+            info!("Shutting down websocket connection");
+            is_shutdown = true;
+        }
+        ConnectionHandlerError::ProcessorInterrupted(reason) => {
+            error!(?reason, "commitment processor interrupted. Retrying...");
+        }
+    }
+    !is_shutdown
+}
+
+/// A ping ticker that sends ping messages to connected clients at regular intervals.
+struct PingTicker {
+    interval: Duration,
+}
+
+impl PingTicker {
+    pub fn new(interval: Duration) -> Self {
+        Self { interval }
+    }
+
+    /// Spawn a task to ping connected clients at regular intervals.
+    pub fn spawn(self, tx: broadcast::Sender<()>) {
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(self.interval);
+
+            loop {
+                interval.tick().await;
+                if tx.send(()).is_err() {
+                    error!("internal error while sending ping task: dropped receiver")
+                }
+            }
+        });
+    }
+}
+
+/// A shutdown ticker that sends a shutdown signal to connected clients.
+struct ShutdownTicker {
+    signal: ShutdownSignal,
+}
+
+impl ShutdownTicker {
+    /// Creates a new instance of the shutdown ticker.
+    pub fn new(signal: ShutdownSignal) -> Self {
+        Self { signal }
+    }
+
+    /// Spawn a task to shutdown message to the connected clients.
+    pub fn spawn(self, tx: broadcast::Sender<()>) {
+        tokio::spawn(async move {
+            self.signal.await;
+
+            if tx.send(()).is_err() {
+                error!("failed to send shutdown signal: dropped receiver");
+            }
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{borrow::Cow, net::SocketAddr, ops::ControlFlow, time::Duration};
@@ -273,7 +321,7 @@ mod tests {
         common::secrets::EcdsaSecretKeyWrapper,
         config::chain::Chain,
         primitives::{
-            commitment::SignedCommitment, jsonrpc::JsonPayload, misc::IntoSigned,
+            commitment::SignedCommitment, jsonrpc::JsonRpcRequest, misc::IntoSigned,
             signature::AlloySignatureWrapper, InclusionRequest,
         },
     };
@@ -433,7 +481,7 @@ mod tests {
             let n_msg = 20;
             let inclusion_request = InclusionRequest::default();
 
-            let inclusion_request_payload = JsonPayload {
+            let inclusion_request_payload = JsonRpcRequest {
                 jsonrpc: "2.0".to_string(),
                 method: REQUEST_INCLUSION_METHOD.to_string(),
                 id: Some(serde_json::Value::String(Uuid::now_v7().to_string())),
@@ -444,7 +492,7 @@ mod tests {
                 Message::Text(serde_json::to_string(&inclusion_request_payload).unwrap());
 
             let get_version_msg = Message::Text(
-                serde_json::to_string(&JsonPayload {
+                serde_json::to_string(&JsonRpcRequest {
                     jsonrpc: "2.0".to_string(),
                     method: GET_VERSION_METHOD.to_string(),
                     id: Some(serde_json::Value::String(Uuid::now_v7().to_string())),
@@ -454,7 +502,7 @@ mod tests {
             );
 
             let get_metadata_msg = Message::Text(
-                serde_json::to_string(&JsonPayload {
+                serde_json::to_string(&JsonRpcRequest {
                     jsonrpc: "2.0".to_string(),
                     method: "bolt_metadata".to_string(),
                     id: Some(serde_json::Value::String(Uuid::now_v7().to_string())),

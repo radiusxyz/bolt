@@ -21,7 +21,7 @@ use crate::{
     },
     common::BOLT_SIDECAR_VERSION,
     primitives::{
-        jsonrpc::{JsonPayload, JsonResponse},
+        jsonrpc::{JsonResponse, JsonRpcRequest},
         signature::SignatureError,
         InclusionRequest,
     },
@@ -34,7 +34,7 @@ use super::CommitmentsApiInner;
 pub async fn rpc_entrypoint(
     headers: HeaderMap,
     State(api): State<Arc<CommitmentsApiInner>>,
-    WithRejection(Json(payload), _): WithRejection<Json<JsonPayload>, CommitmentError>,
+    WithRejection(Json(payload), _): WithRejection<Json<JsonRpcRequest>, CommitmentError>,
 ) -> Result<Json<JsonResponse>, CommitmentError> {
     debug!("Received new request");
 

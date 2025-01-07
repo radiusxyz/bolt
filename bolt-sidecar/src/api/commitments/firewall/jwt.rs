@@ -12,7 +12,7 @@ use crate::{
 };
 
 /// A JWT claim for the proposer authentication.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProposerAuthClaims {
     /// The URL of the RPC server which the proposer will accept commitments from.
     rpc_url: String,

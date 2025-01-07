@@ -2,8 +2,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
+/// A JSON-RPC request
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JsonPayload {
+pub struct JsonRpcRequest {
     /// The JSON-RPC version string. MUST be "2.0".
     pub jsonrpc: String,
     /// The method string.
@@ -14,9 +15,9 @@ pub struct JsonPayload {
     pub params: Vec<Value>,
 }
 
-/// A JSON-RPC payload with a mandatory UUID
+/// A JSON-RPC request with a mandatory UUID
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JsonPayloadUuid {
+pub struct JsonRpcRequestUuid {
     /// The JSON-RPC version string. MUST be "2.0".
     pub jsonrpc: String,
     /// The method string.
@@ -50,13 +51,8 @@ impl Default for JsonResponse {
 
 impl JsonResponse {
     /// Create a new JSON-RPC response with a result
-    pub fn from_error(code: i32, message: String) -> Self {
-        Self {
-            jsonrpc: "2.0".to_string(),
-            id: None,
-            result: Value::Null,
-            error: Some(JsonError { code, message }),
-        }
+    pub fn from_error(error: JsonError) -> Self {
+        Self { error: Some(error), ..Default::default() }
     }
 }
 
