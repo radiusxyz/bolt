@@ -2,7 +2,7 @@ use futures::{
     stream::{FuturesUnordered, SplitSink, SplitStream},
     FutureExt, SinkExt, StreamExt,
 };
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::{collections::VecDeque, future::Future, pin::Pin, task::Poll};
 use tokio::{
     net::TcpStream,
@@ -28,8 +28,8 @@ use crate::{
     config::limits::LimitsOpts,
     primitives::{
         commitment::SignedCommitment,
-        jsonrpc::{JsonPayloadUuid, JsonResponse},
-        misc::{Identified, IntoIdentified},
+        jsonrpc::{JsonError, JsonPayloadUuid, JsonResponse},
+        misc::Identified,
         CommitmentRequest, InclusionRequest,
     },
 };
@@ -156,21 +156,23 @@ impl Future for CommitmentRequestProcessor {
                     continue;
                 };
 
-                if let Ok(commitment) = result_commitment {
-                    trace!(?rpc_url, ?commitment, "received commitment response");
-                    let message = match &commitment {
-                        SignedCommitment::Inclusion(ic) => {
-                            ic.into_identified(id);
-                            Message::text(
-                                serde_json::to_string(&ic)
-                                    .expect("to stringify inclusion commitment"),
-                            )
-                        }
-                    };
+                let mut response =
+                    JsonResponse { id: Some(Value::String(id.to_string())), ..Default::default() };
 
-                    // Add the message to the outgoing messages queue
-                    this.outgoing_messages.push_back(message);
+                match result_commitment {
+                    Ok(commitment) => response.result = json!(commitment),
+                    Err(e) => {
+                        let (code, message) = e.into();
+                        let e = JsonError::new(code, message);
+                        response.error = Some(e);
+                    }
                 }
+
+                let message =
+                    Message::Text(serde_json::to_string(&response).expect("to stringify response"));
+
+                // Add the message to the outgoing messages queue
+                this.outgoing_messages.push_back(message);
             }
 
             // 2. Process outgoing messages

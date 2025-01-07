@@ -233,7 +233,6 @@ async fn handle_connection(
                 ping_rx.resubscribe(),
                 shutdown_rx.resubscribe(),
             );
-            // Run the commitment processor indefinitely, reconnecting on failure.
             let interrupt_reason = commitment_request_processor.await;
             Err(ConnectionHandlerError::ProcessorInterrupted(interrupt_reason))
         }
