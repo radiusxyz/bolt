@@ -297,8 +297,7 @@ First, you need to install the
         --rpc-url http://localhost:8545 \
         --operator-private-key <operator_private_key> \
         --operator-rpc <operator_rpc> \
-        --salt <SALT> \
-        --expiry <EXPIRY>
+        --salt <SALT>
    ```
 
    Where:
@@ -311,14 +310,6 @@ First, you need to install the
 
      ```bash
      echo -n "0x"; head -c 32 /dev/urandom | hexdump -e '32/1 "%02x" "\n"'
-     ```
-
-   - `--expiry` is the UTC timestamp in seconds of the signature expiry.
-     To generate it on both Linux and MacOS run the following command, replacing <EXPIRY_TIMESTAMP>
-     with the desired timestamp:
-
-     ```bash
-     echo -n "0x"; printf "%064x\n" <EXPIRY_TIMESTAMP>
      ```
 
 4. Check your operator status to ensure everything is set up correctly:

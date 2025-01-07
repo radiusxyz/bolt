@@ -41,7 +41,7 @@ pub(crate) fn to_execution_payload_header(
     let mut withdrawals_ssz: List<ConsensusWithdrawal, MAX_WITHDRAWALS_PER_PAYLOAD> =
         List::default();
 
-    if let Some(withdrawals) = sealed_block.body.withdrawals.as_ref() {
+    if let Some(withdrawals) = sealed_block.body().withdrawals.as_ref() {
         for w in withdrawals {
             withdrawals_ssz.push(to_consensus_withdrawal(w));
         }
@@ -78,7 +78,7 @@ pub(crate) fn to_alloy_execution_payload(
     block_hash: B256,
 ) -> ExecutionPayloadV3 {
     let alloy_withdrawals = block
-        .body
+        .body()
         .withdrawals
         .as_ref()
         .map(|withdrawals| {
@@ -123,8 +123,8 @@ pub(crate) fn to_alloy_execution_payload(
 pub(crate) fn to_consensus_execution_payload(value: &SealedBlock) -> ConsensusExecutionPayload {
     let hash = value.hash();
     let header = &value.header;
-    let transactions = &value.body.transactions;
-    let withdrawals = &value.body.withdrawals;
+    let transactions = &value.body().transactions;
+    let withdrawals = &value.body().withdrawals;
     let transactions = transactions
         .iter()
         .map(|t| spec::Transaction::try_from(t.encoded_2718().as_ref()).unwrap())

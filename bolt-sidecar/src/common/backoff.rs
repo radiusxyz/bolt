@@ -5,14 +5,32 @@ use tokio_retry::{
     Retry, RetryIf,
 };
 
+/// Configuration for retry
+#[derive(Debug, Clone, Copy)]
+pub struct RetryConfig {
+    /// Initial delay in milliseconds before the first retry
+    pub initial_delay_ms: u64,
+    /// Maximum delay in seconds between retries
+    pub max_delay_secs: u64,
+    /// Multiplication factor for exponential backoff
+    pub factor: u64,
+}
+
 /// Retry a future with exponential backoff and jitter.
-pub async fn retry_with_backoff<F, T, E>(max_retries: usize, fut: impl Fn() -> F) -> Result<T, E>
+pub async fn retry_with_backoff<F, T, E>(
+    max_retries: usize,
+    config: Option<RetryConfig>,
+    fut: impl Fn() -> F,
+) -> Result<T, E>
 where
     F: Future<Output = Result<T, E>>,
 {
-    let backoff = ExponentialBackoff::from_millis(100)
-        .factor(2)
-        .max_delay(Duration::from_secs(2))
+    let config =
+        config.unwrap_or(RetryConfig { initial_delay_ms: 100, max_delay_secs: 1, factor: 2 });
+
+    let backoff = ExponentialBackoff::from_millis(config.initial_delay_ms)
+        .factor(config.factor)
+        .max_delay(Duration::from_secs(config.max_delay_secs))
         .take(max_retries)
         .map(jitter);
 
@@ -22,15 +40,19 @@ where
 /// Retry a future with exponential backoff and jitter if the error matches a condition.
 pub async fn retry_with_backoff_if<F, T, E>(
     max_retries: usize,
+    config: Option<RetryConfig>,
     fut: impl Fn() -> F,
     condition: impl FnMut(&E) -> bool,
 ) -> Result<T, E>
 where
     F: Future<Output = Result<T, E>>,
 {
-    let backoff = ExponentialBackoff::from_millis(100)
-        .factor(2)
-        .max_delay(Duration::from_secs(2))
+    let config =
+        config.unwrap_or(RetryConfig { initial_delay_ms: 100, max_delay_secs: 1, factor: 2 });
+
+    let backoff = ExponentialBackoff::from_millis(config.initial_delay_ms)
+        .factor(config.factor)
+        .max_delay(Duration::from_secs(config.max_delay_secs))
         .take(max_retries)
         .map(jitter);
 
@@ -39,14 +61,14 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     use std::sync::Arc;
     use thiserror::Error;
     use tokio::{
         sync::Mutex,
         time::{Duration, Instant},
     };
-
-    use super::*;
 
     #[derive(Debug, Error)]
     #[error("mock error")]
@@ -77,7 +99,7 @@ mod tests {
     async fn test_retry_success_without_retry() {
         let counter = Arc::new(Mutex::new(Counter::new(0)));
 
-        let result = retry_with_backoff(5, || {
+        let result = retry_with_backoff(5, None, || {
             let counter = Arc::clone(&counter);
             async move {
                 let mut counter = counter.lock().await;
@@ -94,7 +116,7 @@ mod tests {
     async fn test_retry_until_success() {
         let counter = Arc::new(Mutex::new(Counter::new(3))); // Fail 3 times, succeed on 4th
 
-        let result = retry_with_backoff(5, || async {
+        let result = retry_with_backoff(5, None, || async {
             let counter = Arc::clone(&counter);
             let mut counter = counter.lock().await;
             counter.retryable_fn().await
@@ -111,6 +133,7 @@ mod tests {
 
         let result = retry_with_backoff_if(
             5,
+            None,
             || async {
                 let counter = Arc::clone(&counter);
                 let mut counter = counter.lock().await;
@@ -128,7 +151,7 @@ mod tests {
     async fn test_max_retries_reached() {
         let counter = Arc::new(Mutex::new(Counter::new(5))); // Fail 5 times, max retries = 3
 
-        let result = retry_with_backoff(3, || {
+        let result = retry_with_backoff(3, None, || {
             let counter = Arc::clone(&counter);
             async move {
                 let mut counter = counter.lock().await;
@@ -146,7 +169,7 @@ mod tests {
         let counter = Arc::new(Mutex::new(Counter::new(3))); // Fail 3 times, succeed on 4th
         let start_time = Instant::now();
 
-        let result = retry_with_backoff(5, || {
+        let result = retry_with_backoff(5, None, || {
             let counter = Arc::clone(&counter);
             async move {
                 let mut counter = counter.lock().await;

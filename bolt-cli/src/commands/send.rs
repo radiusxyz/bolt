@@ -51,6 +51,8 @@ impl SendCommand {
         // for testing and development purposes. In most cases, the sidecar will
         // reject a request for a slot that it is not responsible for.
         let target_url = if let Some(sidecar_url) = self.override_bolt_sidecar_url {
+            // Only get future slots
+            lookahead_url.set_query(Some("futureOnly=true"));
             // If using the override URL, we don't need to fetch the active proposers only.
             // we will set the next slot as the target slot.
             sidecar_url

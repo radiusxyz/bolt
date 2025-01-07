@@ -109,8 +109,8 @@ where
     ) -> Result<Json<VersionedValue<SignedBuilderBid>>, BuilderApiError> {
         let start = std::time::Instant::now();
 
-        debug!("Received get_header request");
         let slot = params.slot;
+        debug!(slot, pubkey = %params.public_key, "Received get_header request");
 
         let err = match tokio::time::timeout(
             GET_HEADER_WITH_PROOFS_TIMEOUT,
@@ -172,7 +172,6 @@ where
         req: Request<Body>,
     ) -> Result<Json<GetPayloadResponse>, BuilderApiError> {
         let start = std::time::Instant::now();
-        debug!("Received get_payload request");
 
         let body_bytes =
             body::to_bytes(req.into_body(), MAX_BLINDED_BLOCK_LENGTH).await.map_err(|e| {
@@ -186,6 +185,9 @@ where
                 error!(error = %e, "Failed to parse signed blinded block");
                 e
             })?;
+
+        let slot = signed_blinded_block.message.slot;
+        debug!(slot, "Received get_payload request");
 
         // If we have a locally built payload, it means we signed a local header.
         // Return it and clear the cache.
@@ -211,7 +213,7 @@ where
                 e
             })?;
 
-        info!(elapsed = ?start.elapsed(), "Returning payload from constraints client");
+        info!(elapsed = ?start.elapsed(), slot, "Returning payload from constraints client");
         ApiMetrics::increment_remote_blocks_proposed();
 
         Ok(payload)
@@ -267,7 +269,7 @@ async fn index() -> Html<&'static str> {
 #[allow(missing_docs)]
 pub enum LocalPayloadIntegrityError {
     #[error(
-        "Locally built payload does not match signed header. 
+        "Locally built payload does not match signed header.
         {field_name} mismatch: expected {expected}, have {have}"
     )]
     FieldMismatch { field_name: String, expected: String, have: String },

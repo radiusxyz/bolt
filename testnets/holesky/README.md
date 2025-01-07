@@ -392,7 +392,7 @@ Bolt AVS. You can use the `bolt operators eigenlayer register` command for it:
 ```text
 Step 2: Register into the bolt AVS
 
-Usage: bolt operators eigenlayer register --rpc-url <RPC_URL> --operator-private-key <OPERATOR_PRIVATE_KEY> --operator-rpc <OPERATOR_RPC> --salt <SALT> --expiry <EXPIRY>
+Usage: bolt operators eigenlayer register --rpc-url <RPC_URL> --operator-private-key <OPERATOR_PRIVATE_KEY> --operator-rpc <OPERATOR_RPC> --salt <SALT>
 
 Options:
       --rpc-url <RPC_URL>
@@ -403,27 +403,17 @@ Options:
           The URL of the operator RPC [env: OPERATOR_RPC=]
       --salt <SALT>
           The salt for the operator signature [env: OPERATOR_SIGNATURE_SALT=]
-      --expiry <EXPIRY>
-          The expiry UTC timestamp in seconds for the operator signature [env: OPERATOR_SIGNATURE_EXPIRY=]
   -h, --help
           Print help
 ```
 
-A note on the `--salt` and `--expiry` parameters:
+A note on the `--salt` parameter:
 
 - `salt` -- an unique 32 bytes value to avoid replay attacks. To generate it on
   both Linux and MacOS you can run:
 
   ```bash
   echo -n "0x"; head -c 32 /dev/urandom | hexdump -e '32/1 "%02x" "\n"'
-  ```
-
-- `expiry` -- the UTC timestamp in seconds of the signature expiry. To generate it
-  on both Linux and MacOS run the following command, replacing
-  `<EXPIRY_TIMESTAMP>` with the desired timestamp:
-
-  ```bash
-  echo -n "0x"; printf "%064x\n" <EXPIRY_TIMESTAMP>
   ```
 
 Once you have the required values, fill the options and run the script. If the
@@ -446,6 +436,16 @@ Options:
 # Off-Chain Setup
 
 After all of the steps above have been completed, we can proceed with running the off-chain infrastructure.
+
+## Beacon Node
+Bolt only uses standardized APIs to interact with the beacon node, so any beacon node implementation should work. However, you will need to configure the beacon node
+with some flags to make sure it doesn't fall back to execution client blocks and ignores blocks from the Bolt sidecar (using Lighthouse flags as examples):
+- `--builder-boost-factor` or equivalent flag should be set to a large value like `18446744073709551615` (`2**64 - 1`). This will ensure that payloads from Bolt always
+  have priority over EL payloads.
+  - In [Prysm](https://docs.prylabs.network/docs/advanced/builder#prioritizing-local-blocks), set `--local-block-value-boost` to 0.
+- `--builder-fallback-disable-checks` or equivalent flag should be set to true. This will ensure that the beacon node doesn't fall back to execution client blocks when
+  [circuit breaker conditions](https://lighthouse-book.sigmaprime.io/builders.html#circuit-breaker-conditions) are met.
+  - In [Prysm](https://docs.prylabs.network/docs/advanced/builder#circuit-breaker), set `--max-builder-consecutive-missed-slots` and `--max-builder-epoch-missed-slots` to 32.
 
 There are various way to run the Bolt Sidecar depending on your preferences and your preferred signing methods:
 
@@ -608,7 +608,7 @@ section for more details.
 Then you can build the Bolt sidecar by running:
 
 ```bash
-cargo build --release && mv target/release/bolt-sidecar .
+cargo build --release
 ```
 
 In order to run correctly the sidecar you need to provide either a list command
@@ -616,7 +616,7 @@ line options or a configuration file (recommended). All the options available
 can be found by running `./bolt-sidecar --help`, or you can find them in the
 [reference](#command-line-options) section of this guide.
 
-#### Configuration file
+### Configuration file
 
 You can use a `.env` file to configure the sidecar, for which you can
 find a template in the `.env.example` file.
@@ -627,10 +627,10 @@ to configure such sidecar options properly.
 After you've set up the configuration file you can run the Bolt sidecar with
 
 ```bash
-./bolt-sidecar
+./target/release/bolt-sidecar
 ```
 
-### Observability
+## Observability
 
 The bolt sidecar comes with various observability tools, such as Prometheus
 and Grafana. It also comes with some pre-built dashboards, which can
@@ -649,7 +649,7 @@ To stop the services run:
 docker compose -f telemetry.compose.yml down
 ```
 
-### Firewall Configuration
+## Firewall Configuration
 
 The Bolt sidecar will listen on port `8017` by default for incoming JSON-RPC requests of
 the Commitments API. This port should be open on your firewall in order to receive external requests.

@@ -16,7 +16,10 @@ use reqwest::Url;
 
 use crate::{
     api::commitments::server::CommitmentEvent,
-    common::{backoff::retry_with_backoff_if, secrets::EcdsaSecretKeyWrapper},
+    common::{
+        backoff::{retry_with_backoff_if, RetryConfig},
+        secrets::EcdsaSecretKeyWrapper,
+    },
     config::{chain::Chain, limits::LimitsOpts},
     primitives::misc::ShutdownSignal,
 };
@@ -138,6 +141,7 @@ impl CommitmentsReceiver {
 
         let signer = PrivateKeySigner::from_signing_key(self.operator_private_key.0);
         let state = ProcessorState::new(self.limits);
+        let retry_config = RetryConfig { initial_delay_ms: 100, max_delay_secs: 2, factor: 2 };
 
         for url in &self.urls {
             // NOTE: We're cloning the variables here because we're moving the inputs into an async
@@ -151,6 +155,7 @@ impl CommitmentsReceiver {
             tokio::spawn(async move {
                 retry_with_backoff_if(
                     MAX_RETRIES,
+                    Some(retry_config),
                     // NOTE: this needs to be a closure because it must be re-called upon failure.
                     // As such we also need to clone the inputs again.
                     move || {

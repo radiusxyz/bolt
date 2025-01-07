@@ -458,7 +458,7 @@ impl<C: StateFetcher> ExecutionState<C> {
                 // Calculate the total tip revenue for this transaction:
                 // (effective_gas_price - basefee) * gas_used
                 let tip_per_gas = receipt.effective_gas_price - self.basefee;
-                let total_tip = tip_per_gas * receipt.gas_used;
+                let total_tip = tip_per_gas * receipt.gas_used as u128;
 
                 trace!(hash = %receipt.transaction_hash, total_tip, "Receipt found");
 
