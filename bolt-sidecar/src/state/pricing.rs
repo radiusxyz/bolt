@@ -191,7 +191,7 @@ mod tests {
 
         // Test preconfirmed transaction when 80% of the block is already used
         let incoming_gas = 21_000;
-        let preconfirmed_gas = (30_000_000 as f64 * 0.8) as u64;
+        let preconfirmed_gas = (30_000_000_f64 * 0.8) as u64;
         let min_fee_wei =
             pricing.calculate_min_priority_fee(incoming_gas, preconfirmed_gas).unwrap();
 
