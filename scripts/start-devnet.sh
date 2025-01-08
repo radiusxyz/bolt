@@ -3,8 +3,7 @@
 echo "Starting the devnet..."
 
 # spin up the kurtosis devnet
-# TODO: change this to `bolt` once ready
-kurtosis run --enclave bolt-devnet github.com/chainbound/ethereum-package@lore/feat/firewall-delegation --args-file ./scripts/kurtosis_config.yaml
+kurtosis run --enclave bolt-devnet github.com/chainbound/ethereum-package@bolt --args-file ./scripts/kurtosis_config.yaml
 sleep 3
 
 RPC=$(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc)

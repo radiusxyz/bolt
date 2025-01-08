@@ -3,13 +3,12 @@ use alloy::{
     primitives::{keccak256, Address, PrimitiveSignature, B256},
 };
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::crypto::SignerECDSA;
 
 use super::{
     deserialize_txs,
-    misc::{Identified, IntoSigned, Signed},
+    misc::{IntoSigned, Signed},
     serialize_txs,
     signature::{AlloySignatureWrapper, SignatureError},
     FullTransaction, TransactionExt,
@@ -33,12 +32,6 @@ pub enum SignedCommitment {
 
 /// An inclusion commitment with a generic signature.
 pub type InclusionCommitment = Signed<InclusionRequest, AlloySignatureWrapper>;
-
-/// An inclusion commitment with a UUID identifier.
-pub type InclusionCommitmentIdentified = Identified<InclusionCommitment, Uuid>;
-
-/// An inclusion request with a UUID identifier.
-pub type InclusionRequestIdentified = Identified<InclusionRequest, Uuid>;
 
 impl From<SignedCommitment> for InclusionCommitment {
     fn from(commitment: SignedCommitment) -> Self {
