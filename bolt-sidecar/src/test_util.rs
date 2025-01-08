@@ -86,10 +86,7 @@ pub(crate) async fn get_test_config() -> Option<Opts> {
     env::set_var("BOLT_SIDECAR_FEE_RECIPIENT", Address::ZERO.to_string());
     env::set_var("BOLT_SIDECAR_BUILDER_PRIVATE_KEY", BlsSecretKeyWrapper::random().to_string());
     env::set_var("BOLT_SIDECAR_CONSTRAINT_PRIVATE_KEY", BlsSecretKeyWrapper::random().to_string());
-    env::set_var(
-        "BOLT_SIDECAR_COMMITMENT_PRIVATE_KEY",
-        EcdsaSecretKeyWrapper::random().to_string(),
-    );
+    env::set_var("BOLT_SIDECAR_OPERATOR_PRIVATE_KEY", EcdsaSecretKeyWrapper::random().to_string());
 
     let _ = dotenvy::dotenv();
 
