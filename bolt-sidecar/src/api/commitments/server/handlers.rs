@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{num::NonZero, sync::Arc};
 
 use axum::{
     body::Body,
@@ -8,6 +8,7 @@ use axum::{
     Json,
 };
 use axum_extra::extract::WithRejection;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tracing::{debug, error, info, instrument};
 
@@ -20,6 +21,7 @@ use crate::{
         },
     },
     common::BOLT_SIDECAR_VERSION,
+    config::limits::LimitsOpts,
     primitives::{
         jsonrpc::{JsonResponse, JsonRpcRequest},
         signature::SignatureError,
@@ -28,6 +30,34 @@ use crate::{
 };
 
 use super::CommitmentsApiInner;
+
+/// Response structure for the metadata endpoint that combines
+/// limits configuration with version information in a flat structure
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MetadataResponse {
+    /// Max number of commitments to accept per slot
+    pub max_commitments_per_slot: NonZero<usize>,
+    /// Max committed gas per slot
+    pub max_committed_gas_per_slot: NonZero<u64>,
+    /// Min priority fee to accept for a commitment
+    pub min_priority_fee: u128,
+    /// The maximum size in MiB of the account states
+    pub max_account_states_size: NonZero<usize>,
+    /// The version of the Bolt sidecar
+    pub version: String,
+}
+
+impl From<(LimitsOpts, String)> for MetadataResponse {
+    fn from((limits, version): (LimitsOpts, String)) -> Self {
+        Self {
+            max_commitments_per_slot: limits.max_commitments_per_slot,
+            max_committed_gas_per_slot: limits.max_committed_gas_per_slot,
+            min_priority_fee: limits.min_priority_fee,
+            max_account_states_size: limits.max_account_states_size,
+            version,
+        }
+    }
+}
 
 /// Handler function for the root JSON-RPC path.
 #[instrument(skip_all, name = "POST /rpc", fields(method = %payload.method))]
@@ -46,9 +76,12 @@ pub async fn rpc_entrypoint(
         })),
 
         GET_METADATA_METHOD => {
+            let metadata: MetadataResponse =
+                (api.limits(), BOLT_SIDECAR_VERSION.to_string()).into();
+
             let response = JsonResponse {
                 id: payload.id,
-                result: serde_json::to_value(api.limits()).expect("infallible"),
+                result: serde_json::to_value(metadata).expect("infallible"), // metadata only contains primitive types
                 ..Default::default()
             };
             Ok(Json(response))

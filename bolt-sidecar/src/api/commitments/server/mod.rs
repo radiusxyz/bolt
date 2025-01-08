@@ -177,8 +177,12 @@ fn make_router(state: Arc<CommitmentsApiInner>) -> Router {
 
 #[cfg(test)]
 mod test {
-    use crate::api::commitments::spec::SIGNATURE_HEADER;
+    use crate::{
+        api::commitments::{jsonrpc::JsonResponse, spec::SIGNATURE_HEADER},
+        common::BOLT_SIDECAR_VERSION,
+    };
     use alloy::signers::{k256::SecretKey, local::PrivateKeySigner};
+    use handlers::MetadataResponse;
     use serde_json::json;
 
     use crate::{
@@ -293,12 +297,11 @@ mod test {
     #[tokio::test]
     async fn test_request_metadata() {
         let _ = tracing_subscriber::fmt::try_init();
-
         let mut server = CommitmentsApiServer::new("0.0.0.0:0");
-
         let (events_tx, _) = mpsc::channel(1);
 
-        server.run(events_tx, LimitsOpts::default()).await;
+        let expected_limits = LimitsOpts::default();
+        server.run(events_tx, expected_limits).await;
         let addr = server.local_addr();
 
         let payload = json!({
@@ -309,9 +312,7 @@ mod test {
         });
 
         let url = format!("http://{addr}");
-
         let client = reqwest::Client::new();
-
         let response = client
             .post(url)
             .json(&payload)
@@ -322,8 +323,12 @@ mod test {
             .await
             .unwrap();
 
-        let limits: LimitsOpts = serde_json::from_value(response.result).unwrap();
+        let metadata: MetadataResponse = serde_json::from_value(response.result).unwrap();
 
-        assert_eq!(limits, LimitsOpts::default());
+        assert_eq!(metadata.max_commitments_per_slot, expected_limits.max_commitments_per_slot);
+        assert_eq!(metadata.max_committed_gas_per_slot, expected_limits.max_committed_gas_per_slot);
+        assert_eq!(metadata.min_priority_fee, expected_limits.min_priority_fee);
+        assert_eq!(metadata.max_account_states_size, expected_limits.max_account_states_size);
+        assert_eq!(metadata.version, BOLT_SIDECAR_VERSION.to_string());
     }
 }
