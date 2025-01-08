@@ -8,7 +8,7 @@ const GAS_SCALAR: f64 = 1.02e-6;
 
 /// Handles pricing calculations for preconfirmations
 #[derive(Debug)]
-pub struct PreconfPricing {
+pub struct InclusionPricer {
     block_gas_limit: u64,
     base_multiplier: f64,
     gas_scalar: f64,
@@ -37,14 +37,14 @@ pub enum PricingError {
     },
 }
 
-impl Default for PreconfPricing {
+impl Default for InclusionPricer {
     fn default() -> Self {
         Self::new(DEFAULT_BLOCK_GAS_LIMIT)
     }
 }
 
-impl PreconfPricing {
-    /// Initializes a new PreconfPricing with default parameters.
+impl InclusionPricer {
+    /// Initializes a new InclusionPricer with default parameters.
     pub fn new(block_gas_limit: u64) -> Self {
         Self { block_gas_limit, base_multiplier: BASE_MULTIPLIER, gas_scalar: GAS_SCALAR }
     }
@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn test_min_priority_fee_zero_preconfirmed() {
-        let pricing = PreconfPricing::default();
+        let pricing = InclusionPricer::default();
 
         // Test minimum fee (21k gas ETH transfer, 0 preconfirmed)
         let incoming_gas = 21_000;
@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn test_min_priority_fee_medium_load() {
-        let pricing = PreconfPricing::default();
+        let pricing = InclusionPricer::default();
 
         // Test medium load (21k gas, 15M preconfirmed)
         let incoming_gas = 21_000;
@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn test_min_priority_fee_max_load() {
-        let pricing = PreconfPricing::default();
+        let pricing = InclusionPricer::default();
 
         // Test last preconfirmed transaction (21k gas, almost 30M preconfirmed)
         let incoming_gas = 21_000;
@@ -187,7 +187,7 @@ mod tests {
 
     #[test]
     fn test_min_priority_fee_80p() {
-        let pricing = PreconfPricing::default();
+        let pricing = InclusionPricer::default();
 
         // Test preconfirmed transaction when 80% of the block is already used
         let incoming_gas = 21_000;
@@ -205,7 +205,7 @@ mod tests {
 
     #[test]
     fn test_min_priority_fee_zero_big_preconfirmed() {
-        let pricing = PreconfPricing::default();
+        let pricing = InclusionPricer::default();
 
         // Test minimum fee (210k gas ETH transfer, 0 preconfirmed)
         let big_gas = 210_000;
@@ -237,7 +237,7 @@ mod tests {
 
     #[test]
     fn test_priority_fee_all_gas() {
-        let pricing = PreconfPricing::default();
+        let pricing = InclusionPricer::default();
 
         // Test one preconf for all the available gas
         let incoming_gas = 30_000_000;
@@ -254,7 +254,7 @@ mod tests {
 
     #[test]
     fn test_min_priority_fee_zero_preconfirmed_36m() {
-        let pricing = PreconfPricing::new(36_000_000);
+        let pricing = InclusionPricer::new(36_000_000);
 
         // Test minimum fee (21k gas ETH transfer, 0 preconfirmed)
         let incoming_gas = 21_000;
@@ -271,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_min_priority_fee_medium_load_36m() {
-        let pricing = PreconfPricing::new(36_000_000);
+        let pricing = InclusionPricer::new(36_000_000);
 
         // Test medium load (21k gas, 18M preconfirmed)
         let incoming_gas = 21_000;
@@ -288,7 +288,7 @@ mod tests {
 
     #[test]
     fn test_min_priority_fee_max_load_36m() {
-        let pricing = PreconfPricing::new(36_000_000);
+        let pricing = InclusionPricer::new(36_000_000);
 
         // Test last preconfirmed transaction (21k gas, almost 30M preconfirmed)
         let incoming_gas = 21_000;
@@ -309,7 +309,7 @@ mod tests {
 
     #[test]
     fn test_error_exceeds_block_limit() {
-        let pricing = PreconfPricing::default();
+        let pricing = InclusionPricer::default();
 
         let incoming_gas = 21_000;
         let preconfirmed_gas = 30_000_001;
@@ -320,7 +320,7 @@ mod tests {
 
     #[test]
     fn test_error_insufficient_gas() {
-        let pricing = PreconfPricing::default();
+        let pricing = InclusionPricer::default();
 
         let incoming_gas = 15_000_001;
         let preconfirmed_gas = 15_000_000;
@@ -334,7 +334,7 @@ mod tests {
 
     #[test]
     fn test_error_zero_incoming_gas() {
-        let pricing = PreconfPricing::default();
+        let pricing = InclusionPricer::default();
 
         let incoming_gas = 0;
         let preconfirmed_gas = 0;

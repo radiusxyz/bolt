@@ -9,7 +9,7 @@ use serde::{de, Deserialize, Deserializer, Serialize};
 
 use crate::{
     crypto::SignerECDSA,
-    state::{pricing::PricingError, PreconfPricing},
+    state::{pricing::PricingError, InclusionPricer},
 };
 
 use super::{deserialize_txs, serialize_txs, FullTransaction, TransactionExt};
@@ -179,7 +179,7 @@ impl InclusionRequest {
     /// Returns an error if min priority fee cannot be calculated.
     pub fn validate_min_priority_fee(
         &self,
-        pricing: &PreconfPricing,
+        pricing: &InclusionPricer,
         preconfirmed_gas: u64,
         min_inclusion_profit: u64,
         max_base_fee: u128,

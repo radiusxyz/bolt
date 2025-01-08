@@ -22,7 +22,7 @@ use crate::{
     telemetry::ApiMetrics,
 };
 
-use super::PreconfPricing;
+use super::InclusionPricer;
 use super::{account_state::AccountStateCache, fetcher::StateFetcher};
 
 /// Possible commitment validation errors.
@@ -173,7 +173,7 @@ pub struct ExecutionState<C> {
     /// Other values used for validation
     validation_params: ValidationParams,
     /// Pricing calculator for preconfirmations.
-    pricing: PreconfPricing,
+    pricing: InclusionPricer,
 }
 
 /// Other values used for validation.
@@ -230,7 +230,7 @@ impl<C: StateFetcher> ExecutionState<C> {
             kzg_settings: EnvKzgSettings::default(),
             // TODO: add a way to configure these values from CLI
             validation_params: ValidationParams::new(gas_limit),
-            pricing: PreconfPricing::new(gas_limit),
+            pricing: InclusionPricer::new(gas_limit),
         })
     }
 
