@@ -102,7 +102,6 @@ pub struct CommitmentRequestProcessor {
     /// The receiver for shutdown signals.
     shutdown_rx: broadcast::Receiver<()>,
     /// The collection of pending commitment requests responses, sent with [api_events_tx].
-    /// NOTE: Is there a better way to avoid this monster type?
     /// SAFETY: the `poll` implementation of this struct promptly handles these responses and
     /// ensures this vector doesn't grow indefinitely.
     pending_commitment_responses: FuturesUnordered<PendingCommitmentResponse>,
@@ -116,17 +115,18 @@ impl CommitmentRequestProcessor {
         url: String,
         state: ProcessorState,
         tx: mpsc::Sender<CommitmentEvent>,
-        write: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
-        read: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
+        stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
         ping_rx: broadcast::Receiver<()>,
         shutdown_rx: broadcast::Receiver<()>,
     ) -> Self {
+        let (write_sink, read_stream) = stream.split();
+
         Self {
             url,
             state,
             api_events_tx: tx,
-            write_sink: write,
-            read_stream: read,
+            write_sink,
+            read_stream,
             ping_rx,
             shutdown_rx,
             pending_commitment_responses: FuturesUnordered::new(),

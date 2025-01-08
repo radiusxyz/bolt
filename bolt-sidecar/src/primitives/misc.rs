@@ -1,14 +1,13 @@
+use derive_more::derive::{Deref, DerefMut};
 use serde::{Deserialize, Serialize};
-use std::{
-    future::Future,
-    ops::{Deref, DerefMut},
-    pin::Pin,
-};
+use std::{future::Future, pin::Pin};
 
 /// A type that wraps another with a signature of it.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Deref, DerefMut)]
 pub struct Signed<T, S> {
     /// The inner type
+    #[deref]
+    #[deref_mut]
     #[serde(flatten)]
     inner: T,
     /// The signature of the wrapped field
@@ -41,20 +40,6 @@ impl<T, S> Signed<T, S> {
     }
 }
 
-impl<T, S> Deref for Signed<T, S> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl<T, S> DerefMut for Signed<T, S> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
-    }
-}
-
 /// Types that can be signed.
 pub trait IntoSigned<S> {
     /// Wrap the type with a signature.
@@ -71,27 +56,15 @@ impl<T, S> IntoSigned<S> for T {
 }
 
 /// A type with an associated ID.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Deref, DerefMut)]
 pub struct Identified<T, I: Copy> {
     /// The inner type
+    #[deref]
+    #[deref_mut]
     #[serde(flatten)]
     inner: T,
     /// The ID of the object
     id: I,
-}
-
-impl<T, I: Copy> Deref for Identified<T, I> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl<T, I: Copy> DerefMut for Identified<T, I> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
-    }
 }
 
 impl<T, I: Copy> Identified<T, I> {

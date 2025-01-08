@@ -1,5 +1,4 @@
 use alloy::signers::local::PrivateKeySigner;
-use futures::StreamExt;
 use std::{
     fmt::{self, Debug, Formatter},
     time::Duration,
@@ -42,7 +41,7 @@ const MAX_RETRIES: usize = 1000;
 ///
 /// It is enough to account for a commitment request with 6 blobs and the largest
 /// memory-consuming transactions you can create. Reference: https://xn--2-umb.com/22/eth-max-mem/
-const MAX_MESSAGE_SIZE: usize = 16 << 23;
+const MAX_MESSAGE_SIZE: usize = 32 << 20;
 
 /// Whether to use the Nagle algorithm for TCP connections.
 ///
@@ -195,18 +194,16 @@ async fn handle_connection(
     match connect_async_with_config(request, Some(ws_config), USE_NAGLE).await {
         Ok((stream, response)) => {
             info!(?url, ?response, "opened websocket connection");
-            let (write_sink, read_stream) = stream.split();
 
             // For each opened connection, create a new commitment processor
             // able to handle incoming message requests.
             let commitment_request_processor = CommitmentRequestProcessor::new(
                 url,
                 state,
-                api_events_tx.clone(),
-                write_sink,
-                read_stream,
-                ping_rx.resubscribe(),
-                shutdown_rx.resubscribe(),
+                api_events_tx,
+                stream,
+                ping_rx,
+                shutdown_rx,
             );
             let interrupt_reason = commitment_request_processor.await;
             Err(ConnectionHandlerError::ProcessorInterrupted(interrupt_reason))

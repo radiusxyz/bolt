@@ -32,7 +32,7 @@ pub struct ProposerAuthClaims {
 }
 
 impl ProposerAuthClaims {
-    /// Creates a new instance of the [ProposerAuthClaim] and creates a signature with
+    /// Creates a new instance of the [ProposerAuthClaims] and creates a signature with
     /// the provided signer.
     ///
     /// If the expiry is not provided, it will default to 60 seconds from now.
