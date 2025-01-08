@@ -18,3 +18,7 @@ pub mod operators;
 
 /// Module for generating various types of data like BLS keys.
 pub mod generate;
+
+/// Module for the `pubkey_hash` command to generate
+/// a pubkey hash from a public key.
+pub mod pubkey_hash;

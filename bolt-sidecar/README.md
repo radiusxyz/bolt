@@ -115,11 +115,11 @@ Options:
           [env: BOLT_SIDECAR_MAX_COMMITTED_GAS=]
           [default: 10000000]
 
-      --min-priority-fee <MIN_PRIORITY_FEE>
-          Min priority fee to accept for a commitment
+      --min-inclusion-profit <MIN_INCLUSION_PROFIT>
+          Min profit per gas to accept a commitment
 
-          [env: BOLT_SIDECAR_MIN_PRIORITY_FEE=]
-          [default: 1000000000]
+          [env: BOLT_SIDECAR_MIN_PROFIT=]
+          [default: 2000000000]
 
       --chain <CHAIN>
           Chain on which the sidecar is running

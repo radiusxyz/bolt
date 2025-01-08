@@ -4,7 +4,10 @@ use alloy::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::crypto::SignerECDSA;
+use crate::{
+    crypto::SignerECDSA,
+    state::{pricing::PricingError, InclusionPricer},
+};
 
 use super::{
     deserialize_txs,
@@ -175,10 +178,31 @@ impl InclusionRequest {
     /// Validates the priority fee against a minimum priority fee.
     /// Returns `true` if the "effective priority fee" is greater than or equal to the set minimum
     /// priority fee, `false` otherwise.
-    pub fn validate_min_priority_fee(&self, max_base_fee: u128, min_priority_fee: u128) -> bool {
-        self.txs.iter().all(|tx| {
-            tx.effective_tip_per_gas(max_base_fee).map_or(false, |tip| tip >= min_priority_fee)
-        })
+    /// Returns an error if min priority fee cannot be calculated.
+    pub fn validate_min_priority_fee(
+        &self,
+        pricing: &InclusionPricer,
+        preconfirmed_gas: u64,
+        min_inclusion_profit: u64,
+        max_base_fee: u128,
+    ) -> Result<bool, PricingError> {
+        // Each included tx will move the price up
+        // So we need to calculate the minimum priority fee for each tx
+        let mut local_preconfirmed_gas = preconfirmed_gas;
+        for tx in &self.txs {
+            // Calculate minimum required priority fee for this transaction
+            let min_priority_fee = pricing
+                .calculate_min_priority_fee(tx.gas_limit(), preconfirmed_gas)?
+                + min_inclusion_profit;
+
+            let tip = tx.effective_tip_per_gas(max_base_fee).unwrap_or_default();
+            if tip < min_priority_fee as u128 {
+                return Ok(false);
+            }
+            // Increment the preconfirmed gas for the next transaction in the bundle
+            local_preconfirmed_gas = local_preconfirmed_gas.saturating_add(tx.gas_limit());
+        }
+        Ok(true)
     }
 
     /// Returns the total gas limit of all transactions in this request.
