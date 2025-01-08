@@ -777,7 +777,7 @@ Options:
           [env: BOLT_SIDECAR_MAX_COMMITTED_GAS=]
           [default: 10000000]
 
-      --min-inclusion_profit <MIN_INCLUSION_PROFIT>
+      --min-inclusion-profit <MIN_INCLUSION_PROFIT>
           Min profit per gas to accept a commitment
 
           [env: BOLT_SIDECAR_MIN_PROFIT=]
