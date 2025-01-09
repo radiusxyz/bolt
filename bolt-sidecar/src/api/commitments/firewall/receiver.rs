@@ -610,6 +610,6 @@ mod tests {
 
     fn into_utf8_bytes<S: Serialize>(input: S) -> Utf8Bytes {
         let msg = serde_json::to_string(&input).unwrap();
-        Utf8Bytes::from_static(msg.as_str())
+        Utf8Bytes::from(msg)
     }
 }
