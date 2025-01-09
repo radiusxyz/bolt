@@ -1,16 +1,14 @@
 use std::ops::Deref;
 
 use alloy::{
-    consensus::EMPTY_OMMER_ROOT_HASH,
+    consensus::{Header, EMPTY_OMMER_ROOT_HASH},
     primitives::{Address, Bloom, Bytes, B256, B64, U256},
     rpc::types::{Block, Withdrawal, Withdrawals},
 };
 use alloy_provider::ext::EngineApi;
 use alloy_rpc_types_engine::{ClientCode, ExecutionPayloadV3, JwtSecret, PayloadStatusEnum};
 use reqwest::Url;
-use reth_primitives::{
-    BlockBody, Header as RethHeader, SealedBlock, SealedHeader, TransactionSigned,
-};
+use reth_primitives::{BlockBody, SealedBlock, SealedHeader, TransactionSigned};
 use tracing::{debug, error};
 
 use crate::{
@@ -227,14 +225,14 @@ impl EngineHinterContext {
 
     /// Build a header using the info from the context.
     /// Use any hints available, and default to an empty value if not present.
-    pub fn build_block_header_with_hints(&self) -> RethHeader {
+    pub fn build_block_header_with_hints(&self) -> Header {
         // Use the available hints, or default to an empty value if not present.
         let gas_used = self.hints.gas_used.unwrap_or_default();
         let receipts_root = self.hints.receipts_root.unwrap_or_default();
         let logs_bloom = self.hints.logs_bloom.unwrap_or_default();
         let state_root = self.hints.state_root.unwrap_or_default();
 
-        RethHeader {
+        Header {
             parent_hash: self.head_block.header.hash,
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
             beneficiary: self.fee_recipient,

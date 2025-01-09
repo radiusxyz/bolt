@@ -1961,6 +1961,7 @@ dependencies = [
  "regex",
  "reqwest 0.12.9",
  "reth-primitives",
+ "reth-primitives-traits",
  "secp256k1",
  "serde",
  "serde_json",
@@ -6736,8 +6737,8 @@ dependencies = [
 
 [[package]]
 name = "reth-codecs"
-version = "1.1.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=f4ce10b#f4ce10b7f0654bf1401d76fe880c5dbb31369e2d"
+version = "1.1.5"
+source = "git+https://github.com/paradigmxyz/reth#383eb2331c41cfc6d7523c691552264e7894fd25"
 dependencies = [
  "alloy-consensus 0.9.2",
  "alloy-eips 0.9.2",
@@ -6753,8 +6754,8 @@ dependencies = [
 
 [[package]]
 name = "reth-codecs-derive"
-version = "1.1.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=f4ce10b#f4ce10b7f0654bf1401d76fe880c5dbb31369e2d"
+version = "1.1.5"
+source = "git+https://github.com/paradigmxyz/reth#383eb2331c41cfc6d7523c691552264e7894fd25"
 dependencies = [
  "convert_case 0.6.0",
  "proc-macro2",
@@ -6764,8 +6765,8 @@ dependencies = [
 
 [[package]]
 name = "reth-ethereum-forks"
-version = "1.1.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=f4ce10b#f4ce10b7f0654bf1401d76fe880c5dbb31369e2d"
+version = "1.1.5"
+source = "git+https://github.com/paradigmxyz/reth#383eb2331c41cfc6d7523c691552264e7894fd25"
 dependencies = [
  "alloy-chains",
  "alloy-eip2124",
@@ -6779,8 +6780,8 @@ dependencies = [
 
 [[package]]
 name = "reth-primitives"
-version = "1.1.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=f4ce10b#f4ce10b7f0654bf1401d76fe880c5dbb31369e2d"
+version = "1.1.5"
+source = "git+https://github.com/paradigmxyz/reth#383eb2331c41cfc6d7523c691552264e7894fd25"
 dependencies = [
  "alloy-consensus 0.9.2",
  "alloy-eips 0.9.2",
@@ -6797,7 +6798,6 @@ dependencies = [
  "once_cell",
  "op-alloy-consensus",
  "op-alloy-rpc-types",
- "rayon",
  "reth-codecs",
  "reth-ethereum-forks",
  "reth-primitives-traits",
@@ -6811,8 +6811,8 @@ dependencies = [
 
 [[package]]
 name = "reth-primitives-traits"
-version = "1.1.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=f4ce10b#f4ce10b7f0654bf1401d76fe880c5dbb31369e2d"
+version = "1.1.5"
+source = "git+https://github.com/paradigmxyz/reth#383eb2331c41cfc6d7523c691552264e7894fd25"
 dependencies = [
  "alloy-consensus 0.9.2",
  "alloy-eips 0.9.2",
@@ -6826,6 +6826,7 @@ dependencies = [
  "derive_more 1.0.0",
  "k256 0.13.4",
  "modular-bitfield",
+ "once_cell",
  "op-alloy-consensus",
  "reth-codecs",
  "revm-primitives",
@@ -6837,8 +6838,8 @@ dependencies = [
 
 [[package]]
 name = "reth-static-file-types"
-version = "1.1.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=f4ce10b#f4ce10b7f0654bf1401d76fe880c5dbb31369e2d"
+version = "1.1.5"
+source = "git+https://github.com/paradigmxyz/reth#383eb2331c41cfc6d7523c691552264e7894fd25"
 dependencies = [
  "alloy-primitives 0.8.15",
  "derive_more 1.0.0",
@@ -6848,8 +6849,8 @@ dependencies = [
 
 [[package]]
 name = "reth-zstd-compressors"
-version = "1.1.4"
-source = "git+https://github.com/paradigmxyz/reth?rev=f4ce10b#f4ce10b7f0654bf1401d76fe880c5dbb31369e2d"
+version = "1.1.5"
+source = "git+https://github.com/paradigmxyz/reth#383eb2331c41cfc6d7523c691552264e7894fd25"
 dependencies = [
  "zstd 0.13.2",
 ]
