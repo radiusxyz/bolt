@@ -110,6 +110,16 @@ pub enum Chain {
 }
 
 impl Chain {
+    /// Get the chain ID for the given chain.
+    pub const fn id(&self) -> u64 {
+        match self {
+            Self::Mainnet => 1,
+            Self::Holesky => 17000,
+            Self::Helder => 7014190335,
+            Self::Kurtosis => 3151908,
+        }
+    }
+
     /// Get the chain name for the given chain.
     pub fn name(&self) -> &'static str {
         match self {
@@ -146,16 +156,6 @@ impl Display for Chain {
 }
 
 impl ChainConfig {
-    /// Get the chain ID for the given chain.
-    pub fn chain_id(&self) -> u64 {
-        match self.chain {
-            Chain::Mainnet => 1,
-            Chain::Holesky => 17000,
-            Chain::Helder => 7014190335,
-            Chain::Kurtosis => 3151908,
-        }
-    }
-
     /// Get the slot time for the given chain in seconds.
     pub fn slot_time(&self) -> u64 {
         self.slot_time

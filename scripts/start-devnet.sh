@@ -11,7 +11,7 @@ PK="bcdf20249abf0ed6d944c0288fad489e33f66b3960d9e6229c1cd214ed3bbe31"
 
 # wait for the rpc to be available
 while ! curl -s -X POST --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' "$RPC" >/dev/null; do
-	sleep 1
+  sleep 1
 done
 
 echo "Devnet started!"

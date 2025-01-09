@@ -12,26 +12,29 @@ use serde_json::Value;
 use tracing::{debug, error, info, instrument};
 
 use crate::{
-    api::commitments::headers::auth_from_headers,
+    api::commitments::{
+        server::headers::auth_from_headers,
+        spec::{
+            CommitmentError, CommitmentsApi, RejectionError, GET_METADATA_METHOD,
+            GET_VERSION_METHOD, REQUEST_INCLUSION_METHOD,
+        },
+    },
     common::BOLT_SIDECAR_VERSION,
-    primitives::{commitment::SignatureError, InclusionRequest},
-};
-
-use super::{
-    jsonrpc::{JsonPayload, JsonResponse},
-    server::CommitmentsApiInner,
-    spec::{
-        CommitmentError, CommitmentsApi, RejectionError, GET_METADATA_METHOD, GET_VERSION_METHOD,
-        REQUEST_INCLUSION_METHOD,
+    primitives::{
+        jsonrpc::{JsonResponse, JsonRpcRequest},
+        signature::SignatureError,
+        InclusionRequest,
     },
 };
+
+use super::CommitmentsApiInner;
 
 /// Handler function for the root JSON-RPC path.
 #[instrument(skip_all, name = "POST /rpc", fields(method = %payload.method))]
 pub async fn rpc_entrypoint(
     headers: HeaderMap,
     State(api): State<Arc<CommitmentsApiInner>>,
-    WithRejection(Json(payload), _): WithRejection<Json<JsonPayload>, CommitmentError>,
+    WithRejection(Json(payload), _): WithRejection<Json<JsonRpcRequest>, CommitmentError>,
 ) -> Result<Json<JsonResponse>, CommitmentError> {
     debug!("Received new request");
 
@@ -69,7 +72,7 @@ pub async fn rpc_entrypoint(
             debug!(?inclusion_request, "New inclusion request");
 
             // Set the signature here for later processing
-            inclusion_request.set_signature(signature);
+            inclusion_request.set_signature(signature.into());
 
             let digest = inclusion_request.digest();
             let recovered_signer = signature.recover_address_from_prehash(&digest)?;

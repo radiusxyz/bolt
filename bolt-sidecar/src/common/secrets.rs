@@ -56,7 +56,7 @@ impl fmt::Display for BlsSecretKeyWrapper {
     }
 }
 
-/// A warpper for ECDSA secret key.
+/// A wrapper for ECDSA secret key.
 #[derive(Clone, Debug)]
 pub struct EcdsaSecretKeyWrapper(pub SigningKey);
 

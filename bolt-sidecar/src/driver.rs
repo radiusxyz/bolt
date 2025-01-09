@@ -18,6 +18,7 @@ use crate::{
     api::{
         builder::{start_builder_proxy_server, BuilderProxyConfig},
         commitments::{
+            firewall::receiver::CommitmentsReceiver,
             server::{CommitmentEvent, CommitmentsApiServer},
             spec::CommitmentError,
         },
@@ -27,7 +28,7 @@ use crate::{
     chain_io::BoltManager,
     client::{BeaconClient, ConstraintsClient},
     common::backoff::retry_with_backoff,
-    config::Opts,
+    config::{commitments::DEFAULT_RPC_PORT, Opts},
     crypto::{SignableBLS, SignerECDSA},
     primitives::{
         commitment::SignedCommitment, read_signed_delegations_from_file, CommitmentRequest,
@@ -38,6 +39,8 @@ use crate::{
     telemetry::ApiMetrics,
     LocalBuilder,
 };
+
+const API_EVENTS_BUFFER_SIZE: usize = 1024;
 
 /// The driver for the sidecar, responsible for managing the main event loop.
 ///
@@ -90,7 +93,7 @@ impl SidecarDriver<StateClient, PrivateKeySigner> {
         ));
 
         // Commitment responses are signed with a regular Ethereum wallet private key.
-        let commitment_key = opts.commitment_private_key.0.clone();
+        let commitment_key = opts.commitment_opts.operator_private_key.0.clone();
         let commitment_signer = PrivateKeySigner::from_signing_key(commitment_key);
 
         Self::from_components(opts, constraint_signer, commitment_signer, state_client)
@@ -122,7 +125,7 @@ impl SidecarDriver<StateClient, PrivateKeySigner> {
         let keystore_signer = SignerBLS::Keystore(keystore);
 
         // Commitment responses are signed with a regular Ethereum wallet private key.
-        let commitment_key = opts.commitment_private_key.0.clone();
+        let commitment_key = opts.commitment_opts.operator_private_key.0.clone();
         let commitment_signer = PrivateKeySigner::from_signing_key(commitment_key);
 
         Self::from_components(opts, keystore_signer, commitment_signer, state_client)
@@ -227,10 +230,22 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             }
         });
 
-        // start the commitments api server
-        let api_addr = format!("0.0.0.0:{}", opts.port);
-        let (api_events_tx, api_events_rx) = mpsc::channel(1024);
-        CommitmentsApiServer::new(api_addr).run(api_events_tx, opts.limits).await;
+        let api_events_rx = if let Some(urls) = opts.commitment_opts.firewall_rpcs.clone() {
+            CommitmentsReceiver::new(
+                opts.commitment_opts.operator_private_key.clone(),
+                opts.chain.chain,
+                opts.limits,
+                urls,
+            )
+            .run()
+        } else {
+            let port = opts.commitment_opts.port.unwrap_or(DEFAULT_RPC_PORT);
+            // start the commitments api server
+            let api_addr = format!("0.0.0.0:{}", port);
+            let (api_events_tx, api_events_rx) = mpsc::channel(API_EVENTS_BUFFER_SIZE);
+            CommitmentsApiServer::new(api_addr).run(api_events_tx, opts.limits).await;
+            api_events_rx
+        };
 
         let unsafe_skip_consensus_checks = opts.unsafe_disable_consensus_checks;
 

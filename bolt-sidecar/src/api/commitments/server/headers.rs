@@ -3,9 +3,10 @@ use std::str::FromStr;
 use alloy::primitives::{Address, PrimitiveSignature as Signature};
 use axum::http::HeaderMap;
 
-use crate::primitives::commitment::SignatureError;
-
-use super::spec::{CommitmentError, SIGNATURE_HEADER};
+use crate::{
+    api::commitments::spec::{CommitmentError, SIGNATURE_HEADER},
+    primitives::signature::SignatureError,
+};
 
 /// Extracts the signature ([SIGNATURE_HEADER]) from the HTTP headers.
 #[inline]

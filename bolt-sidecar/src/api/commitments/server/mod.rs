@@ -1,3 +1,14 @@
+/// The commitments-API request handlers.
+mod handlers;
+
+/// The commitments-API headers and constants.
+mod headers;
+
+/// The commitments-API middleware.
+mod middleware;
+
+use middleware::track_server_metrics;
+
 use std::{
     fmt,
     future::Future,
@@ -7,7 +18,6 @@ use std::{
 };
 
 use axum::{
-    middleware,
     routing::{get, post},
     Router,
 };
@@ -19,7 +29,6 @@ use tower_http::timeout::TimeoutLayer;
 use tracing::{error, info};
 
 use crate::{
-    api::commitments::handlers,
     config::limits::LimitsOpts,
     primitives::{
         commitment::{InclusionCommitment, SignedCommitment},
@@ -27,11 +36,7 @@ use crate::{
     },
 };
 
-use super::{
-    middleware::track_server_metrics,
-    spec,
-    spec::{CommitmentError, CommitmentsApi},
-};
+use super::spec::{CommitmentError, CommitmentsApi, MAX_REQUEST_TIMEOUT};
 
 /// Event type emitted by the commitments API.
 #[derive(Debug)]
@@ -165,19 +170,19 @@ fn make_router(state: Arc<CommitmentsApiInner>) -> Router {
         .route("/", post(handlers::rpc_entrypoint))
         .route("/status", get(handlers::status))
         .fallback(handlers::not_found)
-        .layer(TimeoutLayer::new(spec::MAX_REQUEST_TIMEOUT))
-        .route_layer(middleware::from_fn(track_server_metrics))
+        .layer(TimeoutLayer::new(MAX_REQUEST_TIMEOUT))
+        .route_layer(axum::middleware::from_fn(track_server_metrics))
         .with_state(state)
 }
 
 #[cfg(test)]
 mod test {
-    use crate::api::commitments::{jsonrpc::JsonResponse, spec::SIGNATURE_HEADER};
+    use crate::api::commitments::spec::SIGNATURE_HEADER;
     use alloy::signers::{k256::SecretKey, local::PrivateKeySigner};
     use serde_json::json;
 
     use crate::{
-        primitives::commitment::ECDSASignatureExt,
+        primitives::{jsonrpc::JsonResponse, signature::ECDSASignatureExt},
         test_util::{create_signed_inclusion_request, default_test_transaction},
     };
 

@@ -1,12 +1,8 @@
-/// The commitments-API request handlers.
-mod handlers;
-/// The commitments-API headers and constants.
-mod headers;
-/// JSON-RPC helper types and functions.
-mod jsonrpc;
-/// The commitments-API middleware.
-mod middleware;
-/// The commitments-API JSON-RPC server implementation.
+/// The Commitments-API server implementation.
 pub mod server;
-/// The commitments-API specification and errors.
+
+/// The Commitments-API firewall stream implementation.
+pub mod firewall;
+
+/// The Commitments-API specification and errors.
 pub mod spec;

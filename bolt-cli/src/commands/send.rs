@@ -131,6 +131,12 @@ impl SendCommand {
         let mut next_nonce = None;
         for _ in 0..self.count {
             let mut req = create_tx_request(wallet.address(), self.blob);
+            if let Some(max_fee) = self.max_fee {
+                req.set_max_fee_per_gas(max_fee * GWEI_TO_WEI as u128);
+            }
+
+            req.set_max_priority_fee_per_gas(self.priority_fee * GWEI_TO_WEI as u128);
+
             if let Some(next_nonce) = next_nonce {
                 req.set_nonce(next_nonce);
             }

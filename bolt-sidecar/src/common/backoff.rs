@@ -2,11 +2,11 @@ use std::{future::Future, time::Duration};
 
 use tokio_retry::{
     strategy::{jitter, ExponentialBackoff},
-    Retry,
+    Retry, RetryIf,
 };
 
 /// Configuration for retry
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct RetryConfig {
     /// Initial delay in milliseconds before the first retry
     pub initial_delay_ms: u64,
@@ -35,6 +35,28 @@ where
         .map(jitter);
 
     Retry::spawn(backoff, fut).await
+}
+
+/// Retry a future with exponential backoff and jitter if the error matches a condition.
+pub async fn retry_with_backoff_if<F, T, E>(
+    max_retries: usize,
+    config: Option<RetryConfig>,
+    fut: impl Fn() -> F,
+    condition: impl FnMut(&E) -> bool,
+) -> Result<T, E>
+where
+    F: Future<Output = Result<T, E>>,
+{
+    let config =
+        config.unwrap_or(RetryConfig { initial_delay_ms: 100, max_delay_secs: 1, factor: 2 });
+
+    let backoff = ExponentialBackoff::from_millis(config.initial_delay_ms)
+        .factor(config.factor)
+        .max_delay(Duration::from_secs(config.max_delay_secs))
+        .take(max_retries)
+        .map(jitter);
+
+    RetryIf::spawn(backoff, fut, condition).await
 }
 
 #[cfg(test)]
@@ -99,6 +121,26 @@ mod tests {
             let mut counter = counter.lock().await;
             counter.retryable_fn().await
         })
+        .await;
+
+        assert!(result.is_ok());
+        assert_eq!(counter.lock().await.count, 4, "Should retry until success on 4th attempt");
+    }
+
+    #[tokio::test]
+    async fn test_retry_until_success_with_condition() {
+        let counter = Arc::new(Mutex::new(Counter::new(3))); // Fail 3 times, succeed on 4th
+
+        let result = retry_with_backoff_if(
+            5,
+            None,
+            || async {
+                let counter = Arc::clone(&counter);
+                let mut counter = counter.lock().await;
+                counter.retryable_fn().await
+            },
+            |err| matches!(err, MockError),
+        )
         .await;
 
         assert!(result.is_ok());
