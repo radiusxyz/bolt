@@ -11,9 +11,9 @@ debug = true
 [dependencies]
 # core
 clap = { version = "4.5.20", features = ["derive", "env"] }
-axum = { version = "0.7", features = ["macros", "ws"] }
+axum = { version = "0.8.1", features = ["macros", "ws"] }
+axum-extra = { version = "0.10.0", features = ["typed-header"] }
 tower-http = { version = "0.5.2", features = ["timeout"] }
-axum-extra = "0.10.0"
 tower = "0.5.1"
 http-body-util = "0.1.2"
 futures = "0.3"
