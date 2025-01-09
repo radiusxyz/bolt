@@ -292,11 +292,11 @@ impl ShutdownTicker {
 
 #[cfg(test)]
 mod tests {
-    use std::{borrow::Cow, net::SocketAddr, ops::ControlFlow, time::Duration};
+    use std::{net::SocketAddr, ops::ControlFlow, time::Duration};
 
     use axum::{
         extract::{
-            ws::{CloseFrame, Message, WebSocket},
+            ws::{CloseFrame, Message, Utf8Bytes, WebSocket},
             ConnectInfo, WebSocketUpgrade,
         },
         response::IntoResponse,
@@ -307,8 +307,10 @@ mod tests {
         headers::{authorization::Bearer, Authorization, UserAgent},
         TypedHeader,
     };
+    use bytes::Bytes;
     use futures::{FutureExt, SinkExt, StreamExt};
     use reqwest::StatusCode;
+    use serde::Serialize;
     use tokio::sync::broadcast;
     use tracing::{debug, error, info, warn};
     use uuid::Uuid;
@@ -463,7 +465,7 @@ mod tests {
     /// Actual websocket statemachine (one will be spawned per connection)
     async fn handle_socket(mut socket: WebSocket, who: SocketAddr) {
         // send a ping just to kick things off and get a response
-        if socket.send(Message::Ping(vec![1, 2, 3])).await.is_ok() {
+        if socket.send(Message::Ping(Bytes::from_static(&[1, 2, 3]))).await.is_ok() {
             info!("Pinged {who}...");
         }
 
@@ -485,33 +487,28 @@ mod tests {
                 params: vec![serde_json::to_value(inclusion_request).unwrap()],
             };
 
-            let inclusion_request_msg =
-                Message::Text(serde_json::to_string(&inclusion_request_payload).unwrap());
+            let inclusion_request_msg = Message::Text(into_utf8_bytes(inclusion_request_payload));
 
-            let get_version_msg = Message::Text(
-                serde_json::to_string(&JsonRpcRequest {
-                    jsonrpc: "2.0".to_string(),
-                    method: GET_VERSION_METHOD.to_string(),
-                    id: Some(serde_json::Value::String(Uuid::now_v7().to_string())),
-                    params: vec![],
-                })
-                .unwrap(),
-            );
+            let get_version_msg = Message::Text(into_utf8_bytes(JsonRpcRequest {
+                jsonrpc: "2.0".to_string(),
+                method: GET_VERSION_METHOD.to_string(),
+                id: Some(serde_json::Value::String(Uuid::now_v7().to_string())),
+                params: vec![],
+            }));
 
-            let get_metadata_msg = Message::Text(
-                serde_json::to_string(&JsonRpcRequest {
-                    jsonrpc: "2.0".to_string(),
-                    method: "bolt_metadata".to_string(),
-                    id: Some(serde_json::Value::String(Uuid::now_v7().to_string())),
-                    params: vec![],
-                })
-                .unwrap(),
-            );
+            let get_metadata_msg = Message::Text(into_utf8_bytes(JsonRpcRequest {
+                jsonrpc: "2.0".to_string(),
+                method: "bolt_metadata".to_string(),
+                id: Some(serde_json::Value::String(Uuid::now_v7().to_string())),
+                params: vec![],
+            }));
 
             for i in 0..n_msg {
                 // In case of any websocket error, we exit.
                 let msg = if i % 5 == 0 {
-                    Message::Text("This is an invalid message and should be rejected".to_string())
+                    Message::Text(Utf8Bytes::from_static(
+                        "This is an invalid message and should be rejected",
+                    ))
                 } else if i % 6 == 0 {
                     get_version_msg.clone()
                 } else if i % 7 == 0 {
@@ -532,7 +529,7 @@ mod tests {
             if let Err(e) = sender
                 .send(Message::Close(Some(CloseFrame {
                     code: axum::extract::ws::close_code::NORMAL,
-                    reason: Cow::from("Goodbye"),
+                    reason: Utf8Bytes::from_static("Goodbye"),
                 })))
                 .await
             {
@@ -609,5 +606,10 @@ mod tests {
             }
         }
         ControlFlow::Continue(())
+    }
+
+    fn into_utf8_bytes<S: Serialize>(input: S) -> Utf8Bytes {
+        let msg = serde_json::to_string(&input).unwrap();
+        Utf8Bytes::from(msg)
     }
 }
