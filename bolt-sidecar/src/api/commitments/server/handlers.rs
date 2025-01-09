@@ -1,4 +1,4 @@
-use std::{num::NonZero, sync::Arc};
+use std::sync::Arc;
 
 use axum::{
     body::Body,
@@ -35,28 +35,11 @@ use super::CommitmentsApiInner;
 /// limits configuration with version information in a flat structure
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MetadataResponse {
-    /// Max number of commitments to accept per slot
-    pub max_commitments_per_slot: NonZero<usize>,
-    /// Max committed gas per slot
-    pub max_committed_gas_per_slot: NonZero<u64>,
-    /// Min priority fee to accept for a commitment
-    pub min_priority_fee: u128,
-    /// The maximum size in MiB of the account states
-    pub max_account_states_size: NonZero<usize>,
+    /// The operational limits of the sidecar
+    #[serde(flatten)]
+    pub limits: LimitsOpts,
     /// The version of the Bolt sidecar
     pub version: String,
-}
-
-impl From<(LimitsOpts, String)> for MetadataResponse {
-    fn from((limits, version): (LimitsOpts, String)) -> Self {
-        Self {
-            max_commitments_per_slot: limits.max_commitments_per_slot,
-            max_committed_gas_per_slot: limits.max_committed_gas_per_slot,
-            min_priority_fee: limits.min_priority_fee,
-            max_account_states_size: limits.max_account_states_size,
-            version,
-        }
-    }
 }
 
 /// Handler function for the root JSON-RPC path.
@@ -76,12 +59,15 @@ pub async fn rpc_entrypoint(
         })),
 
         GET_METADATA_METHOD => {
-            let metadata: MetadataResponse =
-                (api.limits(), BOLT_SIDECAR_VERSION.to_string()).into();
+            let metadata = MetadataResponse {
+                limits: api.limits(),
+                version: BOLT_SIDECAR_VERSION.to_string(),
+            };
 
             let response = JsonResponse {
                 id: payload.id,
-                result: serde_json::to_value(metadata).expect("infallible"), // metadata only contains primitive types
+                result: serde_json::to_value(metadata)
+                    .expect("infallible - metadata only contains primitive types"),
                 ..Default::default()
             };
             Ok(Json(response))

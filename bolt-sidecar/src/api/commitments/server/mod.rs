@@ -325,10 +325,19 @@ mod test {
 
         let metadata: MetadataResponse = serde_json::from_value(response.result).unwrap();
 
-        assert_eq!(metadata.max_commitments_per_slot, expected_limits.max_commitments_per_slot);
-        assert_eq!(metadata.max_committed_gas_per_slot, expected_limits.max_committed_gas_per_slot);
-        assert_eq!(metadata.min_priority_fee, expected_limits.min_priority_fee);
-        assert_eq!(metadata.max_account_states_size, expected_limits.max_account_states_size);
+        assert_eq!(
+            metadata.limits.max_commitments_per_slot,
+            expected_limits.max_commitments_per_slot
+        );
+        assert_eq!(
+            metadata.limits.max_committed_gas_per_slot,
+            expected_limits.max_committed_gas_per_slot
+        );
+        assert_eq!(metadata.limits.min_inclusion_profit, expected_limits.min_inclusion_profit);
+        assert_eq!(
+            metadata.limits.max_account_states_size,
+            expected_limits.max_account_states_size
+        );
         assert_eq!(metadata.version, BOLT_SIDECAR_VERSION.to_string());
     }
 }
