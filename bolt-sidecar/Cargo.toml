@@ -13,7 +13,7 @@ debug = true
 clap = { version = "4.5.20", features = ["derive", "env"] }
 axum = { version = "0.7", features = ["macros", "ws"] }
 tower-http = { version = "0.5.2", features = ["timeout"] }
-axum-extra = "0.9.6"
+axum-extra = "0.10.0"
 tower = "0.5.1"
 http-body-util = "0.1.2"
 futures = "0.3"
