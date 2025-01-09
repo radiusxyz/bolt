@@ -20,6 +20,7 @@ use ethereum_consensus::{
     types::mainnet::ExecutionPayload as ConsensusExecutionPayload,
 };
 use reth_primitives::{SealedBlock, TransactionSigned};
+use reth_primitives_traits::BlockBody;
 
 /// Compatibility: convert a sealed header into an ethereum-consensus execution payload header.
 /// This requires recalculating the withdrals and transactions roots as SSZ instead of MPT roots.
@@ -49,7 +50,7 @@ pub(crate) fn to_execution_payload_header(
 
     let withdrawals_root = withdrawals_ssz.hash_tree_root().expect("valid withdrawals root");
 
-    let header = &sealed_block.header;
+    let header = sealed_block.header();
 
     ConsensusExecutionPayloadHeader {
         parent_hash: to_bytes32(header.parent_hash),
@@ -64,7 +65,7 @@ pub(crate) fn to_execution_payload_header(
         timestamp: header.timestamp,
         extra_data: ByteList::try_from(header.extra_data.as_ref()).unwrap(),
         base_fee_per_gas: ssz_rs::U256::from(header.base_fee_per_gas.unwrap_or_default()),
-        block_hash: to_bytes32(header.hash()),
+        block_hash: to_bytes32(header.hash_slow()),
         blob_gas_used: header.blob_gas_used.unwrap_or_default(),
         excess_blob_gas: header.excess_blob_gas.unwrap_or_default(),
         transactions_root,
@@ -103,8 +104,8 @@ pub(crate) fn to_alloy_execution_payload(
                 block_hash,
                 block_number: block.number,
                 extra_data: block.extra_data.clone(),
-                transactions: block.encoded_2718_transactions(),
-                fee_recipient: block.header.beneficiary,
+                transactions: block.body().encoded_2718_transactions(),
+                fee_recipient: block.header().beneficiary,
                 gas_limit: block.gas_limit,
                 gas_used: block.gas_used,
                 logs_bloom: block.logs_bloom,
@@ -122,7 +123,7 @@ pub(crate) fn to_alloy_execution_payload(
 /// Compatibility: convert a sealed block into an ethereum-consensus execution payload
 pub(crate) fn to_consensus_execution_payload(value: &SealedBlock) -> ConsensusExecutionPayload {
     let hash = value.hash();
-    let header = &value.header;
+    let header = value.header();
     let transactions = &value.body().transactions;
     let withdrawals = &value.body().withdrawals;
     let transactions = transactions
