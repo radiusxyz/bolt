@@ -8,6 +8,7 @@ use axum::{
     Json,
 };
 use axum_extra::extract::WithRejection;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tracing::{debug, error, info, instrument};
 
@@ -20,6 +21,7 @@ use crate::{
         },
     },
     common::BOLT_SIDECAR_VERSION,
+    config::limits::LimitsOpts,
     primitives::{
         jsonrpc::{JsonResponse, JsonRpcRequest},
         signature::SignatureError,
@@ -28,6 +30,17 @@ use crate::{
 };
 
 use super::CommitmentsApiInner;
+
+/// Response structure for the metadata endpoint that combines
+/// limits configuration with version information in a flat structure
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MetadataResponse {
+    /// The operational limits of the sidecar
+    #[serde(flatten)]
+    pub limits: LimitsOpts,
+    /// The version of the Bolt sidecar
+    pub version: String,
+}
 
 /// Handler function for the root JSON-RPC path.
 #[instrument(skip_all, name = "POST /rpc", fields(method = %payload.method))]
@@ -46,9 +59,15 @@ pub async fn rpc_entrypoint(
         })),
 
         GET_METADATA_METHOD => {
+            let metadata = MetadataResponse {
+                limits: api.limits(),
+                version: BOLT_SIDECAR_VERSION.to_string(),
+            };
+
             let response = JsonResponse {
                 id: payload.id,
-                result: serde_json::to_value(api.limits()).expect("infallible"),
+                result: serde_json::to_value(metadata)
+                    .expect("infallible - metadata only contains primitive types"),
                 ..Default::default()
             };
             Ok(Json(response))
