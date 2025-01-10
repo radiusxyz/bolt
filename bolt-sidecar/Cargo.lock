@@ -2011,7 +2011,7 @@ dependencies = [
 
 [[package]]
 name = "bolt-sidecar"
-version = "0.3.1-alpha"
+version = "0.4.0-alpha.rc1"
 dependencies = [
  "account_utils",
  "alloy 0.9.2",
