@@ -9,7 +9,6 @@ pub use commit_boost::CommitBoostSigner;
 /// EIP-2335 keystore signer implementation.
 pub mod keystore;
 pub use keystore::KeystoreSigner;
-mod keystore_tests;
 
 /// Local signer implementation.
 pub mod local;
