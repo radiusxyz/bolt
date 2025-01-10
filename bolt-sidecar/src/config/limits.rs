@@ -18,13 +18,6 @@ pub const DEFAULT_MAX_ACCOUNT_STATES_SIZE: u64 = 1_024;
 #[cfg_attr(test, derive(PartialEq))]
 #[derive(Debug, Parser, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct LimitsOpts {
-    /// Max number of commitments to accept per block
-    #[clap(
-        long,
-        env = "BOLT_SIDECAR_MAX_COMMITMENTS",
-        default_value_t = LimitsOpts::default().max_commitments_per_slot
-    )]
-    pub max_commitments_per_slot: NonZero<usize>,
     /// Max committed gas per slot
     #[clap(
         long,
@@ -54,8 +47,6 @@ pub struct LimitsOpts {
 impl Default for LimitsOpts {
     fn default() -> Self {
         Self {
-            max_commitments_per_slot: NonZero::new(DEFAULT_MAX_COMMITMENTS)
-                .expect("Valid non-zero"),
             max_committed_gas_per_slot: NonZero::new(DEFAULT_MAX_COMMITTED_GAS)
                 .expect("Valid non-zero"),
             min_inclusion_profit: DEFAULT_MIN_PROFIT,
