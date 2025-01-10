@@ -58,6 +58,6 @@ jobs:
       - name: Run bolt-sidecar tests
         run: |
           cd bolt-sidecar
-          cargo nextest run --workspace --retries 3
+          cargo nextest run --workspace --all-features --retries 3
         env:
           RPC_URL: ${{ secrets.RPC_URL }}

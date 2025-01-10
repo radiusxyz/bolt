@@ -114,3 +114,6 @@ match_same_arms = "warn"
 redundant_else = "warn"
 unnecessary_self_imports = "warn"
 use_self = "warn"
+
+[features]
+keystore-tests = [] 
