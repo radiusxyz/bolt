@@ -227,19 +227,17 @@ mod tests {
     use crate::{
         chain_io::{manager::generate_operator_keys_mismatch_error, utils::pubkey_hash},
         config::chain::Chain,
+        test_util::{get_test_config, try_get_execution_api_url},
     };
 
     use super::BoltManager;
 
     #[tokio::test]
     async fn test_verify_validator_pubkeys() {
-        let url = Url::parse("http://remotebeast:48545").expect("valid url");
-
-        // Skip the test if the tailnet server isn't reachable
-        if reqwest::get(url.clone()).await.is_err_and(|err| err.is_timeout() || err.is_connect()) {
-            eprintln!("Skipping test because remotebeast is not reachable");
-            return;
-        }
+        let url = match try_get_execution_api_url().await {
+            None => return,
+            Some(u) => Url::parse(u).expect("valid EL URL"),
+        };
 
         let manager =
             BoltManager::from_chain(url, Chain::Holesky).expect("manager deployed on Holesky");
@@ -278,12 +276,11 @@ mod tests {
     #[tokio::test]
     async fn test_verify_validator_pubkeys_retry() {
         let _ = tracing_subscriber::fmt::try_init();
-
         // Point to an EL node that is not yet online
-        let url = Url::parse("http://localhost:10000").expect("valid url");
+        let unresponsive_url = Url::parse("http://localhost:10000").expect("valid EL URL");
 
-        let manager =
-            BoltManager::from_chain(url, Chain::Holesky).expect("manager deployed on Holesky");
+        let manager = BoltManager::from_chain(unresponsive_url, Chain::Holesky)
+            .expect("manager deployed on Holesky");
 
         let keys = vec![
             BlsPublicKey::try_from(
@@ -292,13 +289,17 @@ mod tests {
         let commitment_signer_pubkey = Address::ZERO;
 
         tokio::spawn(async move {
+            let url = match try_get_execution_api_url().await {
+                None => return,
+                Some(url) => Url::parse(url).expect("valid EL URL"),
+            };
             // Sleep for a bit so verify_validator_pubkeys is called before the anvil is up
             tokio::time::sleep(Duration::from_millis(100)).await;
             let anvil = Anvil::new()
-                .fork(Url::parse("http://remotebeast:48545").unwrap())
+                .fork(url)
                 .port(10000u16)
                 .spawn();
-            println!("{}", anvil.endpoint());
+            tracing::info!("anvil node: {}", anvil.endpoint());
             tokio::time::sleep(Duration::from_secs(10)).await;
         });
 
