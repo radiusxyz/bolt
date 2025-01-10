@@ -197,11 +197,7 @@ impl ValidationParams {
 impl<C: StateFetcher> ExecutionState<C> {
     /// Creates a new state with the given client, initializing the
     /// basefee and head block number.
-    pub async fn new(
-        client: C,
-        limits: LimitsOpts,
-        gas_limit: u64,
-    ) -> Result<Self, TransportError> {
+    pub async fn new(client: C, limits: LimitsOpts) -> Result<Self, TransportError> {
         let (basefee, blob_basefee, block_number, chain_id) = tokio::try_join!(
             client.get_basefee(None),
             client.get_blob_basefee(None),
@@ -229,7 +225,7 @@ impl<C: StateFetcher> ExecutionState<C> {
             // Load the default KZG settings
             kzg_settings: EnvKzgSettings::default(),
             // TODO: add a way to configure these values from CLI
-            validation_params: ValidationParams::new(gas_limit),
+            validation_params: ValidationParams::new(limits.max_committed_gas_per_slot.get()),
             pricing: InclusionPricer::new(limits.max_committed_gas_per_slot.get()),
         })
     }
@@ -286,7 +282,7 @@ impl<C: StateFetcher> ExecutionState<C> {
             return Err(ValidationError::TransactionSizeTooHigh);
         }
 
-        // Check if the gas limit is higher than the maximum block gas limit
+        // Check if the gas limit is higher than the preconf block gas limit
         if req.gas_limit() > self.validation_params.block_gas_limit {
             return Err(ValidationError::GasLimitTooHigh);
         }
@@ -608,8 +604,7 @@ fn compute_diffs(
 mod tests {
     use super::*;
     use crate::{
-        builder::template::StateDiff,
-        config::{chain::DEFAULT_GAS_LIMIT, limits::DEFAULT_MAX_COMMITTED_GAS},
+        builder::template::StateDiff, config::limits::DEFAULT_MAX_COMMITTED_GAS,
         signer::local::LocalSigner,
     };
     use std::{num::NonZero, str::FromStr, time::Duration};
@@ -675,8 +670,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let mut state =
-            ExecutionState::new(client.clone(), LimitsOpts::default(), DEFAULT_GAS_LIMIT).await?;
+        let mut state = ExecutionState::new(client.clone(), LimitsOpts::default()).await?;
 
         let sender = anvil.addresses().first().unwrap();
         let sender_pk = anvil.keys().first().unwrap();
@@ -701,8 +695,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let mut state =
-            ExecutionState::new(client.clone(), LimitsOpts::default(), DEFAULT_GAS_LIMIT).await?;
+        let mut state = ExecutionState::new(client.clone(), LimitsOpts::default()).await?;
 
         let sender = anvil.addresses().first().unwrap();
         let sender_pk = anvil.keys().first().unwrap();
@@ -740,8 +733,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let mut state =
-            ExecutionState::new(client.clone(), LimitsOpts::default(), DEFAULT_GAS_LIMIT).await?;
+        let mut state = ExecutionState::new(client.clone(), LimitsOpts::default()).await?;
 
         let sender = anvil.addresses().first().unwrap();
         let sender_pk = anvil.keys().first().unwrap();
@@ -790,8 +782,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let mut state =
-            ExecutionState::new(client.clone(), LimitsOpts::default(), DEFAULT_GAS_LIMIT).await?;
+        let mut state = ExecutionState::new(client.clone(), LimitsOpts::default()).await?;
 
         let sender = anvil.addresses().first().unwrap();
         let sender_pk = anvil.keys().first().unwrap();
@@ -821,8 +812,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let mut state =
-            ExecutionState::new(client.clone(), LimitsOpts::default(), DEFAULT_GAS_LIMIT).await?;
+        let mut state = ExecutionState::new(client.clone(), LimitsOpts::default()).await?;
 
         let sender = anvil.addresses().first().unwrap();
         let sender_pk = anvil.keys().first().unwrap();
@@ -885,7 +875,7 @@ mod tests {
         let client = StateClient::new(anvil.endpoint_url());
 
         let limits = LimitsOpts::default();
-        let mut state = ExecutionState::new(client.clone(), limits, DEFAULT_GAS_LIMIT).await?;
+        let mut state = ExecutionState::new(client.clone(), limits).await?;
 
         let basefee = state.basefee();
 
@@ -922,7 +912,7 @@ mod tests {
             max_committed_gas_per_slot: NonZero::new(5_000_000).unwrap(),
             ..Default::default()
         };
-        let mut state = ExecutionState::new(client.clone(), limits, DEFAULT_GAS_LIMIT).await?;
+        let mut state = ExecutionState::new(client.clone(), limits).await?;
 
         let sender = anvil.addresses().first().unwrap();
         let sender_pk = anvil.keys().first().unwrap();
@@ -950,7 +940,7 @@ mod tests {
 
         let limits = LimitsOpts::default();
 
-        let mut state = ExecutionState::new(client.clone(), limits, DEFAULT_GAS_LIMIT).await?;
+        let mut state = ExecutionState::new(client.clone(), limits).await?;
 
         let sender = anvil.addresses().first().unwrap();
         let sender_pk = anvil.keys().first().unwrap();
@@ -988,7 +978,7 @@ mod tests {
 
         let limits = LimitsOpts::default();
 
-        let mut state = ExecutionState::new(client.clone(), limits, DEFAULT_GAS_LIMIT).await?;
+        let mut state = ExecutionState::new(client.clone(), limits).await?;
 
         let sender = anvil.addresses().first().unwrap();
         let sender_pk = anvil.keys().first().unwrap();
@@ -1031,7 +1021,7 @@ mod tests {
 
         let limits = LimitsOpts::default();
 
-        let mut state = ExecutionState::new(client.clone(), limits, DEFAULT_GAS_LIMIT).await?;
+        let mut state = ExecutionState::new(client.clone(), limits).await?;
 
         let sender = anvil.addresses().first().unwrap();
         let sender_pk = anvil.keys().first().unwrap();
@@ -1067,8 +1057,7 @@ mod tests {
         let client = StateClient::new(anvil.endpoint_url());
         let provider = ProviderBuilder::new().on_http(anvil.endpoint_url());
 
-        let mut state =
-            ExecutionState::new(client.clone(), LimitsOpts::default(), DEFAULT_GAS_LIMIT).await?;
+        let mut state = ExecutionState::new(client.clone(), LimitsOpts::default()).await?;
 
         let sender = anvil.addresses().first().unwrap();
         let sender_pk = anvil.keys().first().unwrap();
@@ -1121,8 +1110,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let mut state =
-            ExecutionState::new(client.clone(), LimitsOpts::default(), DEFAULT_GAS_LIMIT).await?;
+        let mut state = ExecutionState::new(client.clone(), LimitsOpts::default()).await?;
 
         let sender = anvil.addresses().first().unwrap();
         let sender_pk = anvil.keys().first().unwrap();
@@ -1165,7 +1153,7 @@ mod tests {
         let client = StateClient::new(anvil.endpoint_url());
 
         let limits = LimitsOpts::default();
-        let mut state = ExecutionState::new(client.clone(), limits, DEFAULT_GAS_LIMIT).await?;
+        let mut state = ExecutionState::new(client.clone(), limits).await?;
 
         let sender = anvil.addresses().first().unwrap();
         let sender_pk = anvil.keys().first().unwrap();
@@ -1212,8 +1200,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let mut state =
-            ExecutionState::new(client.clone(), LimitsOpts::default(), DEFAULT_GAS_LIMIT).await?;
+        let mut state = ExecutionState::new(client.clone(), LimitsOpts::default()).await?;
 
         let sender = anvil.addresses().first().unwrap();
         let sender_pk = anvil.keys().first().unwrap();
@@ -1240,8 +1227,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let mut state =
-            ExecutionState::new(client.clone(), LimitsOpts::default(), DEFAULT_GAS_LIMIT).await?;
+        let mut state = ExecutionState::new(client.clone(), LimitsOpts::default()).await?;
 
         let sender = anvil.addresses().first().unwrap();
         let sender_pk = anvil.keys().first().unwrap();
@@ -1271,8 +1257,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let mut state =
-            ExecutionState::new(client.clone(), LimitsOpts::default(), DEFAULT_GAS_LIMIT).await?;
+        let mut state = ExecutionState::new(client.clone(), LimitsOpts::default()).await?;
 
         let sender = anvil.addresses().first().unwrap();
         let sender_pk = anvil.keys().first().unwrap();
@@ -1307,8 +1292,7 @@ mod tests {
         let anvil = launch_anvil();
         let client = StateClient::new(anvil.endpoint_url());
 
-        let mut state =
-            ExecutionState::new(client.clone(), LimitsOpts::default(), DEFAULT_GAS_LIMIT).await?;
+        let mut state = ExecutionState::new(client.clone(), LimitsOpts::default()).await?;
 
         let sender = anvil.addresses().first().unwrap();
         let sender_pk = anvil.keys().first().unwrap();
