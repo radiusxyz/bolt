@@ -179,7 +179,7 @@ pub struct ExecutionState<C> {
 /// Other values used for validation.
 #[derive(Debug)]
 pub struct ValidationParams {
-    pub block_gas_limit: u64,
+    pub preconf_gas_limit: u64,
     pub max_tx_input_bytes: usize,
     pub max_init_code_byte_size: usize,
 }
@@ -187,7 +187,7 @@ pub struct ValidationParams {
 impl ValidationParams {
     pub fn new(gas_limit: u64) -> Self {
         Self {
-            block_gas_limit: gas_limit,
+            preconf_gas_limit: gas_limit,
             max_tx_input_bytes: 4 * 32 * 1024,
             max_init_code_byte_size: 2 * 24576,
         }
@@ -282,8 +282,8 @@ impl<C: StateFetcher> ExecutionState<C> {
             return Err(ValidationError::TransactionSizeTooHigh);
         }
 
-        // Check if the gas limit is higher than the preconf block gas limit
-        if req.gas_limit() > self.validation_params.block_gas_limit {
+        // Check if the gas limit is higher than the preconf gas limit
+        if req.gas_limit() > self.validation_params.preconf_gas_limit {
             return Err(ValidationError::GasLimitTooHigh);
         }
 
