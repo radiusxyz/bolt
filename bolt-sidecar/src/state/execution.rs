@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use thiserror::Error;
 use tracing::{debug, error, trace, warn};
 
-use crate::state::pricing;
 use crate::{
     builder::BlockTemplate,
     common::{
@@ -19,11 +18,11 @@ use crate::{
     primitives::{
         signature::SignatureError, AccountState, InclusionRequest, SignedConstraints, Slot,
     },
+    state::pricing,
     telemetry::ApiMetrics,
 };
 
-use super::InclusionPricer;
-use super::{account_state::AccountStateCache, fetcher::StateFetcher};
+use super::{account_state::AccountStateCache, fetcher::StateFetcher, InclusionPricer};
 
 /// Possible commitment validation errors.
 ///
@@ -61,8 +60,8 @@ pub enum ValidationError {
     #[error("Max priority fee per gas is greater than max fee per gas")]
     MaxPriorityFeePerGasTooHigh,
     /// Max priority fee per gas is less than min priority fee.
-    #[error("Max priority fee per gas is less than min priority fee")]
-    MaxPriorityFeePerGasTooLow,
+    #[error("Max priority fee per gas {0} is less than min priority fee {1}")]
+    MaxPriorityFeePerGasTooLow(u128, u128),
     /// The sender does not have enough balance to pay for the transaction.
     #[error("Not enough balance to pay for value + maximum fee")]
     InsufficientBalance,
@@ -114,7 +113,7 @@ impl ValidationError {
             Self::GasLimitTooHigh => "gas_limit_too_high",
             Self::TransactionSizeTooHigh => "transaction_size_too_high",
             Self::MaxPriorityFeePerGasTooHigh => "max_priority_fee_per_gas_too_high",
-            Self::MaxPriorityFeePerGasTooLow => "max_priority_fee_per_gas_too_low",
+            Self::MaxPriorityFeePerGasTooLow(_, _) => "max_priority_fee_per_gas_too_low",
             Self::InsufficientBalance => "insufficient_balance",
             Self::Pricing(_) => "pricing",
             Self::Eip4844Limit => "eip4844_limit",
@@ -320,14 +319,16 @@ impl<C: StateFetcher> ExecutionState<C> {
             return Err(ValidationError::BaseFeeTooLow(max_basefee));
         }
 
-        // Ensure max_priority_fee_per_gas is greater than or equal to the calculated min_priority_fee
-        if !req.validate_min_priority_fee(
+        // Ensure max_priority_fee_per_gas is greater than or equal to the calculated
+        // min_priority_fee
+        let (validated, tip, min_priority_fee) = req.validate_min_priority_fee(
             &self.pricing,
             template_committed_gas,
             self.limits.min_inclusion_profit,
             max_basefee,
-        )? {
-            return Err(ValidationError::MaxPriorityFeePerGasTooLow);
+        )?;
+        if !validated {
+            return Err(ValidationError::MaxPriorityFeePerGasTooLow(tip, min_priority_fee));
         }
 
         if target_slot < self.slot {
@@ -977,7 +978,7 @@ mod tests {
 
         assert!(matches!(
             state.validate_request(&mut request).await,
-            Err(ValidationError::MaxPriorityFeePerGasTooLow)
+            Err(ValidationError::MaxPriorityFeePerGasTooLow(_, _))
         ));
 
         // Create a transaction with a max priority fee that is correct
@@ -1020,7 +1021,7 @@ mod tests {
 
         assert!(matches!(
             state.validate_request(&mut request).await,
-            Err(ValidationError::MaxPriorityFeePerGasTooLow)
+            Err(ValidationError::MaxPriorityFeePerGasTooLow(_, _))
         ));
 
         // Create a transaction with a gas price that is correct
