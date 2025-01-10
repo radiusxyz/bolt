@@ -227,7 +227,7 @@ mod tests {
     use crate::{
         chain_io::{manager::generate_operator_keys_mismatch_error, utils::pubkey_hash},
         config::chain::Chain,
-        test_util::{get_test_config, try_get_execution_api_url},
+        test_util::try_get_execution_api_url,
     };
 
     use super::BoltManager;
