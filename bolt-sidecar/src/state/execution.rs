@@ -179,6 +179,7 @@ pub struct ExecutionState<C> {
 /// Other values used for validation.
 #[derive(Debug)]
 pub struct ValidationParams {
+    // The maximum amount of gas reserved to preconfirmations for blocks.
     pub preconf_gas_limit: u64,
     pub max_tx_input_bytes: usize,
     pub max_init_code_byte_size: usize,
