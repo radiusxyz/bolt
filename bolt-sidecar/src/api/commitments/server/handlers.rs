@@ -16,8 +16,8 @@ use crate::{
     api::commitments::{
         server::headers::auth_from_headers,
         spec::{
-            CommitmentError, CommitmentsApi, RejectionError, GET_METADATA_METHOD,
-            GET_VERSION_METHOD, REQUEST_INCLUSION_METHOD,
+            CommitmentError, CommitmentsApi, GET_METADATA_METHOD, GET_VERSION_METHOD,
+            REQUEST_INCLUSION_METHOD,
         },
     },
     common::BOLT_SIDECAR_VERSION,
@@ -80,12 +80,12 @@ pub async fn rpc_entrypoint(
             })?;
 
             let Some(request_json) = payload.params.first().cloned() else {
-                return Err(RejectionError::ValidationFailed("Bad params".to_string()).into());
+                return Err(CommitmentError::InvalidParams("missing param".to_string()).into());
             };
 
             // Parse the inclusion request from the parameters
             let mut inclusion_request = serde_json::from_value::<InclusionRequest>(request_json)
-                .map_err(RejectionError::Json)
+                .map_err(CommitmentError::InvalidJson)
                 .inspect_err(|err| error!(?err, "Failed to parse inclusion request"))?;
 
             debug!(?inclusion_request, "New inclusion request");

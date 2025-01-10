@@ -82,7 +82,8 @@ impl CommitmentRequest {
 }
 
 /// Request to include a transaction at a specific slot.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[cfg_attr(test, derive(Default))]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct InclusionRequest {
     /// The consensus slot number at which the transaction should be included.
     pub slot: u64,

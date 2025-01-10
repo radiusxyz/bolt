@@ -1,7 +1,6 @@
 use alloy::primitives::SignatureError as AlloySignatureError;
 use axum::{
     body::Body,
-    extract::rejection::JsonRejection,
     http::{Response, StatusCode},
     response::IntoResponse,
     Json,
@@ -31,9 +30,6 @@ pub(super) const MAX_REQUEST_TIMEOUT: std::time::Duration = std::time::Duration:
 /// Error type for the commitments API.
 #[derive(Debug, Error)]
 pub enum CommitmentError {
-    /// Request rejected.
-    #[error("Request rejected: {0}")]
-    Rejected(#[from] RejectionError),
     /// Consensus validation failed.
     #[error("Consensus validation error: {0}")]
     Consensus(#[from] ConsensusError),
@@ -63,7 +59,10 @@ pub enum CommitmentError {
     UnknownMethod,
     /// Invalid JSON.
     #[error(transparent)]
-    InvalidJson(#[from] JsonRejection),
+    InvalidJson(#[from] serde_json::Error),
+    /// Invalid JSON-RPC request params.
+    #[error("Invalid JSON-RPC request params: {0}")]
+    InvalidParams(String),
 }
 
 impl From<CommitmentError> for JsonError {
@@ -71,7 +70,6 @@ impl From<CommitmentError> for JsonError {
         // Reference: https://www.jsonrpc.org/specification#error_object
         // TODO: the custom defined ones should be clearly documented.
         match err {
-            CommitmentError::Rejected(err) => err.into(),
             CommitmentError::Duplicate => Self::new(-32001, err.to_string()),
             CommitmentError::NoSignature => Self::new(-32002, err.to_string()),
             CommitmentError::InvalidSignature(err) => Self::new(-32003, err.to_string()),
@@ -83,6 +81,7 @@ impl From<CommitmentError> for JsonError {
                 Self::new(-32600, format!("Invalid request: {err}"))
             }
             CommitmentError::UnknownMethod => Self::new(-32601, err.to_string()),
+            CommitmentError::InvalidParams(err) => Self::new(-32602, err.to_string()),
             CommitmentError::Internal => Self::new(-32603, err.to_string()),
         }
     }
@@ -91,8 +90,7 @@ impl From<CommitmentError> for JsonError {
 impl From<&CommitmentError> for StatusCode {
     fn from(err: &CommitmentError) -> Self {
         match err {
-            CommitmentError::Rejected(_)
-            | CommitmentError::Duplicate
+            CommitmentError::Duplicate
             | CommitmentError::NoSignature
             | CommitmentError::InvalidSignature(_)
             | CommitmentError::Signature(_)
@@ -100,6 +98,7 @@ impl From<&CommitmentError> for StatusCode {
             | CommitmentError::Validation(_)
             | CommitmentError::MalformedHeader
             | CommitmentError::UnknownMethod
+            | CommitmentError::InvalidParams(_)
             | CommitmentError::InvalidJson(_) => Self::BAD_REQUEST,
             CommitmentError::Internal => Self::INTERNAL_SERVER_ERROR,
         }
@@ -112,27 +111,6 @@ impl IntoResponse for CommitmentError {
         let json = Json(JsonResponse::from_error(self.into()));
 
         (status_code, json).into_response()
-    }
-}
-
-/// Error indicating the rejection of a commitment request. This should
-/// be returned to the user.
-#[derive(Debug, Error)]
-pub enum RejectionError {
-    /// State validation failed for this request.
-    #[error("Validation failed: {0}")]
-    ValidationFailed(String),
-    /// JSON parsing error.
-    #[error("JSON parsing error: {0}")]
-    Json(#[from] serde_json::Error),
-}
-
-impl From<RejectionError> for JsonError {
-    fn from(err: RejectionError) -> Self {
-        match err {
-            RejectionError::ValidationFailed(err) => Self::new(-32600, err),
-            RejectionError::Json(err) => Self::new(-32700, err.to_string()),
-        }
     }
 }
 

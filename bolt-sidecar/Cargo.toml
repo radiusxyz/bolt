@@ -116,4 +116,4 @@ unnecessary_self_imports = "warn"
 use_self = "warn"
 
 [features]
-keystore-tests = [] 
+keystore-tests = []
