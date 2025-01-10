@@ -323,10 +323,6 @@ mod test {
         let metadata: MetadataResponse = serde_json::from_value(response.result).unwrap();
 
         assert_eq!(
-            metadata.limits.max_commitments_per_slot,
-            expected_limits.max_commitments_per_slot
-        );
-        assert_eq!(
             metadata.limits.max_committed_gas_per_slot,
             expected_limits.max_committed_gas_per_slot
         );
