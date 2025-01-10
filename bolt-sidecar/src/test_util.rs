@@ -31,14 +31,10 @@ use crate::{
 };
 
 /// The URL of the test execution client HTTP API.
-///
-/// NOTE: this DNS is only available through the Chainbound Tailnet
-const EXECUTION_API_URL: &str = "http://remotebeast:48545";
+const EXECUTION_API_URL: &str = "https://ethereum-holesky-rpc.publicnode.com";
 
 /// The URL of the test beacon client HTTP API.
-///
-/// NOTE: this DNS is only available through the Chainbound Tailnet
-const BEACON_API_URL: &str = "http://remotebeast:44400";
+const BEACON_API_URL: &str = "https://ethereum-holesky-beacon-api.publicnode.com";
 
 /// The URL of the test engine client HTTP API.
 ///
