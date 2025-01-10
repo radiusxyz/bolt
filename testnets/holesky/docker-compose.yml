@@ -21,6 +21,9 @@ services:
       - ${BOLT_SIDECAR_DELEGATIONS_PATH:-/dev/null}:/etc/delegations.json
       - ${BOLT_SIDECAR_KEYSTORE_PATH:-/dev/null}:/etc/keystores
       - ${BOLT_SIDECAR_KEYSTORE_SECRETS_PATH:-/dev/null}:/etc/secrets
+    # Allows the sidecar to reach EL and CL on this host
+    extra_hosts:
+      - host.docker.internal:host-gateway
 
   bolt-mev-boost-holesky:
     image: ghcr.io/chainbound/bolt-mev-boost:v0.3.0-alpha
@@ -28,10 +31,9 @@ services:
     restart: unless-stopped
     env_file: ./mev-boost.env
     entrypoint: /bin/sh -c '/app/mev-boost'
-    # MEV-Boost might need to communicate with the Helix relay in
-    # `docker-compose.pbs.yml` if the PBS stack is used.
-    networks:
-      - bolt-holesky-default
+    # Allows to reach a relay running on this host
+    extra_hosts:
+      - host.docker.internal:host-gateway
 
   bolt-prometheus-holesky:
     image: prom/prometheus:v2.55.1
@@ -66,20 +68,9 @@ services:
       - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
       - ./grafana/datasources:/etc/grafana/provisioning/datasources
       - grafana-data:/var/lib/grafana
-    networks:
-      - bolt-holesky-default
 
 volumes:
   prometheus-data:
     driver: local
   grafana-data:
     driver: local
-
-networks:
-  bolt-holesky-default:
-    driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.56.0.0/16
-          gateway: 172.56.0.1

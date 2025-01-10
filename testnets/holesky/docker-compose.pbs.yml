@@ -63,8 +63,6 @@ services:
     entrypoint:
       ["/bin/sh", "-c", "chmod +x /scripts/run-bn.sh && /scripts/run-bn.sh"]
     # In case the sidecar on `docker-compose.yml` needs to connect to it
-    networks:
-      - bolt-holesky-default
 
   helix-relay:
     image: ghcr.io/chainbound/helix:v0.3.0-alpha.rc4
@@ -84,11 +82,3 @@ services:
       - RUST_LOG=helix_cmd=debug,helix_api=debug,helix_common=debug,helix_datastore=debug,helix_housekeeper=debug,helix_database=debug,helix_beacon_client=debug,helix_website=debug
       - RUST_BACKTRACE=1
     command: --config /helix-config.yml
-    # `mev-boost` inside `docker-compose.yml` needs to communicate with this relay
-    networks:
-      - bolt-holesky-default
-
-# Requires spinning up docker compose with file `docker-compose.yml` before this one.
-networks:
-  bolt-holesky-default:
-    external: true
