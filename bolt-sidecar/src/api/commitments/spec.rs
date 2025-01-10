@@ -68,20 +68,22 @@ pub enum CommitmentError {
 
 impl From<CommitmentError> for JsonError {
     fn from(err: CommitmentError) -> Self {
+        // Reference: https://www.jsonrpc.org/specification#error_object
+        // TODO: the custom defined ones should be clearly documented.
         match err {
-            CommitmentError::Rejected(err) => Self::new(-32000, err.to_string()),
+            CommitmentError::Rejected(err) => err.into(),
             CommitmentError::Duplicate => Self::new(-32001, err.to_string()),
-            CommitmentError::Internal => Self::new(-32002, err.to_string()),
-            CommitmentError::NoSignature => Self::new(-32003, err.to_string()),
-            CommitmentError::InvalidSignature(err) => Self::new(-32004, err.to_string()),
-            CommitmentError::Signature(err) => Self::new(-32005, err.to_string()),
-            CommitmentError::Consensus(err) => Self::new(-32006, err.to_string()),
+            CommitmentError::NoSignature => Self::new(-32002, err.to_string()),
+            CommitmentError::InvalidSignature(err) => Self::new(-32003, err.to_string()),
+            CommitmentError::Signature(err) => Self::new(-32004, err.to_string()),
+            CommitmentError::Consensus(err) => Self::new(-32005, err.to_string()),
             CommitmentError::Validation(err) => Self::new(-32006, err.to_string()),
             CommitmentError::MalformedHeader => Self::new(-32007, err.to_string()),
-            CommitmentError::UnknownMethod => Self::new(-32601, err.to_string()),
             CommitmentError::InvalidJson(err) => {
                 Self::new(-32600, format!("Invalid request: {err}"))
             }
+            CommitmentError::UnknownMethod => Self::new(-32601, err.to_string()),
+            CommitmentError::Internal => Self::new(-32603, err.to_string()),
         }
     }
 }
@@ -89,16 +91,16 @@ impl From<CommitmentError> for JsonError {
 impl From<&CommitmentError> for StatusCode {
     fn from(err: &CommitmentError) -> Self {
         match err {
-            CommitmentError::Rejected(_) |
-            CommitmentError::Duplicate |
-            CommitmentError::NoSignature |
-            CommitmentError::InvalidSignature(_) |
-            CommitmentError::Signature(_) |
-            CommitmentError::Consensus(_) |
-            CommitmentError::Validation(_) |
-            CommitmentError::MalformedHeader |
-            CommitmentError::UnknownMethod |
-            CommitmentError::InvalidJson(_) => Self::BAD_REQUEST,
+            CommitmentError::Rejected(_)
+            | CommitmentError::Duplicate
+            | CommitmentError::NoSignature
+            | CommitmentError::InvalidSignature(_)
+            | CommitmentError::Signature(_)
+            | CommitmentError::Consensus(_)
+            | CommitmentError::Validation(_)
+            | CommitmentError::MalformedHeader
+            | CommitmentError::UnknownMethod
+            | CommitmentError::InvalidJson(_) => Self::BAD_REQUEST,
             CommitmentError::Internal => Self::INTERNAL_SERVER_ERROR,
         }
     }
