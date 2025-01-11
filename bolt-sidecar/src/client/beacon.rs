@@ -124,12 +124,13 @@ impl Debug for BeaconClient {
 mod tests {
     use super::*;
     use crate::test_util::try_get_beacon_api_url;
+    use tracing::warn;
 
     #[tokio::test]
     async fn test_get_prev_randao() -> eyre::Result<()> {
         let _ = tracing_subscriber::fmt::try_init();
         let Some(url) = try_get_beacon_api_url().await else {
-            tracing::warn!("skipping test: beacon API URL is not reachable");
+            warn!("skipping test: beacon API URL is not reachable");
             return Ok(());
         };
 
@@ -143,7 +144,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_expected_withdrawals_at_head() -> eyre::Result<()> {
         let Some(url) = try_get_beacon_api_url().await else {
-            tracing::warn!("skipping test: beacon API URL is not reachable");
+            warn!("skipping test: beacon API URL is not reachable");
             return Ok(());
         };
 
@@ -157,7 +158,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_parent_beacon_block_root() -> eyre::Result<()> {
         let Some(url) = try_get_beacon_api_url().await else {
-            tracing::warn!("skipping test: beacon API URL is not reachable");
+            warn!("skipping test: beacon API URL is not reachable");
             return Ok(());
         };
 
