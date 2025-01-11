@@ -123,47 +123,48 @@ impl Debug for BeaconClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::str::FromStr;
+    use crate::test_util::try_get_beacon_api_url;
 
     #[tokio::test]
-    async fn test_get_prev_randao() {
-        let url = Url::from_str("http://remotebeast:44400").unwrap();
+    async fn test_get_prev_randao() -> eyre::Result<()> {
+        let _ = tracing_subscriber::fmt::try_init();
+        let Some(url) = try_get_beacon_api_url().await else {
+            tracing::warn!("skipping test: beacon API URL is not reachable");
+            return Ok(());
+        };
 
-        if reqwest::get(url.clone()).await.is_err_and(|err| err.is_timeout() || err.is_connect()) {
-            eprintln!("Skipping test because remotebeast is not reachable");
-            return;
-        }
-
-        let beacon_api = BeaconClient::new(url);
+        let beacon_api = BeaconClient::new(Url::parse(url).unwrap());
 
         assert!(beacon_api.get_prev_randao().await.is_ok());
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_get_expected_withdrawals_at_head() {
-        let url = Url::from_str("http://remotebeast:44400").unwrap();
+    async fn test_get_expected_withdrawals_at_head() -> eyre::Result<()> {
+        let Some(url) = try_get_beacon_api_url().await else {
+            tracing::warn!("skipping test: beacon API URL is not reachable");
+            return Ok(());
+        };
 
-        if reqwest::get(url.clone()).await.is_err_and(|err| err.is_timeout() || err.is_connect()) {
-            eprintln!("Skipping test because remotebeast is not reachable");
-            return;
-        }
-
-        let beacon_api = BeaconClient::new(url);
+        let beacon_api = BeaconClient::new(Url::parse(url).unwrap());
 
         assert!(beacon_api.get_expected_withdrawals_at_head().await.is_ok());
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_get_parent_beacon_block_root() {
-        let url = Url::from_str("http://remotebeast:44400").unwrap();
+    async fn test_get_parent_beacon_block_root() -> eyre::Result<()> {
+        let Some(url) = try_get_beacon_api_url().await else {
+            tracing::warn!("skipping test: beacon API URL is not reachable");
+            return Ok(());
+        };
 
-        if reqwest::get(url.clone()).await.is_err_and(|err| err.is_timeout() || err.is_connect()) {
-            eprintln!("Skipping test because remotebeast is not reachable");
-            return;
-        }
-
-        let beacon_api = BeaconClient::new(url);
+        let beacon_api = BeaconClient::new(Url::parse(url).unwrap());
 
         assert!(beacon_api.get_parent_beacon_block_root().await.is_ok());
+
+        Ok(())
     }
 }

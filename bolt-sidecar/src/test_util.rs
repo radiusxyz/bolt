@@ -31,10 +31,10 @@ use crate::{
 };
 
 /// The URL of the test execution client HTTP API.
-const EXECUTION_API_URL: &str = "https://ethereum-holesky-rpc.publicnode.com";
+const EXECUTION_API_URL: &str = "https://geth-holesky.bolt.chainbound.io";
 
 /// The URL of the test beacon client HTTP API.
-const BEACON_API_URL: &str = "https://ethereum-holesky-beacon-api.publicnode.com";
+const BEACON_API_URL: &str = "https://lighthouse-holesky.bolt.chainbound.io";
 
 /// The URL of the test engine client HTTP API.
 ///
@@ -94,13 +94,13 @@ pub(crate) async fn get_test_config() -> Option<Opts> {
     };
 
     if let Some(url) = try_get_execution_api_url().await {
-        opts.execution_api_url = url.parse().expect("valid URL");
+        opts.execution_api_url = url.parse().expect("valid execution API URL");
     }
     if let Some(url) = try_get_beacon_api_url().await {
-        opts.beacon_api_url = url.parse().expect("valid URL");
+        opts.beacon_api_url = url.parse().expect("valid beacon API URL");
     }
     if let Some(url) = try_get_engine_api_url().await {
-        opts.engine_api_url = url.parse().expect("valid URL");
+        opts.engine_api_url = url.parse().expect("valid engine API URL");
     }
     opts.engine_jwt_hex = JwtSecretConfig::from(jwt.as_str());
 

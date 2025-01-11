@@ -67,7 +67,6 @@ impl InclusionPricer {
     /// important reason is that we omit large outlier transactions to improve average
     /// fit, which disproportionately affects the most valuable transactions.
     /// """
-    ///
     pub fn calculate_min_priority_fee(
         &self,
         incoming_gas: u64,
@@ -84,8 +83,8 @@ impl InclusionPricer {
         let after_gas = remaining_gas - incoming_gas;
 
         // Calculate numerator and denominator for the logarithm
-        let fraction = (self.gas_scalar * (remaining_gas as f64) + 1.0)
-            / (self.gas_scalar * (after_gas as f64) + 1.0);
+        let fraction = (self.gas_scalar * (remaining_gas as f64) + 1.0) /
+            (self.gas_scalar * (after_gas as f64) + 1.0);
 
         // Calculate block space value in Ether
         let block_space_value = self.base_multiplier * fraction.ln();
