@@ -198,7 +198,7 @@ dependencies = [
  "alloy-serde",
  "c-kzg",
  "derive_more",
- "ethereum_ssz 0.8.1",
+ "ethereum_ssz 0.8.2",
  "ethereum_ssz_derive 0.8.1",
  "once_cell",
  "serde",
@@ -433,7 +433,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-engine",
  "alloy-serde",
- "ethereum_ssz 0.8.1",
+ "ethereum_ssz 0.8.2",
  "ethereum_ssz_derive 0.8.1",
  "serde",
  "serde_with",
@@ -452,7 +452,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "derive_more",
- "ethereum_ssz 0.8.1",
+ "ethereum_ssz 0.8.2",
  "ethereum_ssz_derive 0.8.1",
  "serde",
  "strum",
@@ -1173,7 +1173,7 @@ dependencies = [
  "cb-common",
  "cb-pbs",
  "ethereum_ssz 0.7.1",
- "ethereum_ssz 0.8.1",
+ "ethereum_ssz 0.8.2",
  "ethereum_ssz_derive 0.8.1",
  "eyre",
  "futures",
@@ -1966,9 +1966,9 @@ dependencies = [
 
 [[package]]
 name = "ethereum_ssz"
-version = "0.8.1"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "036c84bd29bff35e29bbee3c8fc0e2fb95db12b6f2f3cae82a827fbc97256f3a"
+checksum = "862e41ea8eea7508f70cfd8cd560f0c34bb0af37c719a8e06c2672f0f031d8e5"
 dependencies = [
  "alloy-primitives",
  "ethereum_serde_utils 0.7.0",
