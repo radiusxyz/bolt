@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf, str::FromStr};
+use std::{fs, path::PathBuf, process::exit, str::FromStr};
 
 use alloy::{
     contract::Error as ContractError,
@@ -9,8 +9,9 @@ use alloy::{
 };
 use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
 use eyre::{Context, ContextCompat, Result};
+use inquire::{error::InquireError, Confirm};
 use serde::Serialize;
-use tracing::info;
+use tracing::{error, info};
 
 /// BoltManager contract bindings.
 pub mod bolt_manager;
@@ -114,17 +115,23 @@ pub fn request_confirmation() {
     #[cfg(test)]
     return;
 
-    inquire::Confirm::new("Do you want to continue? (yes/no):")
+    Confirm::new("Do you want to continue? (yes/no):")
         .prompt()
         .map(|proceed| {
             if proceed {
                 return;
             }
             info!("Aborting");
-            std::process::exit(0);
+            exit(0);
         })
-        .unwrap_or_else(|err| {
-            info!("confirmation exited: {}", err);
-            std::process::exit(0);
+        .unwrap_or_else(|err| match err {
+            InquireError::OperationCanceled | InquireError::OperationInterrupted => {
+                info!("Aborting");
+                exit(1);
+            }
+            _ => {
+                error!("error confirmation exited: {}", err);
+                exit(1);
+            }
         })
 }
