@@ -52,9 +52,9 @@ inspect:
 
 # format a rust crate. Must be run from the root of the crate's cargo directory
 fmt crate:
-  rustup toolchain install nightly-2024-10-03 > /dev/null 2>&1 && \
+  rustup toolchain install nightly-2025-01-09 > /dev/null 2>&1 && \
   cd $(git rev-parse --show-toplevel)/{{crate}} && \
-  cargo +nightly-2024-10-03 fmt
+  cargo +nightly-2025-01-09 fmt
 
 [private]
 bash service:
