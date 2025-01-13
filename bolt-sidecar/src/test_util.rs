@@ -31,14 +31,10 @@ use crate::{
 };
 
 /// The URL of the test execution client HTTP API.
-///
-/// NOTE: this DNS is only available through the Chainbound Tailnet
-const EXECUTION_API_URL: &str = "http://remotebeast:48545";
+const EXECUTION_API_URL: &str = "https://geth-holesky.bolt.chainbound.io";
 
 /// The URL of the test beacon client HTTP API.
-///
-/// NOTE: this DNS is only available through the Chainbound Tailnet
-const BEACON_API_URL: &str = "http://remotebeast:44400";
+const BEACON_API_URL: &str = "https://lighthouse-holesky.bolt.chainbound.io";
 
 /// The URL of the test engine client HTTP API.
 ///
@@ -98,13 +94,13 @@ pub(crate) async fn get_test_config() -> Option<Opts> {
     };
 
     if let Some(url) = try_get_execution_api_url().await {
-        opts.execution_api_url = url.parse().expect("valid URL");
+        opts.execution_api_url = url.parse().expect("valid execution API URL");
     }
     if let Some(url) = try_get_beacon_api_url().await {
-        opts.beacon_api_url = url.parse().expect("valid URL");
+        opts.beacon_api_url = url.parse().expect("valid beacon API URL");
     }
     if let Some(url) = try_get_engine_api_url().await {
-        opts.engine_api_url = url.parse().expect("valid URL");
+        opts.engine_api_url = url.parse().expect("valid engine API URL");
     }
     opts.engine_jwt_hex = JwtSecretConfig::from(jwt.as_str());
 

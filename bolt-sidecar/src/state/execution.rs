@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use thiserror::Error;
 use tracing::{debug, error, trace, warn};
 
-use crate::state::pricing;
 use crate::{
     builder::BlockTemplate,
     common::{
@@ -19,11 +18,11 @@ use crate::{
     primitives::{
         signature::SignatureError, AccountState, InclusionRequest, SignedConstraints, Slot,
     },
+    state::pricing,
     telemetry::ApiMetrics,
 };
 
-use super::InclusionPricer;
-use super::{account_state::AccountStateCache, fetcher::StateFetcher};
+use super::{account_state::AccountStateCache, fetcher::StateFetcher, InclusionPricer};
 
 /// Possible commitment validation errors.
 ///
@@ -310,7 +309,8 @@ impl<C: StateFetcher> ExecutionState<C> {
             return Err(ValidationError::BaseFeeTooLow(max_basefee));
         }
 
-        // Ensure max_priority_fee_per_gas is greater than or equal to the calculated min_priority_fee
+        // Ensure max_priority_fee_per_gas is greater than or equal to the calculated
+        // min_priority_fee
         if !req.validate_min_priority_fee(
             &self.pricing,
             template_committed_gas,
