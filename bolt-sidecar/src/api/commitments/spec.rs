@@ -1,6 +1,7 @@
 use alloy::primitives::SignatureError as AlloySignatureError;
 use axum::{
     body::Body,
+    extract::rejection::JsonRejection,
     http::{Response, StatusCode},
     response::IntoResponse,
     Json,
@@ -63,6 +64,12 @@ pub enum CommitmentError {
     /// Invalid JSON-RPC request params.
     #[error("Invalid JSON-RPC request params: {0}")]
     InvalidParams(String),
+    /// Invalid JSON.
+    /// FIXME: (thedevbirb, 2025-13-01) this should be removed because it is dead code,
+    /// but it allows Rust to pull the correct axum version and not older ones from
+    /// dependencies (commit-boost).
+    #[error(transparent)]
+    RejectedJson(#[from] JsonRejection),
 }
 
 impl From<CommitmentError> for JsonError {
@@ -83,6 +90,7 @@ impl From<CommitmentError> for JsonError {
             CommitmentError::UnknownMethod => Self::new(-32601, err.to_string()),
             CommitmentError::InvalidParams(err) => Self::new(-32602, err.to_string()),
             CommitmentError::Internal => Self::new(-32603, err.to_string()),
+            CommitmentError::RejectedJson(err) => Self::new(-32604, err.to_string()),
         }
     }
 }
@@ -99,6 +107,7 @@ impl From<&CommitmentError> for StatusCode {
             | CommitmentError::MalformedHeader
             | CommitmentError::UnknownMethod
             | CommitmentError::InvalidParams(_)
+            | CommitmentError::RejectedJson(_)
             | CommitmentError::InvalidJson(_) => Self::BAD_REQUEST,
             CommitmentError::Internal => Self::INTERNAL_SERVER_ERROR,
         }

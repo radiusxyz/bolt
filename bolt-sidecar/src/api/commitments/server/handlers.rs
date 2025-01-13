@@ -80,7 +80,7 @@ pub async fn rpc_entrypoint(
             })?;
 
             let Some(request_json) = payload.params.first().cloned() else {
-                return Err(CommitmentError::InvalidParams("missing param".to_string()).into());
+                return Err(CommitmentError::InvalidParams("missing param".to_string()));
             };
 
             // Parse the inclusion request from the parameters
