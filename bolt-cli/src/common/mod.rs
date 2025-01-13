@@ -1,4 +1,4 @@
-use std::{fs, io::Write, path::PathBuf, str::FromStr};
+use std::{fs, path::PathBuf, str::FromStr};
 
 use alloy::{
     contract::Error as ContractError,
@@ -114,28 +114,17 @@ pub fn request_confirmation() {
     #[cfg(test)]
     return;
 
-    loop {
-        info!("Do you want to continue? (yes/no): ");
-
-        print!("Answer: ");
-        std::io::stdout().flush().expect("Failed to flush");
-
-        let mut input = String::new();
-        std::io::stdin().read_line(&mut input).expect("Failed to read input");
-
-        let input = input.trim().to_lowercase();
-
-        match input.as_str() {
-            "yes" | "y" => {
+    inquire::Confirm::new("Do you want to continue? (yes/no):")
+        .prompt()
+        .map(|proceed| {
+            if proceed {
                 return;
             }
-            "no" | "n" => {
-                info!("Aborting");
-                std::process::exit(0);
-            }
-            _ => {
-                println!("Invalid input. Please type 'yes' or 'no'.");
-            }
-        }
-    }
+            info!("Aborting");
+            std::process::exit(0);
+        })
+        .unwrap_or_else(|err| {
+            info!("confirmation exited: {}", err);
+            std::process::exit(0);
+        })
 }
