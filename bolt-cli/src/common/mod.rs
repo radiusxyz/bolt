@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf, process::exit, str::FromStr};
+use std::{fs, path::PathBuf, str::FromStr};
 
 use alloy::{
     contract::Error as ContractError,
@@ -122,16 +122,16 @@ pub fn request_confirmation() {
                 return;
             }
             info!("Aborting");
-            exit(0);
+            std::process::exit(0);
         })
         .unwrap_or_else(|err| match err {
             InquireError::OperationCanceled | InquireError::OperationInterrupted => {
                 info!("Aborting");
-                exit(1);
+                std::process::exit(1);
             }
             _ => {
                 error!("error confirmation exited: {}", err);
-                exit(1);
+                std::process::exit(1);
             }
         })
 }
