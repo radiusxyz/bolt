@@ -1,4 +1,4 @@
-use std::{fs, io::Write, path::PathBuf, str::FromStr};
+use std::{fs, path::PathBuf, str::FromStr};
 
 use alloy::{
     contract::Error as ContractError,
@@ -10,7 +10,6 @@ use alloy::{
 use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
 use eyre::{Context, ContextCompat, Result};
 use serde::Serialize;
-use tracing::info;
 
 /// BoltManager contract bindings.
 pub mod bolt_manager;
@@ -104,38 +103,5 @@ pub fn try_parse_contract_error<T: SolInterface>(error: ContractError) -> Result
 
         // For any other error, return the original error
         _ => Err(error),
-    }
-}
-
-/// Asks whether the user wants to proceed further. If not, the process is exited.
-#[allow(unreachable_code)]
-pub fn request_confirmation() {
-    // Skip confirmation in tests
-    #[cfg(test)]
-    return;
-
-    loop {
-        info!("Do you want to continue? (yes/no): ");
-
-        print!("Answer: ");
-        std::io::stdout().flush().expect("Failed to flush");
-
-        let mut input = String::new();
-        std::io::stdin().read_line(&mut input).expect("Failed to read input");
-
-        let input = input.trim().to_lowercase();
-
-        match input.as_str() {
-            "yes" | "y" => {
-                return;
-            }
-            "no" | "n" => {
-                info!("Aborting");
-                std::process::exit(0);
-            }
-            _ => {
-                println!("Invalid input. Please type 'yes' or 'no'.");
-            }
-        }
     }
 }

@@ -15,8 +15,8 @@ use eyre::Context;
 use tracing::{info, warn};
 
 use crate::{
-    cli::{Chain, EigenLayerSubcommand},
-    common::{bolt_manager::BoltManagerContract, request_confirmation, try_parse_contract_error},
+    cli::{Chain, Cmd, EigenLayerSubcommand},
+    common::{bolt_manager::BoltManagerContract, try_parse_contract_error},
     contracts::{
         bolt::{
             BoltEigenLayerMiddleware::{self, BoltEigenLayerMiddlewareErrors},
@@ -62,7 +62,7 @@ impl EigenLayerSubcommand {
 
                 info!(%strategy, %token, amount = format_ether(amount), ?operator, "Depositing funds into EigenLayer strategy");
 
-                request_confirmation();
+                Cmd::request_confirmation();
 
                 let token_erc20 = IERC20Instance::new(token, provider);
 
@@ -106,7 +106,7 @@ impl EigenLayerSubcommand {
 
                 info!(operator = %signer.address(), rpc = %operator_rpc, ?chain, "Registering EigenLayer operator");
 
-                request_confirmation();
+                Cmd::request_confirmation();
 
                 let deployments = deployments_for_chain(chain);
 
@@ -186,7 +186,7 @@ impl EigenLayerSubcommand {
 
                 info!(operator = %address, ?chain, "Deregistering EigenLayer operator");
 
-                request_confirmation();
+                Cmd::request_confirmation();
 
                 let deployments = deployments_for_chain(chain);
 
