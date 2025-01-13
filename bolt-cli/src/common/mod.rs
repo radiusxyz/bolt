@@ -10,6 +10,7 @@ use alloy::{
 use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
 use eyre::{Context, ContextCompat, Result};
 use serde::Serialize;
+use tracing::info;
 
 /// BoltManager contract bindings.
 pub mod bolt_manager;
@@ -104,4 +105,26 @@ pub fn try_parse_contract_error<T: SolInterface>(error: ContractError) -> Result
         // For any other error, return the original error
         _ => Err(error),
     }
+}
+
+/// Asks whether the user wants to proceed further. If not, the process is exited.
+#[allow(unreachable_code)]
+pub fn request_confirmation() {
+    // Skip confirmation in tests
+    #[cfg(test)]
+    return;
+
+    inquire::Confirm::new("Do you want to continue? (yes/no):")
+        .prompt()
+        .map(|proceed| {
+            if proceed {
+                return;
+            }
+            info!("Aborting");
+            std::process::exit(0);
+        })
+        .unwrap_or_else(|err| {
+            info!("confirmation exited: {}", err);
+            std::process::exit(0);
+        })
 }

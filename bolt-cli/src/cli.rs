@@ -15,7 +15,6 @@ use crate::{
     common::{keystore::DEFAULT_KEYSTORE_PASSWORD, parse_ether_value},
     contracts::EigenLayerStrategy,
 };
-use tracing::info;
 
 /// `bolt` is a CLI tool to interact with bolt Protocol ✨
 #[derive(Parser, Debug, Clone)]
@@ -63,28 +62,6 @@ impl Cmd {
             Self::Generate(cmd) => cmd.run(),
             Self::PubkeyHash(cmd) => cmd.run(),
         }
-    }
-
-    /// Asks whether the user wants to proceed further. If not, the process is exited.
-    #[allow(unreachable_code)]
-    pub fn request_confirmation() {
-        // Skip confirmation in tests
-        #[cfg(test)]
-        return;
-
-        inquire::Confirm::new("Do you want to continue? (yes/no):")
-            .prompt()
-            .map(|proceed| {
-                if proceed {
-                    return;
-                }
-                info!("Aborting");
-                std::process::exit(0);
-            })
-            .unwrap_or_else(|err| {
-                info!("confirmation exited: {}", err);
-                std::process::exit(0);
-            })
     }
 }
 

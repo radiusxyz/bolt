@@ -7,8 +7,8 @@ use eyre::Context;
 use tracing::{info, warn};
 
 use crate::{
-    cli::{Chain, Cmd, ValidatorsCommand, ValidatorsSubcommand},
-    common::{hash::compress_bls_pubkey, try_parse_contract_error},
+    cli::{Chain, ValidatorsCommand, ValidatorsSubcommand},
+    common::{hash::compress_bls_pubkey, request_confirmation, try_parse_contract_error},
     contracts::{
         bolt::BoltValidators::{self, BoltValidatorsErrors},
         deployments_for_chain,
@@ -52,7 +52,7 @@ impl ValidatorsCommand {
                 let bolt_validators =
                     BoltValidators::new(bolt_validators_address, provider.clone());
 
-                Cmd::request_confirmation();
+                request_confirmation();
 
                 match bolt_validators
                     .batchRegisterValidatorsUnsafe(

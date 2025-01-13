@@ -9,8 +9,8 @@ use eyre::Context;
 use tracing::{info, warn};
 
 use crate::{
-    cli::{Chain, Cmd, SymbioticSubcommand},
-    common::{bolt_manager::BoltManagerContract, try_parse_contract_error},
+    cli::{Chain, SymbioticSubcommand},
+    common::{bolt_manager::BoltManagerContract, request_confirmation, try_parse_contract_error},
     contracts::{
         bolt::BoltSymbioticMiddleware::{self, BoltSymbioticMiddlewareErrors},
         deployments_for_chain,
@@ -37,7 +37,7 @@ impl SymbioticSubcommand {
 
                 info!(operator = %signer.address(), rpc = %operator_rpc, ?chain, "Registering Symbiotic operator");
 
-                Cmd::request_confirmation();
+                request_confirmation();
 
                 // Check if operator is opted in to the bolt network
                 if !IOptInService::new(
@@ -108,7 +108,7 @@ impl SymbioticSubcommand {
 
                 info!(operator = %address, ?chain, "Deregistering Symbiotic operator");
 
-                Cmd::request_confirmation();
+                request_confirmation();
 
                 let middleware =
                     BoltSymbioticMiddleware::new(deployments.bolt.symbiotic_middleware, provider);
