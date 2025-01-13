@@ -9,7 +9,7 @@ use axum::{
 };
 use axum_extra::extract::WithRejection;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::json;
 use tracing::{debug, error, info, instrument};
 
 use crate::{
@@ -23,7 +23,7 @@ use crate::{
     common::BOLT_SIDECAR_VERSION,
     config::limits::LimitsOpts,
     primitives::{
-        jsonrpc::{JsonResponse, JsonRpcRequest},
+        jsonrpc::{JsonRpcRequest, JsonRpcResponse, JsonRpcSuccessResponse},
         signature::SignatureError,
         InclusionRequest,
     },
@@ -48,15 +48,18 @@ pub async fn rpc_entrypoint(
     headers: HeaderMap,
     State(api): State<Arc<CommitmentsApiInner>>,
     WithRejection(Json(payload), _): WithRejection<Json<JsonRpcRequest>, CommitmentError>,
-) -> Result<Json<JsonResponse>, CommitmentError> {
+) -> Result<Json<JsonRpcResponse>, CommitmentError> {
     debug!("Received new request");
 
     match payload.method.as_str() {
-        GET_VERSION_METHOD => Ok(Json(JsonResponse {
-            id: payload.id,
-            result: Value::String(BOLT_SIDECAR_VERSION.clone()),
-            ..Default::default()
-        })),
+        GET_VERSION_METHOD => Ok(Json(
+            JsonRpcSuccessResponse {
+                id: payload.id,
+                result: json!(BOLT_SIDECAR_VERSION.to_string()),
+                ..Default::default()
+            }
+            .into(),
+        )),
 
         GET_METADATA_METHOD => {
             let metadata = MetadataResponse {
@@ -64,12 +67,12 @@ pub async fn rpc_entrypoint(
                 version: BOLT_SIDECAR_VERSION.to_string(),
             };
 
-            let response = JsonResponse {
+            let response = JsonRpcSuccessResponse {
                 id: payload.id,
-                result: serde_json::to_value(metadata)
-                    .expect("infallible - metadata only contains primitive types"),
+                result: json!(metadata),
                 ..Default::default()
-            };
+            }
+            .into();
             Ok(Json(response))
         }
 
@@ -113,11 +116,12 @@ pub async fn rpc_entrypoint(
             let inclusion_commitment = api.request_inclusion(inclusion_request).await?;
 
             // Create the JSON-RPC response
-            let response = JsonResponse {
+            let response = JsonRpcSuccessResponse {
                 id: payload.id,
-                result: serde_json::to_value(inclusion_commitment).expect("infallible"),
+                result: json!(inclusion_commitment),
                 ..Default::default()
-            };
+            }
+            .into();
 
             Ok(Json(response))
         }

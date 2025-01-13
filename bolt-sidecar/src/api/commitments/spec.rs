@@ -11,7 +11,7 @@ use thiserror::Error;
 use crate::{
     primitives::{
         commitment::InclusionCommitment,
-        jsonrpc::{JsonError, JsonResponse},
+        jsonrpc::{JsonRpcError, JsonRpcErrorResponse},
         signature::SignatureError,
         InclusionRequest,
     },
@@ -72,7 +72,7 @@ pub enum CommitmentError {
     RejectedJson(#[from] JsonRejection),
 }
 
-impl From<CommitmentError> for JsonError {
+impl From<CommitmentError> for JsonRpcError {
     fn from(err: CommitmentError) -> Self {
         // Reference: https://www.jsonrpc.org/specification#error_object
         // TODO: the custom defined ones should be clearly documented.
@@ -117,7 +117,8 @@ impl From<&CommitmentError> for StatusCode {
 impl IntoResponse for CommitmentError {
     fn into_response(self) -> Response<Body> {
         let status_code = StatusCode::from(&self);
-        let json = Json(JsonResponse::from_error(self.into()));
+        let err = JsonRpcError::from(self);
+        let json = Json(JsonRpcErrorResponse::new(err));
 
         (status_code, json).into_response()
     }

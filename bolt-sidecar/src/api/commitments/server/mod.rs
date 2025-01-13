@@ -179,14 +179,14 @@ fn make_router(state: Arc<CommitmentsApiInner>) -> Router {
 mod test {
     use crate::{
         api::commitments::spec::SIGNATURE_HEADER, common::BOLT_SIDECAR_VERSION,
-        primitives::jsonrpc::JsonError,
+        primitives::jsonrpc::JsonRpcError,
     };
     use alloy::signers::{k256::SecretKey, local::PrivateKeySigner};
     use handlers::MetadataResponse;
     use serde_json::json;
 
     use crate::{
-        primitives::{jsonrpc::JsonResponse, signature::ECDSASignatureExt},
+        primitives::{jsonrpc::JsonRpcResponse, signature::ECDSASignatureExt},
         test_util::{create_signed_inclusion_request, default_test_transaction},
     };
 
@@ -226,13 +226,13 @@ mod test {
             .send()
             .await
             .unwrap()
-            .json::<JsonResponse>()
+            .json::<JsonRpcResponse>()
             .await
             .unwrap();
 
         // Assert unauthorized because of missing signature
-        let expected_error: JsonError = CommitmentError::NoSignature.into();
-        assert_eq!(response.error.unwrap().code, expected_error.code);
+        let expected_error: JsonRpcError = CommitmentError::NoSignature.into();
+        assert_eq!(response.into_error().unwrap().code(), expected_error.code);
     }
 
     #[tokio::test]
@@ -276,10 +276,10 @@ mod test {
                 .await
                 .unwrap();
 
-            let json = response.json::<JsonResponse>().await.unwrap();
+            let json = response.json::<JsonRpcResponse>().await.unwrap();
 
             // Assert unauthorized because of missing signature
-            assert!(json.error.is_none());
+            assert!(json.into_success().is_some());
 
             let _ = tx.send(());
         });
@@ -320,11 +320,12 @@ mod test {
             .send()
             .await
             .unwrap()
-            .json::<JsonResponse>()
+            .json::<JsonRpcResponse>()
             .await
             .unwrap();
 
-        let metadata: MetadataResponse = serde_json::from_value(response.result).unwrap();
+        let metadata: MetadataResponse =
+            serde_json::from_value(response.into_success().unwrap().result).unwrap();
 
         assert_eq!(
             metadata.limits.max_committed_gas_per_slot,

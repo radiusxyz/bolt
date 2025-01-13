@@ -2,6 +2,7 @@ use futures::{
     stream::{FuturesUnordered, SplitSink, SplitStream},
     FutureExt, SinkExt, StreamExt,
 };
+use serde::Serialize;
 use serde_json::{json, Value};
 use std::{collections::VecDeque, future::Future, pin::Pin, task::Poll};
 use tokio::{
@@ -30,7 +31,9 @@ use crate::{
     config::limits::LimitsOpts,
     primitives::{
         commitment::SignedCommitment,
-        jsonrpc::{JsonResponse, JsonRpcRequestUuid},
+        jsonrpc::{
+            JsonRpcErrorResponse, JsonRpcRequestUuid, JsonRpcResponse, JsonRpcSuccessResponse,
+        },
         misc::{Identified, IntoIdentified},
         CommitmentRequest, InclusionRequest,
     },
@@ -257,15 +260,14 @@ impl CommitmentRequestProcessor {
             return;
         };
 
-        let mut response =
-            JsonResponse { id: Some(Value::String(id.to_string())), ..Default::default() };
-
-        match result_commitment {
-            Ok(commitment) => response.result = json!(commitment),
+        let response: JsonRpcResponse = match result_commitment {
+            Ok(commitment) => JsonRpcSuccessResponse::new(json!(commitment))
+                .with_id(Value::String(id.to_string()))
+                .into(),
             Err(e) => {
-                response.error = Some(e.into());
+                JsonRpcErrorResponse::new(e.into()).with_id(Value::String(id.to_string())).into()
             }
-        }
+        };
 
         let message =
             Message::Text(serde_json::to_string(&response).expect("to stringify response"));
@@ -289,26 +291,27 @@ impl CommitmentRequestProcessor {
         };
 
         let id = request.id;
-        let mut response = JsonResponse {
-            id: Some(Value::String(id.to_string())),
-            jsonrpc: "2.0".to_string(),
-            ..Default::default()
-        };
 
         match request.method.as_str() {
             GET_VERSION_METHOD => {
-                response.result = Value::String(BOLT_SIDECAR_VERSION.clone());
+                let response =
+                    JsonRpcSuccessResponse::new(Value::String(BOLT_SIDECAR_VERSION.clone()))
+                        .with_uuid(id)
+                        .into();
                 self.send_response(response);
             }
             GET_METADATA_METHOD => {
-                response.result = serde_json::to_value(self.state.limits).expect("infallible");
+                let response =
+                    JsonRpcSuccessResponse::new(json!(self.state.limits)).with_uuid(id).into();
                 self.send_response(response);
             }
             REQUEST_INCLUSION_METHOD => {
                 let Some(param) = request.params.first().cloned() else {
-                    response.error = Some(
+                    let response: JsonRpcResponse = JsonRpcErrorResponse::new(
                         CommitmentError::InvalidParams("missing inclusion request".into()).into(),
-                    );
+                    )
+                    .with_uuid(id)
+                    .into();
                     self.send_response(response);
                     return;
                 };
@@ -318,7 +321,10 @@ impl CommitmentRequestProcessor {
                     Err(e) => {
                         let msg = format!("failed to parse inclusion request: {}", e);
                         error!(?e, "failed to parse inclusion request");
-                        response.error = Some(CommitmentError::InvalidParams(msg).into());
+                        let response: JsonRpcResponse =
+                            JsonRpcErrorResponse::new(CommitmentError::InvalidParams(msg).into())
+                                .with_uuid(id)
+                                .into();
                         self.send_response(response);
                         return;
                     }
@@ -330,7 +336,10 @@ impl CommitmentRequestProcessor {
 
                 if let Err(e) = self.api_events_tx.try_send(commitment_event) {
                     error!(?e, "failed to send commitment event through channel");
-                    response.error = Some(CommitmentError::Internal.into());
+                    let response: JsonRpcResponse =
+                        JsonRpcErrorResponse::new(CommitmentError::Internal.into())
+                            .with_uuid(id)
+                            .into();
                     self.send_response(response);
                     return;
                 }
@@ -344,7 +353,7 @@ impl CommitmentRequestProcessor {
         };
     }
 
-    fn send_response(&mut self, response: JsonResponse) {
+    fn send_response<T: Serialize>(&mut self, response: JsonRpcResponse<T>) {
         let message =
             Message::text(serde_json::to_string(&response).expect("to stringify response"));
         self.outgoing_messages.push_back(message);
