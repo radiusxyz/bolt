@@ -765,12 +765,6 @@ Options:
 
           [env: BOLT_SIDECAR_COMMITMENT_PRIVATE_KEY=]
 
-      --max-commitments-per-slot <MAX_COMMITMENTS_PER_SLOT>
-          Max number of commitments to accept per block
-
-          [env: BOLT_SIDECAR_MAX_COMMITMENTS=]
-          [default: 128]
-
       --max-committed-gas-per-slot <MAX_COMMITTED_GAS_PER_SLOT>
           Max committed gas per slot
 

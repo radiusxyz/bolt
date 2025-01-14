@@ -5,13 +5,13 @@ edition = "2021"
 
 [dependencies]
 # async
-tokio = { version = "1.42.0", features = ["full"] }
+tokio = { version = "1.43.0", features = ["full"] }
 futures = "0.3.31"
 
 # cli
 clap = { version = "4.5.4", features = ["derive", "env"] }
 serde = { version = "1.0.217", features = ["derive"] }
-serde_json = "1.0.134"
+serde_json = "1.0.135"
 
 # grpc
 rustls = { version = "0.23.20", features = ["ring"] }
@@ -38,6 +38,7 @@ reqwest = { version = "0.12.9", features = ["rustls-tls"] }
 rand = "0.8.5"
 lazy_static = "1.5.0"
 chrono = "0.4.39"
+inquire = "0.7.5"
 
 [dev-dependencies]
 tempfile = "3.13.0"

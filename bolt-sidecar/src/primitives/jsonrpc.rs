@@ -1,3 +1,4 @@
+use derive_more::derive::From;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
@@ -28,44 +29,118 @@ pub struct JsonRpcRequestUuid {
     pub params: Vec<Value>,
 }
 
-/// A JSON-RPC response
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JsonResponse {
-    /// The JSON-RPC version string. MUST be "2.0".
-    pub jsonrpc: String,
-    /// Optional ID. Must be serialized as `null` if not present.
-    pub id: Option<Value>,
-    /// The result object. Must be serialized as `null` if an error is present.
-    #[serde(skip_serializing_if = "Value::is_null", default)]
-    pub result: Value,
-    /// The error object. Must be serialized as `null` if no error is present.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<JsonError>,
+/// A response object for JSON-RPC.
+#[derive(Debug, Clone, Serialize, Deserialize, From)]
+#[serde(untagged)]
+pub enum JsonRpcResponse<T = Value> {
+    /// A successful response.
+    Success(JsonRpcSuccessResponse<T>),
+    /// An error response.
+    Error(JsonRpcErrorResponse),
 }
 
-impl Default for JsonResponse {
-    fn default() -> Self {
-        Self { jsonrpc: "2.0".to_string(), id: None, result: Value::Null, error: None }
+impl JsonRpcResponse {
+    /// Attemps to convert the response into a successful response.
+    pub fn into_success(self) -> Option<JsonRpcSuccessResponse> {
+        match self {
+            Self::Success(success) => Some(success),
+            _ => None,
+        }
+    }
+
+    /// Attemps to convert the response into an error response.
+    pub fn into_error(self) -> Option<JsonRpcErrorResponse> {
+        match self {
+            Self::Error(error) => Some(error),
+            _ => None,
+        }
     }
 }
 
-impl JsonResponse {
-    /// Create a new JSON-RPC response with a result
-    pub fn from_error(error: JsonError) -> Self {
-        Self { error: Some(error), ..Default::default() }
+/// A response object for successful JSON-RPC requests.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct JsonRpcSuccessResponse<T = Value> {
+    /// The JSON-RPC version string. MUST be "2.0".
+    pub jsonrpc: String,
+    /// Optional ID.
+    pub id: Option<Value>,
+    /// The result object.
+    pub result: T,
+}
+
+impl<T> JsonRpcSuccessResponse<T> {
+    /// Create a new JSON-RPC success response
+    pub fn new(result: T) -> Self {
+        Self { jsonrpc: "2.0".to_string(), id: None, result }
+    }
+
+    /// Set the ID of the response
+    pub fn with_id(self, id: Value) -> Self {
+        Self { id: Some(id), ..self }
+    }
+
+    /// Set the ID of the response from a UUID
+    pub fn with_uuid(self, id: Uuid) -> Self {
+        Self { id: Some(Value::String(id.to_string())), ..self }
+    }
+}
+
+/// A JSON-RPC error response.
+///
+/// Reference: https://www.jsonrpc.org/specification
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JsonRpcErrorResponse {
+    /// The JSON-RPC version string. MUST be "2.0".
+    pub jsonrpc: String,
+    /// Optional ID
+    pub id: Option<Value>,
+    /// The error object.
+    pub error: JsonRpcError,
+}
+
+impl JsonRpcErrorResponse {
+    /// Create a new JSON-RPC error response
+    pub fn new(error: JsonRpcError) -> Self {
+        Self { jsonrpc: "2.0".to_string(), id: None, error }
+    }
+
+    /// Set the ID of the response.
+    pub fn with_id(self, id: Value) -> Self {
+        Self { id: Some(id), ..self }
+    }
+
+    /// Set the ID of the response from a UUID.
+    pub fn with_uuid(self, id: Uuid) -> Self {
+        Self { id: Some(Value::String(id.to_string())), ..self }
+    }
+
+    /// Returns a clone of the error message.
+    pub fn message(&self) -> String {
+        self.error.message.clone()
+    }
+
+    /// Returns the error code.
+    pub fn code(&self) -> i32 {
+        self.error.code
+    }
+}
+
+impl From<JsonRpcError> for JsonRpcErrorResponse {
+    fn from(error: JsonRpcError) -> Self {
+        Self::new(error)
     }
 }
 
 /// A JSON-RPC error object
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JsonError {
+pub struct JsonRpcError {
     /// The error code
     pub code: i32,
     /// The error message
     pub message: String,
 }
 
-impl JsonError {
+impl JsonRpcError {
     /// Create a new JSON-RPC error object
     pub fn new(code: i32, message: String) -> Self {
         Self { code, message }

@@ -11,7 +11,7 @@ use thiserror::Error;
 use crate::{
     primitives::{
         commitment::InclusionCommitment,
-        jsonrpc::{JsonError, JsonResponse},
+        jsonrpc::{JsonRpcError, JsonRpcErrorResponse},
         signature::SignatureError,
         InclusionRequest,
     },
@@ -31,9 +31,6 @@ pub(super) const MAX_REQUEST_TIMEOUT: std::time::Duration = std::time::Duration:
 /// Error type for the commitments API.
 #[derive(Debug, Error)]
 pub enum CommitmentError {
-    /// Request rejected.
-    #[error("Request rejected: {0}")]
-    Rejected(#[from] RejectionError),
     /// Consensus validation failed.
     #[error("Consensus validation error: {0}")]
     Consensus(#[from] ConsensusError),
@@ -63,25 +60,37 @@ pub enum CommitmentError {
     UnknownMethod,
     /// Invalid JSON.
     #[error(transparent)]
-    InvalidJson(#[from] JsonRejection),
+    InvalidJson(#[from] serde_json::Error),
+    /// Invalid JSON-RPC request params.
+    #[error("Invalid JSON-RPC request params: {0}")]
+    InvalidParams(String),
+    /// Invalid JSON.
+    /// FIXME: (thedevbirb, 2025-13-01) this should be removed because it is dead code,
+    /// but it allows Rust to pull the correct axum version and not older ones from
+    /// dependencies (commit-boost).
+    #[error(transparent)]
+    RejectedJson(#[from] JsonRejection),
 }
 
-impl From<CommitmentError> for JsonError {
+impl From<CommitmentError> for JsonRpcError {
     fn from(err: CommitmentError) -> Self {
+        // Reference: https://www.jsonrpc.org/specification#error_object
+        // TODO: the custom defined ones should be clearly documented.
         match err {
-            CommitmentError::Rejected(err) => Self::new(-32000, err.to_string()),
             CommitmentError::Duplicate => Self::new(-32001, err.to_string()),
-            CommitmentError::Internal => Self::new(-32002, err.to_string()),
-            CommitmentError::NoSignature => Self::new(-32003, err.to_string()),
-            CommitmentError::InvalidSignature(err) => Self::new(-32004, err.to_string()),
-            CommitmentError::Signature(err) => Self::new(-32005, err.to_string()),
-            CommitmentError::Consensus(err) => Self::new(-32006, err.to_string()),
+            CommitmentError::NoSignature => Self::new(-32002, err.to_string()),
+            CommitmentError::InvalidSignature(err) => Self::new(-32003, err.to_string()),
+            CommitmentError::Signature(err) => Self::new(-32004, err.to_string()),
+            CommitmentError::Consensus(err) => Self::new(-32005, err.to_string()),
             CommitmentError::Validation(err) => Self::new(-32006, err.to_string()),
             CommitmentError::MalformedHeader => Self::new(-32007, err.to_string()),
-            CommitmentError::UnknownMethod => Self::new(-32601, err.to_string()),
             CommitmentError::InvalidJson(err) => {
                 Self::new(-32600, format!("Invalid request: {err}"))
             }
+            CommitmentError::UnknownMethod => Self::new(-32601, err.to_string()),
+            CommitmentError::InvalidParams(err) => Self::new(-32602, err.to_string()),
+            CommitmentError::Internal => Self::new(-32603, err.to_string()),
+            CommitmentError::RejectedJson(err) => Self::new(-32604, err.to_string()),
         }
     }
 }
@@ -89,16 +98,17 @@ impl From<CommitmentError> for JsonError {
 impl From<&CommitmentError> for StatusCode {
     fn from(err: &CommitmentError) -> Self {
         match err {
-            CommitmentError::Rejected(_) |
-            CommitmentError::Duplicate |
-            CommitmentError::NoSignature |
-            CommitmentError::InvalidSignature(_) |
-            CommitmentError::Signature(_) |
-            CommitmentError::Consensus(_) |
-            CommitmentError::Validation(_) |
-            CommitmentError::MalformedHeader |
-            CommitmentError::UnknownMethod |
-            CommitmentError::InvalidJson(_) => Self::BAD_REQUEST,
+            CommitmentError::Duplicate
+            | CommitmentError::NoSignature
+            | CommitmentError::InvalidSignature(_)
+            | CommitmentError::Signature(_)
+            | CommitmentError::Consensus(_)
+            | CommitmentError::Validation(_)
+            | CommitmentError::MalformedHeader
+            | CommitmentError::UnknownMethod
+            | CommitmentError::InvalidParams(_)
+            | CommitmentError::RejectedJson(_)
+            | CommitmentError::InvalidJson(_) => Self::BAD_REQUEST,
             CommitmentError::Internal => Self::INTERNAL_SERVER_ERROR,
         }
     }
@@ -107,30 +117,10 @@ impl From<&CommitmentError> for StatusCode {
 impl IntoResponse for CommitmentError {
     fn into_response(self) -> Response<Body> {
         let status_code = StatusCode::from(&self);
-        let json = Json(JsonResponse::from_error(self.into()));
+        let err = JsonRpcError::from(self);
+        let json = Json(JsonRpcErrorResponse::new(err));
 
         (status_code, json).into_response()
-    }
-}
-
-/// Error indicating the rejection of a commitment request. This should
-/// be returned to the user.
-#[derive(Debug, Error)]
-pub enum RejectionError {
-    /// State validation failed for this request.
-    #[error("Validation failed: {0}")]
-    ValidationFailed(String),
-    /// JSON parsing error.
-    #[error("JSON parsing error: {0}")]
-    Json(#[from] serde_json::Error),
-}
-
-impl From<RejectionError> for JsonError {
-    fn from(err: RejectionError) -> Self {
-        match err {
-            RejectionError::ValidationFailed(err) => Self::new(-32600, err),
-            RejectionError::Json(err) => Self::new(-32700, err.to_string()),
-        }
     }
 }
 

@@ -1,5 +1,5 @@
 # Stage 1: Base compiler image with necessary dependencies
-FROM rust:1.83.0-slim-bullseye AS base
+FROM rust:1.84.0-slim-bullseye AS base
 
 # Install cargo-chef for dependency caching
 RUN cargo install cargo-chef

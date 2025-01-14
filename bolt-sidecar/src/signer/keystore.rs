@@ -185,6 +185,7 @@ fn read_path(entry: std::result::Result<DirEntry, io::Error>) -> SignerResult<Pa
     Ok(entry.map_err(KeystoreError::ReadFromDirectory)?.path())
 }
 
+#[cfg(feature = "keystore-tests")]
 #[cfg(test)]
 mod tests {
     use std::{

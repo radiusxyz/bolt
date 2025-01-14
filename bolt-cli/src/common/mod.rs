@@ -1,4 +1,4 @@
-use std::{fs, io::Write, path::PathBuf, str::FromStr};
+use std::{fs, path::PathBuf, str::FromStr};
 
 use alloy::{
     contract::Error as ContractError,
@@ -9,8 +9,9 @@ use alloy::{
 };
 use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
 use eyre::{Context, ContextCompat, Result};
+use inquire::{error::InquireError, Confirm};
 use serde::Serialize;
-use tracing::info;
+use tracing::{error, info};
 
 /// BoltManager contract bindings.
 pub mod bolt_manager;
@@ -114,28 +115,28 @@ pub fn request_confirmation() {
     #[cfg(test)]
     return;
 
-    loop {
-        info!("Do you want to continue? (yes/no): ");
-
-        print!("Answer: ");
-        std::io::stdout().flush().expect("Failed to flush");
-
-        let mut input = String::new();
-        std::io::stdin().read_line(&mut input).expect("Failed to read input");
-
-        let input = input.trim().to_lowercase();
-
-        match input.as_str() {
-            "yes" | "y" => {
+    Confirm::new("Do you want to continue? (yes/no):")
+        .prompt()
+        .map(|proceed| {
+            if proceed {
                 return;
             }
-            "no" | "n" => {
+            info!("Aborting");
+            std::process::exit(0);
+        })
+        .unwrap_or_else(|err| match err {
+            InquireError::OperationCanceled => {
+                // User pressed ESC, a shorthand for "no"
                 info!("Aborting");
                 std::process::exit(0);
             }
-            _ => {
-                println!("Invalid input. Please type 'yes' or 'no'.");
+            InquireError::OperationInterrupted => {
+	       // Triggered a SIGINT via Ctrl-C
+	       std::process::exit(130);     
             }
-        }
-    }
+            _ => {
+                error!("aborting due to unexpected error: {}", err);
+                std::process::exit(1);
+            }
+        })
 }

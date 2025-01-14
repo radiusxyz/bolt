@@ -262,16 +262,6 @@ impl<C: StateFetcher> ExecutionState<C> {
             return Err(ValidationError::ChainIdMismatch);
         }
 
-        // Check if there is room for more commitments
-        if let Some(template) = self.get_block_template(target_slot) {
-            if template.transactions_len() >= self.limits.max_commitments_per_slot.get() {
-                return Err(ValidationError::MaxCommitmentsReachedForSlot(
-                    self.slot,
-                    self.limits.max_commitments_per_slot.get(),
-                ));
-            }
-        }
-
         // Check if the committed gas exceeds the maximum
         let template_committed_gas =
             self.get_block_template(target_slot).map(|t| t.committed_gas()).unwrap_or(0);

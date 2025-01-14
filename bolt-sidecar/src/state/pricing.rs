@@ -92,8 +92,8 @@ impl InclusionPricer {
         let after_gas = remaining_gas - incoming_gas;
 
         // Calculate numerator and denominator for the logarithm
-        let fraction = (self.gas_scalar * (remaining_gas as f64) + 1.0)
-            / (self.gas_scalar * (after_gas as f64) + 1.0);
+        let fraction = (self.gas_scalar * (remaining_gas as f64) + 1.0) /
+            (self.gas_scalar * (after_gas as f64) + 1.0);
 
         // Calculate block space value in Ether
         let block_space_value = self.base_multiplier * fraction.ln();
