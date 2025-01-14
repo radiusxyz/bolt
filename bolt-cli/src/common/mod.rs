@@ -125,12 +125,17 @@ pub fn request_confirmation() {
             std::process::exit(0);
         })
         .unwrap_or_else(|err| match err {
-            InquireError::OperationCanceled | InquireError::OperationInterrupted => {
+            InquireError::OperationCanceled => {
+                // User pressed ESC, a shorthand for "no"
                 info!("Aborting");
-                std::process::exit(1);
+                std::process::exit(0);
+            }
+            InquireError::OperationInterrupted => {
+	       // Triggered a SIGINT via Ctrl-C
+	       std::process::exit(130);     
             }
             _ => {
-                error!("error confirmation exited: {}", err);
+                error!("aborting due to unexpected error: {}", err);
                 std::process::exit(1);
             }
         })
