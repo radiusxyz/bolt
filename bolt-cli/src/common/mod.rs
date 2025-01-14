@@ -9,8 +9,9 @@ use alloy::{
 };
 use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
 use eyre::{Context, ContextCompat, Result};
+use inquire::{error::InquireError, Confirm};
 use serde::Serialize;
-use tracing::info;
+use tracing::{error, info};
 
 /// BoltManager contract bindings.
 pub mod bolt_manager;
@@ -114,7 +115,7 @@ pub fn request_confirmation() {
     #[cfg(test)]
     return;
 
-    inquire::Confirm::new("Do you want to continue? (yes/no):")
+    Confirm::new("Do you want to continue? (yes/no):")
         .prompt()
         .map(|proceed| {
             if proceed {
@@ -123,8 +124,19 @@ pub fn request_confirmation() {
             info!("Aborting");
             std::process::exit(0);
         })
-        .unwrap_or_else(|err| {
-            info!("confirmation exited: {}", err);
-            std::process::exit(0);
+        .unwrap_or_else(|err| match err {
+            InquireError::OperationCanceled => {
+                // User pressed ESC, a shorthand for "no"
+                info!("Aborting");
+                std::process::exit(0);
+            }
+            InquireError::OperationInterrupted => {
+	       // Triggered a SIGINT via Ctrl-C
+	       std::process::exit(130);     
+            }
+            _ => {
+                error!("aborting due to unexpected error: {}", err);
+                std::process::exit(1);
+            }
         })
 }
