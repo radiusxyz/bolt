@@ -9,11 +9,10 @@ use cb_common::{
     commit::{
         client::SignerClient,
         error::SignerClientError,
-        request::{GetPubkeysResponse, SignConsensusRequest},
+        request::{GetPubkeysResponse, SignConsensusRequest, SignProxyRequest},
     },
     signer::EcdsaPublicKey,
 };
-use commit_boost::prelude::SignProxyRequest;
 use ethereum_consensus::crypto::bls::PublicKey as BlsPublicKey;
 use parking_lot::RwLock;
 use reqwest::Url;

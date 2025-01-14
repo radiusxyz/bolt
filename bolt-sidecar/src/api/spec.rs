@@ -21,7 +21,7 @@ pub const STATUS_PATH: &str = "/eth/v1/builder/status";
 /// The path to the builder API register validators endpoint.
 pub const REGISTER_VALIDATORS_PATH: &str = "/eth/v1/builder/validators";
 /// The path to the builder API get header endpoint.
-pub const GET_HEADER_PATH: &str = "/eth/v1/builder/header/:slot/:parent_hash/:pubkey";
+pub const GET_HEADER_PATH: &str = "/eth/v1/builder/header/{slot}/{parent_hash}/{pubkey}";
 /// The path to the builder API get payload endpoint.
 pub const GET_PAYLOAD_PATH: &str = "/eth/v1/builder/blinded_blocks";
 /// The path to the constraints API submit constraints endpoint.
@@ -86,12 +86,12 @@ pub enum BuilderApiError {
 impl IntoResponse for BuilderApiError {
     fn into_response(self) -> Response {
         match self {
-            Self::FailedRegisteringValidators(error) |
-            Self::FailedGettingHeader(error) |
-            Self::FailedGettingPayload(error) |
-            Self::FailedSubmittingConstraints(error) |
-            Self::FailedDelegating(error) |
-            Self::FailedRevoking(error) => {
+            Self::FailedRegisteringValidators(error)
+            | Self::FailedGettingHeader(error)
+            | Self::FailedGettingPayload(error)
+            | Self::FailedSubmittingConstraints(error)
+            | Self::FailedDelegating(error)
+            | Self::FailedRevoking(error) => {
                 (StatusCode::from_u16(error.code).unwrap(), Json(error)).into_response()
             }
             Self::NoBids(_) => (StatusCode::NO_CONTENT, self.to_string()).into_response(),

@@ -79,9 +79,7 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt"] }
 metrics = "0.23"
 metrics-exporter-prometheus = { version = "0.15.3", features = ["http-listener"] }
 
-# commit-boost
-commit-boost = { git = "https://github.com/Commit-Boost/commit-boost-client", rev = "0f8f69b" }
-cb-common = { git = "https://github.com/Commit-Boost/commit-boost-client", rev = "0f8f69b" }
+cb-common = { git = "https://github.com/Commit-Boost/commit-boost-client", tag = "v0.5.0" }
 
 [dev-dependencies]
 alloy-node-bindings = "0.8.3"                                # must match alloy version
@@ -116,4 +114,4 @@ unnecessary_self_imports = "warn"
 use_self = "warn"
 
 [features]
-keystore-tests = [] 
+keystore-tests = []
