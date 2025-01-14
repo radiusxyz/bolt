@@ -28,3 +28,15 @@ router_config:
   enabled_routes: []
 
 network_config: !Holesky
+
+website:
+  enabled: true
+  port: 8080
+  listen_address: "0.0.0.0"
+  show_config_details: false
+  network_name: "holesky"
+  relay_url: https://0xa55c1285d84ba83a5ad26420cd5ad3091e49c55a813eee651cd467db38a8c8e63192f47955e9376f6b42f6d190571cb5@relay-holesky.bolt.chainbound.io
+  relay_pubkey: 0xa55c1285d84ba83a5ad26420cd5ad3091e49c55a813eee651cd467db38a8c8e63192f47955e9376f6b42f6d190571cb5
+  link_beaconchain: https://holesky.beaconcha.in
+  link_etherscan: https://holesky.etherscan.io
+  link_data_api: https://relay-holesky.bolt.chainbound.io

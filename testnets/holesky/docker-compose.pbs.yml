@@ -32,7 +32,7 @@ services:
       ADMINER_PLUGINS: tables-filter tinymce
 
   builder:
-    image: ghcr.io/chainbound/bolt-builder:v0.3.0-alpha.rc1
+    image: ghcr.io/chainbound/bolt-builder:v0.3.0-alpha.rc3
     restart: unless-stopped
     volumes:
       - "chaindata:/var/lib/chaindata"
@@ -62,6 +62,7 @@ services:
       - "41050:50050/udp"
     entrypoint:
       ["/bin/sh", "-c", "chmod +x /scripts/run-bn.sh && /scripts/run-bn.sh"]
+    # In case the sidecar on `docker-compose.yml` needs to connect to it
 
   helix-relay:
     image: ghcr.io/chainbound/helix:v0.3.0-alpha.rc4
@@ -74,7 +75,8 @@ services:
     volumes:
       - "./helix-config.yml:/helix-config.yml"
     ports:
-      - "44040:4040"
+      - "44040:4040" # api
+      - "48080:8080" # relay website
     environment:
       - RELAY_KEY=0x607a11b45a7219cc61a3d9c5fd08c7eebd602a6a19a977f8d3771d5711a550f2
       - RUST_LOG=helix_cmd=debug,helix_api=debug,helix_common=debug,helix_datastore=debug,helix_housekeeper=debug,helix_database=debug,helix_beacon_client=debug,helix_website=debug
