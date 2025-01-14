@@ -18,6 +18,11 @@ async fn main() -> eyre::Result<()> {
     println!("{}", BOLT);
     println!("Running version: {}", BOLT_SIDECAR_VERSION.clone());
 
+    // Init the default rustls provider
+    if let Err(e) = rustls::crypto::ring::default_provider().install_default() {
+        bail!("Failed to install default TLS provider: {:?}", e);
+    }
+
     let opts = Opts::try_parse()?;
 
     init_telemetry_stack(opts.telemetry.metrics_port())?;
