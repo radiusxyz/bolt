@@ -321,14 +321,18 @@ impl<C: StateFetcher> ExecutionState<C> {
 
         // Ensure max_priority_fee_per_gas is greater than or equal to the calculated
         // min_priority_fee
-        let (validated, tip, min_priority_fee) = req.validate_min_priority_fee(
+        if let Err(err) = req.validate_min_priority_fee(
             &self.pricing,
             template_committed_gas,
             self.limits.min_inclusion_profit,
             max_basefee,
-        )?;
-        if !validated {
-            return Err(ValidationError::MaxPriorityFeePerGasTooLow(tip, min_priority_fee));
+        ) {
+            return Err(match err {
+                pricing::PricingError::TipTooLow { tip, min_priority_fee } => {
+                    ValidationError::MaxPriorityFeePerGasTooLow(tip, min_priority_fee)
+                }
+                other => ValidationError::Pricing(other),
+            });
         }
 
         if target_slot < self.slot {
