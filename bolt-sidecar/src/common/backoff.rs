@@ -17,8 +17,10 @@ pub struct RetryConfig {
 }
 
 /// Retry a future with exponential backoff and jitter.
+///
+/// If `max_retries` is `None`, the future will be retried indefinitely.
 pub async fn retry_with_backoff<F, T, E>(
-    max_retries: usize,
+    max_retries: Option<usize>,
     config: Option<RetryConfig>,
     fut: impl Fn() -> F,
 ) -> Result<T, E>
@@ -30,16 +32,22 @@ where
 
     let backoff = ExponentialBackoff::from_millis(config.initial_delay_ms)
         .factor(config.factor)
-        .max_delay(Duration::from_secs(config.max_delay_secs))
-        .take(max_retries)
-        .map(jitter);
+        .max_delay(Duration::from_secs(config.max_delay_secs));
 
-    Retry::spawn(backoff, fut).await
+    match max_retries {
+        Some(max_retries) => {
+            let backoff = backoff.take(max_retries).map(jitter);
+            Retry::spawn(backoff, fut).await
+        }
+        None => Retry::spawn(backoff, fut).await,
+    }
 }
 
 /// Retry a future with exponential backoff and jitter if the error matches a condition.
+///
+/// If `max_retries` is `None`, the future will be retried indefinitely.
 pub async fn retry_with_backoff_if<F, T, E>(
-    max_retries: usize,
+    max_retries: Option<usize>,
     config: Option<RetryConfig>,
     fut: impl Fn() -> F,
     condition: impl FnMut(&E) -> bool,
@@ -52,11 +60,15 @@ where
 
     let backoff = ExponentialBackoff::from_millis(config.initial_delay_ms)
         .factor(config.factor)
-        .max_delay(Duration::from_secs(config.max_delay_secs))
-        .take(max_retries)
-        .map(jitter);
+        .max_delay(Duration::from_secs(config.max_delay_secs));
 
-    RetryIf::spawn(backoff, fut, condition).await
+    match max_retries {
+        Some(max_retries) => {
+            let backoff = backoff.take(max_retries).map(jitter);
+            RetryIf::spawn(backoff, fut, condition).await
+        }
+        None => RetryIf::spawn(backoff, fut, condition).await,
+    }
 }
 
 #[cfg(test)]
@@ -99,7 +111,7 @@ mod tests {
     async fn test_retry_success_without_retry() {
         let counter = Arc::new(Mutex::new(Counter::new(0)));
 
-        let result = retry_with_backoff(5, None, || {
+        let result = retry_with_backoff(Some(5), None, || {
             let counter = Arc::clone(&counter);
             async move {
                 let mut counter = counter.lock().await;
@@ -116,7 +128,7 @@ mod tests {
     async fn test_retry_until_success() {
         let counter = Arc::new(Mutex::new(Counter::new(3))); // Fail 3 times, succeed on 4th
 
-        let result = retry_with_backoff(5, None, || async {
+        let result = retry_with_backoff(Some(5), None, || async {
             let counter = Arc::clone(&counter);
             let mut counter = counter.lock().await;
             counter.retryable_fn().await
@@ -132,7 +144,7 @@ mod tests {
         let counter = Arc::new(Mutex::new(Counter::new(3))); // Fail 3 times, succeed on 4th
 
         let result = retry_with_backoff_if(
-            5,
+            Some(5),
             None,
             || async {
                 let counter = Arc::clone(&counter);
@@ -151,7 +163,7 @@ mod tests {
     async fn test_max_retries_reached() {
         let counter = Arc::new(Mutex::new(Counter::new(5))); // Fail 5 times, max retries = 3
 
-        let result = retry_with_backoff(3, None, || {
+        let result = retry_with_backoff(Some(3), None, || {
             let counter = Arc::clone(&counter);
             async move {
                 let mut counter = counter.lock().await;
@@ -169,7 +181,7 @@ mod tests {
         let counter = Arc::new(Mutex::new(Counter::new(3))); // Fail 3 times, succeed on 4th
         let start_time = Instant::now();
 
-        let result = retry_with_backoff(5, None, || {
+        let result = retry_with_backoff(Some(5), None, || {
             let counter = Arc::clone(&counter);
             async move {
                 let mut counter = counter.lock().await;

@@ -25,10 +25,6 @@ use super::{
     processor::{CommitmentRequestProcessor, InterruptReason, ProcessorState},
 };
 
-/// The maximum number of retries to attempt when reconnecting to a websocket server.
-/// Try indefinitely.
-const MAX_RETRIES: usize = usize::MAX;
-
 /// The maximum messages size to receive via websocket connection, in bits, set to 32MiB.
 ///
 /// It is enough to account for a commitment request with 6 blobs and the largest
@@ -124,7 +120,7 @@ impl CommitmentsReceiver {
 
             tokio::spawn(async move {
                 retry_with_backoff_if(
-                    MAX_RETRIES,
+                    None,
                     Some(retry_config),
                     // NOTE: this needs to be a closure because it must be re-called upon failure.
                     // As such we also need to clone the inputs again.
