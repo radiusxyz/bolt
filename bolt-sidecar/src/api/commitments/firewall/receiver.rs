@@ -1,10 +1,7 @@
 use alloy::signers::local::PrivateKeySigner;
-use std::{
-    fmt::{self, Debug, Formatter},
-    time::Duration,
-};
+use std::fmt::{self, Debug, Formatter};
 use thiserror::Error;
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::{mpsc, watch};
 use tokio_tungstenite::{
     connect_async_with_config,
     tungstenite::{self, client::IntoClientRequest, protocol::WebSocketConfig},
@@ -27,15 +24,6 @@ use super::{
     jwt::ProposerAuthClaims,
     processor::{CommitmentRequestProcessor, InterruptReason, ProcessorState},
 };
-
-/// The interval at which to send ping messages from connected clients.
-#[cfg(test)]
-const PING_INTERVAL: Duration = Duration::from_secs(4);
-#[cfg(not(test))]
-const PING_INTERVAL: Duration = Duration::from_secs(30);
-
-/// The maximum number of retries to attempt when reconnecting to a websocket server.
-const MAX_RETRIES: usize = 1000;
 
 /// The maximum messages size to receive via websocket connection, in bits, set to 32MiB.
 ///
@@ -114,10 +102,8 @@ impl CommitmentsReceiver {
         // mspc channel where every websocket connection will send commitment events over its own
         // tx to a single receiver.
         let (api_events_tx, api_events_rx) = mpsc::channel(self.urls.len() * 2);
-        let (ping_tx, ping_rx) = broadcast::channel::<()>(1);
-        let (shutdown_tx, shutdown_rx) = broadcast::channel::<()>(1);
+        let (shutdown_tx, shutdown_rx) = watch::channel(());
 
-        PingTicker::new(PING_INTERVAL).spawn(ping_tx);
         ShutdownTicker::new(self.signal).spawn(shutdown_tx);
 
         let signer = PrivateKeySigner::from_signing_key(self.operator_private_key.0);
@@ -129,13 +115,12 @@ impl CommitmentsReceiver {
             // task.
             let url = url.to_string();
             let api_events_tx = api_events_tx.clone();
-            let ping_rx = ping_rx.resubscribe();
-            let shutdown_rx = shutdown_rx.resubscribe();
+            let shutdown_rx = shutdown_rx.clone();
             let signer = signer.clone();
 
             tokio::spawn(async move {
                 retry_with_backoff_if(
-                    MAX_RETRIES,
+                    None,
                     Some(retry_config),
                     // NOTE: this needs to be a closure because it must be re-called upon failure.
                     // As such we also need to clone the inputs again.
@@ -151,12 +136,10 @@ impl CommitmentsReceiver {
                         .expect("failed to produce JWT");
 
                         let api_events_tx = api_events_tx.clone();
-                        let ping_rx = ping_rx.resubscribe();
-                        let shutdown_rx = shutdown_rx.resubscribe();
+                        let shutdown_rx = shutdown_rx.clone();
 
                         async move {
-                            handle_connection(url, state, jwt, api_events_tx, ping_rx, shutdown_rx)
-                                .await
+                            handle_connection(url, state, jwt, api_events_tx, shutdown_rx).await
                         }
                     },
                     handle_error,
@@ -180,8 +163,7 @@ async fn handle_connection(
     state: ProcessorState,
     jwt: String,
     api_events_tx: mpsc::Sender<CommitmentEvent>,
-    ping_rx: broadcast::Receiver<()>,
-    shutdown_rx: broadcast::Receiver<()>,
+    shutdown_rx: watch::Receiver<()>,
 ) -> Result<(), ConnectionHandlerError> {
     let ws_config =
         WebSocketConfig { max_message_size: Some(MAX_MESSAGE_SIZE), ..Default::default() };
@@ -197,14 +179,8 @@ async fn handle_connection(
 
             // For each opened connection, create a new commitment processor
             // able to handle incoming message requests.
-            let commitment_request_processor = CommitmentRequestProcessor::new(
-                url,
-                state,
-                api_events_tx,
-                stream,
-                ping_rx,
-                shutdown_rx,
-            );
+            let commitment_request_processor =
+                CommitmentRequestProcessor::new(url, state, api_events_tx, stream, shutdown_rx);
             let interrupt_reason = commitment_request_processor.await;
             Err(ConnectionHandlerError::ProcessorInterrupted(interrupt_reason))
         }
@@ -242,31 +218,6 @@ fn handle_error(err: &ConnectionHandlerError) -> bool {
     !is_shutdown
 }
 
-/// A ping ticker that sends ping messages to connected clients at regular intervals.
-struct PingTicker {
-    interval: Duration,
-}
-
-impl PingTicker {
-    pub fn new(interval: Duration) -> Self {
-        Self { interval }
-    }
-
-    /// Spawn a task to ping connected clients at regular intervals.
-    pub fn spawn(self, tx: broadcast::Sender<()>) {
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(self.interval);
-
-            loop {
-                interval.tick().await;
-                if tx.send(()).is_err() {
-                    error!("internal error while sending ping task: dropped receiver")
-                }
-            }
-        });
-    }
-}
-
 /// A shutdown ticker that sends a shutdown signal to connected clients.
 struct ShutdownTicker {
     signal: ShutdownSignal,
@@ -279,7 +230,7 @@ impl ShutdownTicker {
     }
 
     /// Spawn a task to shutdown message to the connected clients.
-    pub fn spawn(self, tx: broadcast::Sender<()>) {
+    pub fn spawn(self, tx: watch::Sender<()>) {
         tokio::spawn(async move {
             self.signal.await;
 

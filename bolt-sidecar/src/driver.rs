@@ -430,7 +430,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         let constraints_client = Arc::new(self.constraints_client.clone());
 
         // Submit constraints to the constraints service with an exponential retry mechanism.
-        tokio::spawn(retry_with_backoff(10, None, move || {
+        tokio::spawn(retry_with_backoff(Some(10), None, move || {
             let constraints_client = Arc::clone(&constraints_client);
             let constraints = Arc::clone(&constraints);
             async move {
