@@ -25,4 +25,5 @@ lighthouse beacon_node \
   --metrics-allow-origin=* \
   --metrics-port=5054 \
   --enable-private-discovery \
-  --jwt-secrets=/var/lib/shared/jwtsecret
+  --jwt-secrets=/var/lib/shared/jwtsecret \
+  --suggested-fee-recipient 0x20A1305Ec6c13FFE8e5289f98ba1A18Aa262c15E # Our bolt deployer
