@@ -17,7 +17,7 @@ use tokio_tungstenite::{
     tungstenite::{self, Message},
     MaybeTlsStream, WebSocketStream,
 };
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -140,12 +140,12 @@ impl CommitmentRequestProcessor {
 impl Future for CommitmentRequestProcessor {
     type Output = InterruptReason;
 
+    #[instrument(name = "", skip_all, fields(url = %self.url))]
     fn poll(
         self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
         let this = self.get_mut();
-        let rpc_url = this.url.clone();
 
         loop {
             let mut progress = false;
@@ -170,7 +170,7 @@ impl Future for CommitmentRequestProcessor {
 
                         // Try to send the message to the sink, for later flushing.
                         if let Err(e) = this.write_sink.start_send_unpin(message) {
-                            error!(?e, ?rpc_url, "failed to send message to websocket write sink");
+                            error!(?e, "failed to send message to websocket write sink");
                             continue;
                         }
                     }
@@ -210,7 +210,7 @@ impl Future for CommitmentRequestProcessor {
                 progress = true;
 
                 let Some(res_message) = maybe_message else {
-                    warn!(?rpc_url, "websocket read stream terminated");
+                    warn!("websocket read stream terminated");
                     return Poll::Ready(InterruptReason::ReadStreamTerminated);
                 };
 
@@ -219,27 +219,23 @@ impl Future for CommitmentRequestProcessor {
                         this.handle_text_message(text);
                     }
                     Ok(Message::Close(_)) => {
-                        warn!(?rpc_url, "websocket connection closed by server");
+                        warn!("websocket connection closed by server");
                         return Poll::Ready(InterruptReason::ConnectionClosed);
                     }
                     Ok(Message::Binary(data)) => {
-                        debug!(
-                            ?rpc_url,
-                            bytes_len = data.len(),
-                            "received unexpected binary message"
-                        );
+                        debug!(bytes_len = data.len(), "received unexpected binary message");
                     }
                     Ok(Message::Ping(_)) => {
-                        trace!(?rpc_url, "received ping message");
+                        trace!("received ping message");
                     }
                     Ok(Message::Pong(_)) => {
-                        trace!(?rpc_url, "received pong message");
+                        trace!("received pong message");
                     }
                     Ok(Message::Frame(_)) => {
-                        debug!(?rpc_url, "received unexpected raw frame");
+                        debug!("received unexpected raw frame");
                     }
                     Err(e) => {
-                        error!(?e, ?rpc_url, "error reading message from websocket connection");
+                        error!(?e, "error reading message from websocket connection");
                     }
                 }
             }
@@ -292,15 +288,13 @@ impl CommitmentRequestProcessor {
     }
 
     fn handle_text_message(&mut self, text: String) {
-        let rpc_url = self.url.clone();
-
-        trace!(?rpc_url, text, "received text message from websocket connection");
+        trace!(text, "received text message from websocket connection");
         let (tx, rx) = oneshot::channel();
 
         let request = match serde_json::from_str::<JsonRpcRequestUuid>(&text) {
             Ok(req) => req,
             Err(e) => {
-                warn!(?e, ?rpc_url, "failed to parse JSON-RPC request");
+                warn!(?e, "failed to parse JSON-RPC request");
                 return;
             }
         };
@@ -363,7 +357,7 @@ impl CommitmentRequestProcessor {
                 self.pending_commitment_responses.push(PendingCommitmentResponse::new(rx, id));
             }
             other => {
-                warn!(?rpc_url, "unsupported method: {}", other);
+                warn!("unsupported method: {}", other);
             }
         };
     }
