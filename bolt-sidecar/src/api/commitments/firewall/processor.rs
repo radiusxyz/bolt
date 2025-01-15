@@ -222,7 +222,22 @@ impl Future for CommitmentRequestProcessor {
                         warn!(?rpc_url, "websocket connection closed by server");
                         return Poll::Ready(InterruptReason::ConnectionClosed);
                     }
-                    Ok(_) => {} // ignore other message types
+                    Ok(Message::Binary(data)) => {
+                        warn!(
+                            ?rpc_url,
+                            bytes_len = data.len(),
+                            "received unexpected binary message"
+                        );
+                    }
+                    Ok(Message::Ping(_)) => {
+                        trace!(?rpc_url, "received ping message");
+                    }
+                    Ok(Message::Pong(_)) => {
+                        trace!(?rpc_url, "received pong message");
+                    }
+                    Ok(Message::Frame(_)) => {
+                        warn!(?rpc_url, "received unexpected raw frame");
+                    }
                     Err(e) => {
                         error!(?e, ?rpc_url, "error reading message from websocket connection");
                     }
