@@ -34,13 +34,17 @@ ethereum_ssz = "0.8.2"
 ethereum_ssz_derive = "0.8.1"
 
 # alloy
-alloy = { version = "0.8.3", features = ["signer-local", "provider-trace-api", "rpc-types-beacon", "rpc-types-engine"] }
+alloy = { version = "0.8.3", features = [
+    "signer-local",
+    "provider-trace-api",
+    "rpc-types-beacon",
+    "rpc-types-engine",
+] }
 alloy-rlp = "0.3.10"
 
 # commit-boost
-# pinned to rev be able to bump alloy
-cb-common = { git = "https://github.com/commit-boost/commit-boost-client", rev = "0f8f69b" }
-cb-pbs = { git = "https://github.com/commit-boost/commit-boost-client", rev = "0f8f69b" }
+cb-common = { git = "https://github.com/commit-boost/commit-boost-client", rev = "v0.5.0" }
+cb-pbs = { git = "https://github.com/commit-boost/commit-boost-client", rev = "v0.5.0" }
 
 # other
 rand = "0.8.5"
