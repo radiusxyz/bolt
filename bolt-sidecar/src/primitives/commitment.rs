@@ -198,7 +198,10 @@ impl InclusionRequest {
 
             let tip = tx.effective_tip_per_gas(max_base_fee).unwrap_or_default();
             if tip < min_priority_fee as u128 {
-                return Ok(false);
+                return Err(PricingError::TipTooLow {
+                    tip,
+                    min_priority_fee: min_priority_fee as u128,
+                });
             }
             // Increment the preconfirmed gas for the next transaction in the bundle
             local_preconfirmed_gas = local_preconfirmed_gas.saturating_add(tx.gas_limit());

@@ -35,6 +35,15 @@ pub enum PricingError {
         /// Gas required by the incoming transaction
         incoming_gas: u64,
     },
+
+    /// Tip is too low for the required minimum priority fee
+    #[error("Tip {tip} is too low. Minimum required priority fee is {min_priority_fee}")]
+    TipTooLow {
+        /// Tip provided by the transaction
+        tip: u128,
+        /// The minimum priority fee required
+        min_priority_fee: u128,
+    },
 }
 
 impl Default for InclusionPricer {
