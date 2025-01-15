@@ -1,7 +1,7 @@
 use alloy::signers::local::PrivateKeySigner;
 use std::fmt::{self, Debug, Formatter};
 use thiserror::Error;
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::{mpsc, watch};
 use tokio_tungstenite::{
     connect_async_with_config,
     tungstenite::{self, client::IntoClientRequest, protocol::WebSocketConfig},
@@ -106,7 +106,7 @@ impl CommitmentsReceiver {
         // mspc channel where every websocket connection will send commitment events over its own
         // tx to a single receiver.
         let (api_events_tx, api_events_rx) = mpsc::channel(self.urls.len() * 2);
-        let (shutdown_tx, shutdown_rx) = broadcast::channel::<()>(1);
+        let (shutdown_tx, shutdown_rx) = watch::channel(());
 
         ShutdownTicker::new(self.signal).spawn(shutdown_tx);
 
@@ -119,7 +119,7 @@ impl CommitmentsReceiver {
             // task.
             let url = url.to_string();
             let api_events_tx = api_events_tx.clone();
-            let shutdown_rx = shutdown_rx.resubscribe();
+            let shutdown_rx = shutdown_rx.clone();
             let signer = signer.clone();
 
             tokio::spawn(async move {
@@ -140,7 +140,7 @@ impl CommitmentsReceiver {
                         .expect("failed to produce JWT");
 
                         let api_events_tx = api_events_tx.clone();
-                        let shutdown_rx = shutdown_rx.resubscribe();
+                        let shutdown_rx = shutdown_rx.clone();
 
                         async move {
                             handle_connection(url, state, jwt, api_events_tx, shutdown_rx).await
@@ -167,7 +167,7 @@ async fn handle_connection(
     state: ProcessorState,
     jwt: String,
     api_events_tx: mpsc::Sender<CommitmentEvent>,
-    shutdown_rx: broadcast::Receiver<()>,
+    shutdown_rx: watch::Receiver<()>,
 ) -> Result<(), ConnectionHandlerError> {
     let ws_config =
         WebSocketConfig { max_message_size: Some(MAX_MESSAGE_SIZE), ..Default::default() };
@@ -234,7 +234,7 @@ impl ShutdownTicker {
     }
 
     /// Spawn a task to shutdown message to the connected clients.
-    pub fn spawn(self, tx: broadcast::Sender<()>) {
+    pub fn spawn(self, tx: watch::Sender<()>) {
         tokio::spawn(async move {
             self.signal.await;
 

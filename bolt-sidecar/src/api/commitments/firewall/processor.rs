@@ -1,4 +1,5 @@
 use futures::{
+    pin_mut,
     stream::{FuturesUnordered, SplitSink, SplitStream},
     FutureExt, SinkExt, StreamExt,
 };
@@ -9,9 +10,9 @@ use std::{collections::VecDeque, future::Future, pin::Pin, task::Poll};
 use tokio::{
     net::TcpStream,
     sync::{
-        broadcast::{self, error::TryRecvError},
         mpsc,
         oneshot::{self, error::RecvError},
+        watch,
     },
     time::Interval,
 };
@@ -110,7 +111,7 @@ pub struct CommitmentRequestProcessor {
     /// The interval at which to send ping messages to the connected websocket server.
     ping_interval: Interval,
     /// The receiver for shutdown signals.
-    shutdown_rx: broadcast::Receiver<()>,
+    shutdown_rx: watch::Receiver<()>,
     /// The collection of pending commitment requests responses, sent with [api_events_tx].
     /// SAFETY: the `poll` implementation of this struct promptly handles these responses and
     /// ensures this vector doesn't grow indefinitely.
@@ -126,7 +127,7 @@ impl CommitmentRequestProcessor {
         state: ProcessorState,
         tx: mpsc::Sender<CommitmentEvent>,
         stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
-        shutdown_rx: broadcast::Receiver<()>,
+        shutdown_rx: watch::Receiver<()>,
     ) -> Self {
         let (write_sink, read_stream) = stream.split();
 
@@ -200,18 +201,21 @@ impl Future for CommitmentRequestProcessor {
 
             // 4. Handle shutdown signals before accepting any new work
             //
-            // FIXME: (thedevbirb, 2025-01-15) this is not using the context waker to poll the shutdown signal.
-            // As such it will be triggered only if a message is sent _and_ another
-            // event will wake this task.
-            match this.shutdown_rx.try_recv() {
-                Ok(_) => {
+            // NOTE: (thedevbirb, 2025-01-15) this is a temporary workaround to ensure that the
+            // shutdown signal wakes the task. https://github.com/chainbound/bolt/issues/673
+            // will be a generalized solution to this problem.
+            let mut shutdown = this.shutdown_rx.clone();
+            let shutdown = shutdown.changed();
+            pin_mut!(shutdown);
+            match shutdown.poll_unpin(cx) {
+                Poll::Ready(Ok(_)) => {
                     info!("received shutdown signal. closing websocket connection...");
                     return Poll::Ready(InterruptReason::Shutdown);
                 }
-                Err(TryRecvError::Closed) => {
+                Poll::Ready(Err(_)) => {
                     error!("shutdown channel closed");
                 }
-                _ => {}
+                Poll::Pending => { /* fallthrough */ }
             }
 
             // Incoming work tasks
