@@ -17,7 +17,7 @@ use tokio_tungstenite::{
     tungstenite::{self, Message},
     MaybeTlsStream, WebSocketStream,
 };
-use tracing::{error, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -223,7 +223,7 @@ impl Future for CommitmentRequestProcessor {
                         return Poll::Ready(InterruptReason::ConnectionClosed);
                     }
                     Ok(Message::Binary(data)) => {
-                        warn!(
+                        debug!(
                             ?rpc_url,
                             bytes_len = data.len(),
                             "received unexpected binary message"
@@ -236,7 +236,7 @@ impl Future for CommitmentRequestProcessor {
                         trace!(?rpc_url, "received pong message");
                     }
                     Ok(Message::Frame(_)) => {
-                        warn!(?rpc_url, "received unexpected raw frame");
+                        debug!(?rpc_url, "received unexpected raw frame");
                     }
                     Err(e) => {
                         error!(?e, ?rpc_url, "error reading message from websocket connection");
