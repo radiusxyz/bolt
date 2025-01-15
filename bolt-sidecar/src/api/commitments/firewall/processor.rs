@@ -4,6 +4,7 @@ use futures::{
 };
 use serde::Serialize;
 use serde_json::{json, Value};
+use std::time::Duration;
 use std::{collections::VecDeque, future::Future, pin::Pin, task::Poll};
 use tokio::{
     net::TcpStream,
@@ -12,6 +13,7 @@ use tokio::{
         mpsc,
         oneshot::{self, error::RecvError},
     },
+    time::Interval,
 };
 use tokio_tungstenite::{
     tungstenite::{self, Message},
@@ -38,6 +40,12 @@ use crate::{
         CommitmentRequest, InclusionRequest,
     },
 };
+
+/// The interval at which to send ping messages from connected clients.
+#[cfg(test)]
+const PING_INTERVAL: Duration = Duration::from_secs(4);
+#[cfg(not(test))]
+const PING_INTERVAL: Duration = Duration::from_secs(30);
 
 /// The reason for interrupting the [CommitmentRequestProcessor] future.
 #[derive(Debug)]
@@ -99,8 +107,8 @@ pub struct CommitmentRequestProcessor {
     write_sink: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
     /// The websocket reader stream.
     read_stream: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
-    /// The receiver for keep-alive ping messages.
-    ping_rx: broadcast::Receiver<()>,
+    /// The interval at which to send ping messages to the connected websocket server.
+    ping_interval: Interval,
     /// The receiver for shutdown signals.
     shutdown_rx: broadcast::Receiver<()>,
     /// The collection of pending commitment requests responses, sent with [api_events_tx].
@@ -118,7 +126,6 @@ impl CommitmentRequestProcessor {
         state: ProcessorState,
         tx: mpsc::Sender<CommitmentEvent>,
         stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
-        ping_rx: broadcast::Receiver<()>,
         shutdown_rx: broadcast::Receiver<()>,
     ) -> Self {
         let (write_sink, read_stream) = stream.split();
@@ -129,7 +136,7 @@ impl CommitmentRequestProcessor {
             api_events_tx: tx,
             write_sink,
             read_stream,
-            ping_rx,
+            ping_interval: tokio::time::interval(PING_INTERVAL),
             shutdown_rx,
             pending_commitment_responses: FuturesUnordered::new(),
             outgoing_messages: VecDeque::new(),
@@ -192,6 +199,10 @@ impl Future for CommitmentRequestProcessor {
             }
 
             // 4. Handle shutdown signals before accepting any new work
+            //
+            // FIXME: (thedevbirb, 2025-01-15) this is not using the context waker to poll the shutdown signal.
+            // As such it will be triggered only if a message is sent _and_ another
+            // event will wake this task.
             match this.shutdown_rx.try_recv() {
                 Ok(_) => {
                     info!("received shutdown signal. closing websocket connection...");
@@ -241,18 +252,14 @@ impl Future for CommitmentRequestProcessor {
             }
 
             // 6. Handle ping messages
-            match this.ping_rx.try_recv() {
-                Ok(_) => {
+            match this.ping_interval.poll_tick(cx) {
+                Poll::Ready(_) => {
                     progress = true;
+
+                    trace!("sending ping message to websocket connection");
                     this.outgoing_messages.push_back(Message::Ping(vec![8, 0, 1, 7]));
                 }
-                Err(TryRecvError::Closed) => {
-                    error!("ping channel for keep-alive messages closed");
-                }
-                Err(TryRecvError::Lagged(lost)) => {
-                    error!("ping channel for keep-alives lagged by {} messages", lost)
-                }
-                _ => {}
+                Poll::Pending => { /* fallthrough */ }
             }
 
             if !progress {
