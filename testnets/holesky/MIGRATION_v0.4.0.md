@@ -2,6 +2,10 @@
 
 This document outlines a migration guide for upgrading bolt to v0.4.0-alpha, which contains some breaking changes. We'll start with an overview of the main changes.
 
+- [Firewall delegation](#firewall-delegation)
+- [New pricing model](#new-pricing-model)
+- [**Required action**](#required-action)
+
 ### Firewall delegation
 Firewall delegation allows proposers to set an external third party as their network entrypoint or *firewall*. It gets rid of the
 requirement to expose an HTTP RPC endpoint for accepting inclusion requests (inbound), and instead subscribes to the configured firewall over a
@@ -28,7 +32,7 @@ priority fee.
 
 Check out all release notes [here](https://github.com/chainbound/bolt/releases/tag/v0.4.0-alpha).
 
-### Configuration
+### Required action
 Start by pulling in the changes:
 ```bash
 # Optional
