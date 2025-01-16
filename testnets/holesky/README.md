@@ -27,8 +27,8 @@ This document provides instructions for running Bolt on the Holesky testnet.
     * [Building and running the MEV-Boost fork binary](#building-and-running-the-mev-boost-fork-binary)
     * [Building and running the Bolt sidecar binary](#building-and-running-the-bolt-sidecar-binary)
       * [Configuration file](#configuration-file)
-    * [Observability](#observability)
-    * [Firewall Configuration](#firewall-configuration)
+  * [Observability](#observability)
+  * [Firewall Delegation](#firewall-delegation)
 * [Reference](#reference)
   * [Supported RPC nodes](#supported-rpc-nodes)
   * [Supported Relays](#supported-relays)
@@ -642,7 +642,8 @@ After you've set up the configuration file you can run the Bolt sidecar with
 
 The bolt sidecar comes with various observability tools, such as Prometheus
 and Grafana. It also comes with some pre-built dashboards, which can
-be found in the `grafana` directory.
+be found in the `grafana` directory. If you're running in Docker mode, these are started by default, and you can skip
+this section.
 
 To run these dashboards change directory to the `bolt-sidecar/infra` folder, configure `prometheus.yml`, and
 run:
@@ -657,7 +658,7 @@ To stop the services run:
 docker compose -f telemetry.compose.yml down
 ```
 
-# Firewall Delegation
+## Firewall Delegation
 
 The Bolt sidecar will run in firewall delegation mode by default (specified in `BOLT_SIDECAR_FIREWALL_RPCS=“wss://rpc-holesky.bolt.chainbound.io/api/v1/firewall_stream”`). This means that it will initiate an outbound connection to the WebSocket endpoint
 defined above. It is recommended to run this mode because it will protect you from spam and DoS.
