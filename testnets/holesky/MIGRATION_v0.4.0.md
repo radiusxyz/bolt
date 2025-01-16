@@ -64,7 +64,7 @@ These changes are quite substantial, as they contain updated docker compose file
 configs. **All of the changes outlined below are in `bolt-sidecar.env` (`mev-boost.env` remains unchanged)**.
 
 ##### Firewall delegation
-- `BOLT_SIDECAR_FIREWALL_RPCS` is set by default, which means that the sidecar will run in firewall delegation mode.
+- `BOLT_SIDECAR_FIREWALL_RPCS` configures the sidecar to run in firewall delegation mode with the provided endpoint. This option is set by default in the presets.
 - `BOLT_SIDECAR_PORT` controls whether to expose an HTTP endpoint instead of using firewall delegation. These 2 options are mutually exclusive.
 
 > [!IMPORTANT]
