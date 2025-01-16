@@ -9,7 +9,7 @@ This document outlines a migration guide for upgrading bolt to v0.4.0-alpha, whi
 ### Firewall delegation
 Firewall delegation allows proposers to set an external third party as their network entrypoint or *firewall*. It gets rid of the
 requirement to expose an HTTP RPC endpoint for accepting inclusion requests (inbound), and instead subscribes to the configured firewall over a
-websocket connection (outbound).
+websocket connection (outbound). The firewall will then stream valid, filtered inclusion requests over the websocket connection.
 
 Some of the other duties of the firewall include:
 - Spam and DoS prevention
@@ -18,7 +18,7 @@ Some of the other duties of the firewall include:
 
 Currently, we operate a firewall RPC on Holesky at `wss://rpc-holesky.bolt.chainbound.io/api/v1/firewall_stream`.
 
-Read more [here](https://x.com/boltprotocol_/status/1879571451621077413).
+Read more about firewall delegation [here](https://x.com/boltprotocol_/status/1879571451621077413).
 
 ### New pricing model
 This new release also comes with an upgraded, dynamic pricing model that's based on joint research by Nethermind and Chainbound.
