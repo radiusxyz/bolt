@@ -16,7 +16,7 @@ pub struct CommitmentOpts {
     /// This port should be open on your firewall in order to receive external requests!
     #[clap(long, env = "BOLT_SIDECAR_PORT")]
     pub port: Option<u16>,
-    /// Comma-separated list of allowed RPC addresses to subscribe via websocket to receive
+    /// Comma-separated list of allowed RPC URLs to subscribe via websocket to receive
     /// incoming commitments requests.
     #[clap(
         long,
