@@ -850,14 +850,14 @@ Options:
 ## Delegations and signing options for Native and Docker Compose Mode
 
 As mentioned in the [prerequisites](#prerequisites) section, the Bolt sidecar
-can sign commitments with a delegated set of private keys on behalf of active
+can sign commitments with an authorized set of private keys on behalf of active
 Ethereum validators.
 
 > [!IMPORTANT]
 > This is the recommended way to run the Bolt sidecar as it
 > doesn't expose the active validator signing keys to any additional risk.
 
-In order to create these delegation you can use the `bolt` CLI binary.
+In order to create these authorizations (delegations) you can use the `bolt` CLI binary.
 If you don't want to use it you can skip the following section.
 
 ### `bolt` CLI
