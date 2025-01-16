@@ -22,12 +22,13 @@ import {Subnetwork} from "@symbiotic/contracts/libraries/Subnetwork.sol";
 
 import {IBoltValidatorsV2} from "../src/interfaces/IBoltValidatorsV2.sol";
 import {IBoltMiddlewareV1} from "../src/interfaces/IBoltMiddlewareV1.sol";
-import {IBoltManagerV2} from "../src/interfaces/IBoltManagerV2.sol";
+import {IBoltManagerV3} from "../src/interfaces/IBoltManagerV3.sol";
 
 import {BoltParametersV1} from "../src/contracts/BoltParametersV1.sol";
 import {BoltValidatorsV2} from "../src/contracts/BoltValidatorsV2.sol";
-import {BoltManagerV2} from "../src/contracts/BoltManagerV2.sol";
+import {BoltManagerV3} from "../src/contracts/BoltManagerV3.sol";
 import {BoltSymbioticMiddlewareV1} from "../src/contracts/BoltSymbioticMiddlewareV1.sol";
+import {EnumerableMapV3} from "../src/lib/EnumerableMapV3.sol";
 import {BLS12381} from "../src/lib/bls/BLS12381.sol";
 import {BoltConfig} from "../src/lib/BoltConfig.sol";
 import {ValidatorsLib} from "../src/lib/ValidatorsLib.sol";
@@ -46,7 +47,7 @@ contract BoltManagerSymbioticTest is Test {
     uint32 public constant PRECONF_MAX_GAS_LIMIT = 5_000_000;
 
     BoltValidatorsV2 public validators;
-    BoltManagerV2 public manager;
+    BoltManagerV3 public manager;
     BoltSymbioticMiddlewareV1 public middleware;
 
     IVaultFactory public vaultFactory;
@@ -178,7 +179,7 @@ contract BoltManagerSymbioticTest is Test {
 
         validators = new BoltValidatorsV2();
         validators.initialize(admin, address(parameters));
-        manager = new BoltManagerV2();
+        manager = new BoltManagerV3();
         manager.initialize(admin, address(parameters), address(validators));
 
         middleware = new BoltSymbioticMiddlewareV1();
@@ -335,7 +336,7 @@ contract BoltManagerSymbioticTest is Test {
         vm.warp(block.timestamp + EPOCH_DURATION * 2 + 1);
         assertEq(vault.currentEpoch(), 2);
 
-        IBoltManagerV2.ProposerStatus memory status = manager.getProposerStatus(pubkeyHash);
+        IBoltManagerV3.ProposerStatus memory status = manager.getProposerStatus(pubkeyHash);
         assertEq(status.pubkeyHash, pubkeyHash);
         assertEq(status.operator, operator);
         assertEq(status.active, true);
@@ -363,7 +364,7 @@ contract BoltManagerSymbioticTest is Test {
         vm.warp(block.timestamp + EPOCH_DURATION * 2 + 1);
         assertEq(vault.currentEpoch(), 2);
 
-        IBoltManagerV2.ProposerStatus[] memory statuses = manager.getProposerStatuses(pubkeyHashes);
+        IBoltManagerV3.ProposerStatus[] memory statuses = manager.getProposerStatuses(pubkeyHashes);
         assertEq(statuses.length, 10);
     }
 
@@ -374,6 +375,25 @@ contract BoltManagerSymbioticTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(ValidatorsLib.ValidatorDoesNotExist.selector, pubkeyHash));
         manager.getProposerStatus(pubkeyHash);
+    }
+
+    function testUpdateOperatorRpc() public {
+        _symbioticOptInRoutine();
+
+        // --- Get current operator data ---
+        EnumerableMapV3.Operator memory operatorData = manager.getOperatorData(operator);
+        assertEq(operatorData.rpc, "https://bolt-rpc.io");
+
+        // --- Update Operator RPC ---
+        vm.prank(operator);
+        manager.updateOperatorRPC("https://new-rpc.io");
+
+        // --- Check new operator data ---
+        operatorData = manager.getOperatorData(operator);
+        assertEq(operatorData.rpc, "https://new-rpc.io");
+
+        // --- Check that the operator is still enabled ---
+        assertEq(manager.isOperatorEnabled(operator), true);
     }
 
     function testCalculateSubnetwork() public {

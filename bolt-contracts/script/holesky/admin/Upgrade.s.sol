@@ -9,7 +9,7 @@ import {Upgrades, Options} from "@openzeppelin-foundry-upgrades/src/Upgrades.sol
 import {BoltParametersV1} from "../../../src/contracts/BoltParametersV1.sol";
 import {BoltValidatorsV1} from "../../../src/contracts/BoltValidatorsV1.sol";
 import {BoltManagerV1} from "../../../src/contracts/BoltManagerV1.sol";
-import {BoltManagerV2} from "../../../src/contracts/BoltManagerV2.sol";
+import {BoltManagerV3} from "../../../src/contracts/BoltManagerV3.sol";
 import {BoltEigenLayerMiddlewareV1} from "../../../src/contracts/BoltEigenLayerMiddlewareV1.sol";
 import {BoltEigenLayerMiddlewareV2} from "../../../src/contracts/BoltEigenLayerMiddlewareV2.sol";
 import {BoltSymbioticMiddlewareV1} from "../../../src/contracts/BoltSymbioticMiddlewareV1.sol";
@@ -139,12 +139,12 @@ contract UpgradeBolt is Script {
 
         Options memory opts;
         opts.unsafeSkipAllChecks = true;
-        opts.referenceContract = "BoltManagerV1.sol";
-        string memory upgradeTo = "BoltManagerV2.sol";
+        opts.referenceContract = "BoltManagerV2.sol";
+        string memory upgradeTo = "BoltManagerV3.sol";
 
         Deployments memory deployments = _readDeployments();
         bytes memory initManager =
-            abi.encodeCall(BoltManagerV2.initializeV2, (admin, deployments.boltParameters, deployments.boltValidators));
+            abi.encodeCall(BoltManagerV3.initializeV3, (admin, deployments.boltParameters, deployments.boltValidators));
 
         vm.startBroadcast(admin);
 

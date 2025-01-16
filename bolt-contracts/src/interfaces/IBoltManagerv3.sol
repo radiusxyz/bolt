@@ -31,6 +31,10 @@ interface IBoltManagerV3 {
         address operator
     ) external;
 
+    function updateOperatorRPC(
+        string calldata rpc
+    ) external;
+
     function pauseOperator(
         address operator
     ) external;

@@ -179,7 +179,7 @@ contract BoltManagerV3 is IBoltManagerV3, OwnableUpgradeable, UUPSUpgradeable {
     function getAllOperatorsData() public view returns (EnumerableMapV3.Operator[] memory operatorData) {
         operatorData = new EnumerableMapV3.Operator[](operators.length());
         for (uint256 i = 0; i < operators.length(); ++i) {
-            (address operator, EnumerableMapV3.Operator memory data) = operators.at(i);
+            (, EnumerableMapV3.Operator memory data) = operators.at(i);
             operatorData[i] = data;
         }
     }
@@ -283,14 +283,17 @@ contract BoltManagerV3 is IBoltManagerV3, OwnableUpgradeable, UUPSUpgradeable {
 
     /// @notice Updates the RPC endpoint of an operator. Must be called by the operator themselves.
     /// @param rpc The new RPC endpoint of the operator.
-    function updateOperatorRPC(string calldata rpc) public {
+    function updateOperatorRPC(
+        string calldata rpc
+    ) public {
         address operatorAddr = msg.sender;
 
         if (!operators.contains(operatorAddr)) {
             revert OperatorNotRegistered();
         }
 
-        operators.get(operatorAddr).rpc = rpc;
+        EnumerableMapV3.Operator memory old = operators.get(operatorAddr);
+        operators.set(operatorAddr, EnumerableMapV3.Operator(rpc, old.middleware, old.timestamp));
     }
 
     /// @notice De-registers an operator from Bolt. Only callable by a supported middleware contract.
