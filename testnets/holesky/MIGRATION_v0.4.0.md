@@ -52,6 +52,10 @@ configs. **All of the changes outlined below are in `bolt-sidecar.env` (`mev-boo
 - `BOLT_SIDECAR_FIREWALL_RPCS` is set by default, which means that the sidecar will run in firewall delegation mode.
 - `BOLT_SIDECAR_PORT` controls whether to expose an HTTP endpoint instead of using firewall delegation. These 2 options are mutually exclusive.
 
+> [!IMPORTANT]
+> To fully enable firewall delegation, you must modify your 
+> on-chain operator RPC and set it to the following RPC: `https://rpc-holesky.bolt.chainbound.io/rpc`.
+
 ##### Pricing
 - `BOLT_SIDECAR_MIN_PRIORITY_FEE` has been replaced by `BOLT_SIDECAR_MIN_PROFIT`, which is the amount of gwei
 added to the floor price determined by the pricing model
