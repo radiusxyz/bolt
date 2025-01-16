@@ -45,6 +45,21 @@ git pull && git checkout v0.4.0-alpha
 cd bolt/testnets/holesky
 ```
 
+Also download the latest version of the bolt CLI:
+```bash
+# download the bolt-cli installer
+curl -L https://raw.githubusercontent.com/chainbound/bolt/unstable/boltup/install.sh | bash
+
+# start a new shell to use the boltup installer
+exec $SHELL
+
+# install latest bolt-cli binary
+boltup --tag v0.1.2
+
+# check for successful installation
+bolt --help
+```
+
 These changes are quite substantial, as they contain updated docker compose files & container versions, along with updated
 configs. **All of the changes outlined below are in `bolt-sidecar.env` (`mev-boost.env` remains unchanged)**.
 
@@ -55,6 +70,12 @@ configs. **All of the changes outlined below are in `bolt-sidecar.env` (`mev-boo
 > [!IMPORTANT]
 > To fully enable firewall delegation, you must modify your 
 > on-chain operator RPC and set it to the following RPC: `https://rpc-holesky.bolt.chainbound.io/rpc`.
+> You can do this by running the following bolt CLI command (required version v0.1.2):
+> ```bash
+> bolt operators eigenlayer update-rpc https://rpc-holesky.bolt.chainbound.io/rpc
+> # OR
+> bolt operators symbiotic update-rpc https://rpc-holesky.bolt.chainbound.io/rpc
+> ```
 
 ##### Pricing
 - `BOLT_SIDECAR_MIN_PRIORITY_FEE` has been replaced by `BOLT_SIDECAR_MIN_PROFIT`, which is the amount of gwei
