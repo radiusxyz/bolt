@@ -46,14 +46,14 @@ cd bolt/testnets/holesky
 ```
 
 These changes are quite substantial, as they contain updated docker compose files & container versions, along with updated
-configs:
+configs. **All of the changes outlined below are in `bolt-sidecar.env` (`mev-boost.env` remains unchanged)**.
 
 ##### Firewall delegation
 - `BOLT_SIDECAR_FIREWALL_RPCS` is set by default, which means that the sidecar will run in firewall delegation mode.
 - `BOLT_SIDECAR_PORT` controls whether to expose an HTTP endpoint instead of using firewall delegation. These 2 options are mutually exclusive.
 
 ##### Pricing
-- `BOLT_SIDECAR_MIN_PRIORITY_FEE` has been replaced by `BOLT_SIDECAR_MIN_INCLUSION_PROFIT`, which is the amount of gwei
+- `BOLT_SIDECAR_MIN_PRIORITY_FEE` has been replaced by `BOLT_SIDECAR_MIN_PROFIT`, which is the amount of gwei
 added to the floor price determined by the pricing model
 
 ##### Other
@@ -64,6 +64,6 @@ These configuration values are present in [`bolt-sidecar.env.example`](./bolt-si
 or modify your existing config.
 
 ##### Config guidelines
-- Don't set `BOLT_SIDECAR_MIN_INCLUSION_PROFIT` to something too high (1 gwei will work for now), or our simulated transaction sender will not send you any inclusion requests.
+- Don't set `BOLT_SIDECAR_MIN_PROFIT` to something too high (1 gwei will work for now), or our simulated transaction sender will not send you any inclusion requests.
 - Don't set `BOLT_SIDECAR_MAX_COMMITTED_GAS` to something higher than 15000000 (15 million, 50% of gas limit). Setting this to too high will drive up the floor price determined by the pricing model.
 - If you're using firewall delegation (the default), you can remove any local firewall rules related to the Bolt public HTTP endpoint.
