@@ -59,3 +59,11 @@ added to the floor price determined by the pricing model
 ##### Other
 - `BOLT_SIDECAR_COMMITMENT_PRIVATE_KEY` has been renamed to `BOLT_SIDECAR_OPERATOR_PRIVATE_KEY`
 - `BOLT_SIDECAR_MAX_COMMITMENTS_PER_SLOT` has been dropped, `BOLT_SIDECAR_MAX_COMMITTED_GAS` remains
+
+These configuration values are present in [`bolt-sidecar.env.example`](./bolt-sidecar.env.example) or in [`sidecar-delegations-preset.env.example`](./presets/sidecar-delegations-preset.env.example). You can either copy those and update them to your required values,
+or modify your existing config.
+
+##### Config guidelines
+- Don't set `BOLT_SIDECAR_MIN_INCLUSION_PROFIT` to something too high (1 gwei will work for now), or our simulated transaction sender will not send you any inclusion requests.
+- Don't set `BOLT_SIDECAR_MAX_COMMITTED_GAS` to something higher than 15000000 (15 million, 50% of gas limit). Setting this to too high will drive up the floor price determined by the pricing model.
+- If you're using firewall delegation (the default), you can remove any local firewall rules related to the Bolt public HTTP endpoint.
