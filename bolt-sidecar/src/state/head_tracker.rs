@@ -3,7 +3,7 @@ use beacon_api_client::Topic;
 use futures::StreamExt;
 use std::time::Duration;
 use tokio::{sync::broadcast, task::AbortHandle, time::sleep};
-use tracing::warn;
+use tracing::{trace, warn};
 
 use crate::client::BeaconClient;
 
@@ -42,6 +42,7 @@ impl HeadTracker {
 
         let task = tokio::spawn(async move {
             loop {
+                trace!(endpoint = %beacon_client.endpoint, "Subscribing to new head events...");
                 let mut event_stream = match beacon_client.get_events::<NewHeadsTopic>().await {
                     Ok(events) => events,
                     Err(err) => {
@@ -50,6 +51,8 @@ impl HeadTracker {
                         continue;
                     }
                 };
+
+                trace!(endpoint = %beacon_client.endpoint, "Subscribed to new head events");
 
                 let event = match event_stream.next().await {
                     Some(Ok(event)) => event,
