@@ -21,7 +21,7 @@ use crate::{
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let (pbs_config, extra) = load_pbs_custom_config::<Config>()?;
+    let (pbs_config, extra) = load_pbs_custom_config::<Config>().await?;
     tracing_subscriber::fmt().with_env_filter(EnvFilter::from_default_env()).init();
 
     let chain = pbs_config.chain;

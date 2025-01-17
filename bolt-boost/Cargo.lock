@@ -1275,6 +1275,7 @@ dependencies = [
  "axum-extra",
  "cb-common",
  "cb-pbs",
+ "dashmap 6.1.0",
  "ethereum_ssz 0.7.1",
  "ethereum_ssz 0.8.2",
  "ethereum_ssz_derive 0.8.1",
@@ -1294,6 +1295,7 @@ dependencies = [
  "tracing-subscriber",
  "tree_hash 0.8.0",
  "types",
+ "uuid 1.12.0",
 ]
 
 [[package]]
@@ -1413,7 +1415,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
- "uuid 1.11.0",
+ "uuid 1.12.0",
 ]
 
 [[package]]
@@ -5046,9 +5048,9 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.11.0"
+version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8c5f0a0af699448548ad1a2fbf920fb4bee257eae39953ba95cb84891a0446a"
+checksum = "744018581f9a3454a9e15beb8a33b017183f1e7c0cd170232a2d1453b23a51c4"
 dependencies = [
  "getrandom",
  "rand",
