@@ -5,6 +5,10 @@ on:
   issue_comment:
     types: [created]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build:
     if: |
