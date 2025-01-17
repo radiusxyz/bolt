@@ -16,8 +16,9 @@ jobs:
       - name: Extract subdirectory and tag from comment
         id: extract
         run: |
-          echo "Comment: ${{ github.event.comment.body }}"
-          if [[ "${{ github.event.comment.body }}" =~ ^/build[[:space:]]+([^:]+):(.+)$ ]]; then
+          clean_comment=$(echo "${{ github.event.comment.body }}" | tr -d '\r' | xargs)
+          echo "Comment: $clean_comment"
+          if [[ "$clean_comment" =~ ^/build[[:space:]]+([^:]+):(.+)$ ]]; then
             echo "subdir=${BASH_REMATCH[1]}" >> $GITHUB_ENV
             echo "tag=${BASH_REMATCH[2]}" >> $GITHUB_ENV
           else
