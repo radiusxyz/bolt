@@ -1266,7 +1266,7 @@ dependencies = [
 
 [[package]]
 name = "bolt-boost"
-version = "0.3.0-alpha"
+version = "0.4.0-alpha"
 dependencies = [
  "alloy",
  "alloy-rlp",
