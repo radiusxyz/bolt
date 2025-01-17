@@ -10,7 +10,10 @@ use tracing::{info, warn};
 
 use crate::{
     cli::{Chain, SymbioticSubcommand},
-    common::{bolt_manager::BoltManagerContract, request_confirmation, try_parse_contract_error},
+    common::{
+        bolt_manager::BoltManagerContract::{self, BoltManagerContractErrors},
+        request_confirmation, try_parse_contract_error,
+    },
     contracts::{
         bolt::BoltSymbioticMiddleware::{self, BoltSymbioticMiddlewareErrors},
         deployments_for_chain,
@@ -140,6 +143,59 @@ impl SymbioticSubcommand {
                 Ok(())
             }
 
+            Self::UpdateRpc { rpc_url, operator_private_key, operator_rpc } => {
+                let signer = PrivateKeySigner::from_bytes(&operator_private_key)
+                    .wrap_err("valid private key")?;
+                let address = signer.address();
+
+                let provider = ProviderBuilder::new()
+                    .with_recommended_fillers()
+                    .wallet(EthereumWallet::from(signer))
+                    .on_http(rpc_url);
+
+                let chain = Chain::try_from_provider(&provider).await?;
+
+                info!(operator = %address, rpc = %operator_rpc, ?chain, "Updating Symbiotic operator RPC");
+
+                request_confirmation();
+
+                let deployments = deployments_for_chain(chain);
+
+                let bolt_manager =
+                    BoltManagerContract::new(deployments.bolt.manager, provider.clone());
+                if bolt_manager.isOperator(address).call().await?._0 {
+                    info!(?address, "Symbiotic operator is registered");
+                } else {
+                    warn!(?address, "Operator not registered");
+                    return Ok(())
+                }
+
+                match bolt_manager.updateOperatorRPC(operator_rpc.to_string()).send().await {
+                    Ok(pending) => {
+                        info!(
+                            hash = ?pending.tx_hash(),
+                            "updateOperatorRPC transaction sent, awaiting receipt..."
+                        );
+
+                        let receipt = pending.get_receipt().await?;
+                        if !receipt.status() {
+                            eyre::bail!("Transaction failed: {:?}", receipt)
+                        }
+
+                        info!("Succesfully updated Symbiotic operator RPC");
+                    }
+                    Err(e) => match try_parse_contract_error::<BoltManagerContractErrors>(e)? {
+                        BoltManagerContractErrors::OperatorNotRegistered(_) => {
+                            eyre::bail!("Operator not registered in bolt")
+                        }
+                        other => {
+                            unreachable!("Unexpected error with selector {:?}", other.selector())
+                        }
+                    },
+                }
+                Ok(())
+            }
+
             Self::Status { rpc_url, address } => {
                 let provider = ProviderBuilder::new().on_http(rpc_url.clone());
 
@@ -152,6 +208,21 @@ impl SymbioticSubcommand {
                     info!(?address, "Symbiotic operator is registered");
                 } else {
                     warn!(?address, "Operator not registered");
+                    return Ok(())
+                }
+
+                match bolt_manager.getOperatorData(address).call().await {
+                    Ok(operator_data) => {
+                        info!(?address, operator_data = ?operator_data._0, "Operator data");
+                    }
+                    Err(e) => match try_parse_contract_error::<BoltManagerContractErrors>(e)? {
+                        BoltManagerContractErrors::KeyNotFound(_) => {
+                            warn!(?address, "Operator data not found");
+                        }
+                        other => {
+                            unreachable!("Unexpected error with selector {:?}", other.selector())
+                        }
+                    },
                 }
 
                 // Check if operator has collateral
@@ -321,6 +392,31 @@ mod tests {
         };
 
         register_into_bolt.run().await.expect("to register into bolt");
+
+        let check_status = OperatorsCommand {
+            subcommand: OperatorsSubcommand::Symbiotic {
+                subcommand: SymbioticSubcommand::Status {
+                    rpc_url: anvil_url.clone(),
+                    address: account,
+                },
+            },
+        };
+
+        check_status.run().await.expect("to check operator status");
+
+        let update_rpc = OperatorsCommand {
+            subcommand: OperatorsSubcommand::Symbiotic {
+                subcommand: SymbioticSubcommand::UpdateRpc {
+                    rpc_url: anvil_url.clone(),
+                    operator_private_key: secret_key,
+                    operator_rpc: "https://boooooooooooooooolt.chainbound.io"
+                        .parse()
+                        .expect("valid url"),
+                },
+            },
+        };
+
+        update_rpc.run().await.expect("to update operator rpc");
 
         let check_status = OperatorsCommand {
             subcommand: OperatorsSubcommand::Symbiotic {

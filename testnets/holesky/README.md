@@ -27,8 +27,8 @@ This document provides instructions for running Bolt on the Holesky testnet.
     * [Building and running the MEV-Boost fork binary](#building-and-running-the-mev-boost-fork-binary)
     * [Building and running the Bolt sidecar binary](#building-and-running-the-bolt-sidecar-binary)
       * [Configuration file](#configuration-file)
-    * [Observability](#observability)
-    * [Firewall Configuration](#firewall-configuration)
+  * [Observability](#observability)
+  * [Firewall Delegation](#firewall-delegation)
 * [Reference](#reference)
   * [Supported RPC nodes](#supported-rpc-nodes)
   * [Supported Relays](#supported-relays)
@@ -320,6 +320,10 @@ Options:
 Fill the required options and run the script. If the script executed
 successfully, your validators were registered.
 
+> [!IMPORTANT]
+> If you want to run in firewall delegation mode, set the `--operator-rpc` to `https://rpc-holesky.bolt.chainbound.io/rpc`.
+> Firewall delegation is covered [here](#firewall-delegation).
+
 To check your operator status, you can use the `bolt operator
 symbiotic status` command:
 
@@ -406,6 +410,10 @@ Options:
   -h, --help
           Print help
 ```
+
+> [!IMPORTANT]
+> If you want to run in firewall delegation mode, set the `--operator-rpc` to `https://rpc-holesky.bolt.chainbound.io/rpc`.
+> Firewall delegation is covered [here](#firewall-delegation).
 
 A note on the `--salt` parameter:
 
@@ -634,9 +642,10 @@ After you've set up the configuration file you can run the Bolt sidecar with
 
 The bolt sidecar comes with various observability tools, such as Prometheus
 and Grafana. It also comes with some pre-built dashboards, which can
-be found in the `grafana` directory.
+be found in the `grafana` directory. If you're running in Docker mode, these are started by default, and you can skip
+this section.
 
-To run these dashboards change directory to the `bolt-sidecar/infra` folder and
+To run these dashboards change directory to the `bolt-sidecar/infra` folder, configure `prometheus.yml`, and
 run:
 
 ```bash
@@ -649,18 +658,19 @@ To stop the services run:
 docker compose -f telemetry.compose.yml down
 ```
 
-## Firewall Configuration
+## Firewall Delegation
 
-The Bolt sidecar will listen on port `8017` by default for incoming JSON-RPC requests of
-the Commitments API. This port should be open on your firewall in order to receive external requests.
+The Bolt sidecar will run in firewall delegation mode by default (specified in `BOLT_SIDECAR_FIREWALL_RPCS=“wss://rpc-holesky.bolt.chainbound.io/api/v1/firewall_stream”`). This means that it will initiate an outbound connection to the WebSocket endpoint
+defined above. It is recommended to run this mode because it will protect you from spam and DoS.
 
-If you wish, you can enable a firewall rule to whitelist only the Bolt RPC for incoming traffic.
-The IP address of the Holesky Bolt RPC is: `135.181.191.125`.
+If you wish to disable this, you'll have to expose an endpoint yourself on which to receive inclusion requests.
+You can activate this by setting `BOLT_SIDECAR_PORT` to some value, and commenting `BOLT_SIDECAR_FIREWALL_RPCS`, as these are
+mutually exclusive. This port should be open on your firewall in order to receive external requests.
 
 For example, on Linux you can use `ufw` rules:
 
 ```bash
-sudo ufw allow from 135.181.191.125 to any port 8017
+sudo ufw allow from any to any port $BOLT_SIDECAR_PORT
 ```
 
 # Reference
@@ -850,14 +860,14 @@ Options:
 ## Delegations and signing options for Native and Docker Compose Mode
 
 As mentioned in the [prerequisites](#prerequisites) section, the Bolt sidecar
-can sign commitments with a delegated set of private keys on behalf of active
+can sign commitments with an authorized set of private keys on behalf of active
 Ethereum validators.
 
 > [!IMPORTANT]
 > This is the recommended way to run the Bolt sidecar as it
 > doesn't expose the active validator signing keys to any additional risk.
 
-In order to create these delegation you can use the `bolt` CLI binary.
+In order to create these authorizations (delegations) you can use the `bolt` CLI binary.
 If you don't want to use it you can skip the following section.
 
 ### `bolt` CLI

@@ -283,18 +283,18 @@ First, you need to install the
 
 3. Register into the Bolt AVS:
 
-   - NOTE: The `--operator-rpc` flag MUST be set to a PUBLICLY ACCESSIBLE URL. This is where your bolt-sidecar will
-     receive commitment requests from users and reply with signed commitments. For instance, you can simply use your IP
-     address and port (e.g. `--operator-rpc http://<public_ip>:<port`) AND make sure to open the <port> on your firewall.
-     The <port> here refers to the port where the bolt-sidecar commitments-api server is running.
-     By default it is `8017` and can be changed in the sidecar configuration file.
+   - NOTE: The `--operator-rpc` flag MUST be set to a PUBLICLY ACCESSIBLE URL. Since bolt v0.4.0-alpha, the default configuration
+     is firewall delegation, which means that your `--operator-rpc` will be set to our Bolt RPC: `https://rpc-holesky.bolt.chainbound.io/rpc`.
+     Note that the value above is *exactly* what you should register on-chain for the Bolt RPC. 
+   - NOTE: if you do not want to use firewall delegation, you should register a public endpoint (e.g. `--operator-rpc http://<public_ip>:<port`). Make sure to open the `<port>` on your firewall. By default, it is set to `8017`, but it can be changed in the
+     sidecar configuration file.
    - NOTE: If you are using a firewall such as `ufw`, you can open the port with the following command:
      `sudo ufw allow from <your_ip> to any port 8017`.
    - WARNING: Do NOT set the `--operator-rpc` flag to `localhost` or things like `infura.io` as they will not work.
 
    ```bash
     bolt operators eigenlayer register \
-        --rpc-url http://localhost:8545 \
+        --rpc-url https://rpc-holesky.bolt.chainbound.io/rpc \
         --operator-private-key <operator_private_key> \
         --operator-rpc <operator_rpc> \
         --salt <SALT>
@@ -351,15 +351,29 @@ To get started with the configuration, copy the following preset file:
 cp ./presets/sidecar-delegations-preset.env.example bolt-sidecar.env
 ```
 
-This preset file will run the bolt-sidecar in "delegation" mode, which is the
-recommended way to set it up.
+This preset file will run the bolt-sidecar with a pre-authorized signer specified in the delegations file, as well
+as enable firewall delegation. This is the recommended way to run the sidecar.
 
 Fill the configuration excluding the "Signing options"
 section, which will be covered below. Remember to set the
-`BOLT_SIDECAR_COMMITMENT_PRIVATE_KEY` to the operator private key registered in
+`BOLT_SIDECAR_OPERATOR_PRIVATE_KEY` to the operator private key registered in
 the previous step.
 
-**Why delegation?**
+**Why firewall delegation?**
+Firewall delegation allows proposers to set an external third party as their network entrypoint or *firewall*. It gets rid of the
+requirement to expose an HTTP RPC endpoint for accepting inclusion requests (inbound), and instead subscribes to the configured firewall over a
+websocket connection (outbound). The firewall will then stream valid, filtered inclusion requests over the websocket connection.
+
+Some of the other duties of the firewall include:
+- Spam and DoS prevention
+- Pricing inclusion requests correctly (see more below)
+- Communicating prices with consumers (wallets, users)
+
+Currently, we operate a firewall RPC on Holesky at `wss://rpc-holesky.bolt.chainbound.io/api/v1/firewall_stream`.
+
+Read more about firewall delegation [here](https://x.com/boltprotocol_/status/1879571451621077413).
+
+**Why authorizations?**
 
 The bolt-sidecar needs to know which validators it is controlling (aka, which validators it can sign commitments
 on behalf of). Otherwise it may sign commitments for random validators which would get you slashed.
@@ -367,13 +381,13 @@ on behalf of). Otherwise it may sign commitments for random validators which wou
 We could use the validator keys directly to do this, but that would entail loading them into the bolt-sidecar,
 which is not the best in terms of security and operational practices.
 
-For this reason, the bolt-sidecar uses a delegation mechanism that allows it to authenticate a different key
+For this reason, the bolt-sidecar uses an authorization mechanism that allows it to authenticate a different key
 (the "delegatee") as a valid signer for a given validator. All we need to do is use the validator key once
 to sign a message that essentially says "I authorize this other key to sign commitments on my behalf".
 
 This way, operators don't need to use their validator secret keys in their online sidecar setup anymore.
 
-**Creating delegations**
+**Creating authorizations**
 
 In order to create and use these delegations, you can follow these steps:
 
