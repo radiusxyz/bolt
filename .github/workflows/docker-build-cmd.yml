@@ -10,7 +10,7 @@ jobs:
     if: |
       github.event.issue.pull_request != null &&
       startsWith(github.event.comment.body, '/build ')
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Extract subdirectory and tag from comment
