@@ -90,5 +90,5 @@ or modify your existing config.
 
 ##### Config guidelines
 - Don't set `BOLT_SIDECAR_MIN_PROFIT` to something too high (2 gwei will work for now), or our simulated transaction sender might not send you any inclusion requests.
-- Don't set `BOLT_SIDECAR_MAX_COMMITTED_GAS` to something higher than 15000000 (15 million, 50% of gas limit). Setting this to too high will drive up the floor price determined by the pricing model.
+- You can set `BOLT_SIDECAR_MAX_COMMITTED_GAS` to any value smaller than the block gas limit. We recommend no higher than `20_000_000` on Holesky. This parameter controls the maximum amount of gas per slot you're willing to reserve for commitments.
 - If you're using firewall delegation (the default), you can remove any local firewall rules related to the Bolt public HTTP endpoint.
