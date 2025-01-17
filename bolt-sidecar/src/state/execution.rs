@@ -229,7 +229,7 @@ impl<C: StateFetcher> ExecutionState<C> {
             kzg_settings: EnvKzgSettings::default(),
             // TODO: add a way to configure these values from CLI
             validation_params: ValidationParams::new(gas_limit),
-            pricing: InclusionPricer::new(gas_limit),
+            pricing: InclusionPricer::default(),
         })
     }
 
