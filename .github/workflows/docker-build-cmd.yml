@@ -1,4 +1,9 @@
 # .github/workflows/docker-build-on-comment.yml
+# This will only compile x86_64 docker images, NO CROSS-COMPILE!
+# NOTE: to make this work, this repository needs write access to the specific containers:
+# - bolt-sidecar
+# - bolt-boost
+# You can configure this in the package settings under Manage Actions access. Make sure to set "role" to "write".
 name: Build Docker Image on Comment
 
 on:
@@ -7,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
   packages: write
 
 jobs:
