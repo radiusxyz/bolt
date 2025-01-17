@@ -6,7 +6,7 @@
 version: 2
 updates:
   - package-ecosystem: "cargo"
-    directories: 
+    directories:
       - "./bolt-sidecar"
       - "./bolt-cli"
       - "./bolt-boost"
@@ -16,3 +16,8 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "07:00"
+    # Group all dependencies into a single pull request
+    groups:
+      all-dependencies:
+        patterns:
+          - "*"
