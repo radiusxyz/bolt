@@ -238,5 +238,7 @@ build-and-push-all-images tag='latest':
     @just build-and-push-image bolt-boost {{tag}}
 
 # Create tarballs for the bolt-cli binaries for all the supported platforms
+# 
+# Note: this can be run only from MacOS devices (more info at ./scripts/bolt-cli-tarballs.sh)
 create-bolt-cli-tarballs:
     chmod +x ./scripts/bolt-cli-tarballs.sh && ./scripts/bolt-cli-tarballs.sh
