@@ -2,6 +2,10 @@
 name = "bolt"
 version = "0.1.2"
 edition = "2021"
+description = "CLI for interacting with bolt protocol"
+authors = ["Chainbound Developers <dev@chainbound.io>"]
+homepage = "https://github.com/chainbound/bolt"
+repository = "https://github.com/chainbound/bolt/tree/unstable/bolt-cli"
 
 [dependencies]
 # async
