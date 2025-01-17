@@ -11,15 +11,18 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use dashmap::DashMap;
 use eyre::Result;
 use futures::{future::join_all, stream::FuturesUnordered, StreamExt};
 use serde::Serialize;
 use std::{
     collections::HashMap,
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn, Instrument};
+use uuid::Uuid;
 
 use cb_common::{
     config::PbsConfig,
@@ -27,7 +30,7 @@ use cb_common::{
     pbs::{
         error::{PbsError, ValidationError},
         GetHeaderResponse, RelayClient, SignedExecutionPayloadHeader, EMPTY_TX_ROOT_HASH,
-        HEADER_SLOT_UUID_KEY, HEADER_START_TIME_UNIX_MS,
+        HEADER_START_TIME_UNIX_MS,
     },
     signature::verify_signed_message,
     types::Chain,
@@ -54,6 +57,7 @@ const DELEGATE_PATH: &str = "/constraints/v1/builder/delegate";
 const REVOKE_PATH: &str = "/constraints/v1/builder/revoke";
 const GET_HEADER_WITH_PROOFS_PATH: &str =
     "/eth/v1/builder/header_with_proofs/:slot/:parent_hash/:pubkey";
+const HEADER_SLOT_UUID_KEY: &str = "X-MEVBoost-SlotID";
 
 const TIMEOUT_ERROR_CODE: u16 = 555;
 
@@ -63,13 +67,49 @@ pub struct BuilderState {
     #[allow(unused)]
     config: Config,
     constraints: ConstraintsCache,
+    current_slot_info: Arc<Mutex<(u64, Uuid)>>,
+    bid_cache: Arc<DashMap<u64, Vec<GetHeaderResponse>>>,
 }
 
 impl BuilderApiState for BuilderState {}
 
 impl BuilderState {
     pub fn from_config(config: Config) -> Self {
-        Self { config, constraints: ConstraintsCache::new() }
+        Self {
+            config,
+            constraints: ConstraintsCache::new(),
+            current_slot_info: Arc::new(Mutex::new((0, Uuid::new_v4()))),
+            bid_cache: Arc::new(DashMap::new()),
+        }
+    }
+
+    pub fn get_or_update_slot_uuid(&self, last_slot: u64) -> Uuid {
+        let mut guard = self.current_slot_info.lock().expect("poisoned");
+        if guard.0 < last_slot {
+            // new slot
+            guard.0 = last_slot;
+            guard.1 = Uuid::new_v4();
+            self.clear(last_slot);
+        }
+        guard.1
+    }
+
+    pub fn get_slot_and_uuid(&self) -> (u64, Uuid) {
+        let guard = self.current_slot_info.lock().expect("poisoned");
+        *guard
+    }
+
+    /// Add some bids to the cache, the bids are all assumed to be for the
+    /// provided slot Returns the bid with the max value
+    pub fn add_bids(&self, slot: u64, bids: Vec<GetHeaderResponse>) -> Option<GetHeaderResponse> {
+        let mut slot_entry = self.bid_cache.entry(slot).or_default();
+        slot_entry.extend(bids);
+        slot_entry.iter().max_by_key(|bid| bid.data.message.value).cloned()
+    }
+
+    /// Clear bids which are more than ~3 minutes old
+    fn clear(&self, last_slot: u64) {
+        self.bid_cache.retain(|slot, _| last_slot.saturating_sub(*slot) < 15)
     }
 }
 
@@ -90,7 +130,7 @@ impl BuilderApi<BuilderState> for ConstraintsApi {
         req_headers: HeaderMap,
         state: PbsState<BuilderState>,
     ) -> eyre::Result<()> {
-        let (slot, _) = state.get_slot_and_uuid();
+        let (slot, _) = state.data.get_slot_and_uuid();
 
         info!("Cleaning up constraints before slot {slot}");
         state.data.constraints.remove_before(slot);
@@ -118,7 +158,7 @@ async fn submit_constraints(
     Json(constraints): Json<Vec<SignedConstraints>>,
 ) -> Result<impl IntoResponse, PbsClientError> {
     info!("Submitting {} constraints to relays", constraints.len());
-    let (current_slot, _) = state.get_slot_and_uuid();
+    let (current_slot, _) = state.data.get_slot_and_uuid();
 
     // Save constraints for the slot to verify proofs against later.
     for signed_constraints in &constraints {
@@ -172,7 +212,7 @@ async fn get_header_with_proofs(
     Path(params): Path<GetHeaderParams>,
     req_headers: HeaderMap,
 ) -> Result<impl IntoResponse, PbsClientError> {
-    let slot_uuid = state.get_or_update_slot_uuid(params.slot);
+    let slot_uuid = state.data.get_or_update_slot_uuid(params.slot);
 
     let ua = get_user_agent(&req_headers);
     let ms_into_slot = ms_into_slot(params.slot, state.config.chain);
@@ -201,7 +241,7 @@ async fn get_header_with_proofs(
         .insert(HEADER_SLOT_UUID_KEY, HeaderValue::from_str(&slot_uuid.to_string()).unwrap());
     send_headers.insert(USER_AGENT, get_user_agent_with_version(&req_headers).unwrap());
 
-    let relays = state.relays();
+    let (_, relays, _) = state.mux_config_and_relays(&params.pubkey);
     let mut handles = Vec::with_capacity(relays.len());
     for relay in relays {
         handles.push(send_timed_get_header(
@@ -258,7 +298,7 @@ async fn get_header_with_proofs(
         }
     }
 
-    if let Some(winning_bid) = state.add_bids(params.slot, relay_bids) {
+    if let Some(winning_bid) = state.data.add_bids(params.slot, relay_bids) {
         let header_with_proofs = GetHeaderWithProofsResponse {
             data: SignedExecutionPayloadHeaderWithProofs {
                 // If there are no proofs, default to empty. This should never happen unless there
@@ -531,11 +571,12 @@ async fn post_request<T>(
 where
     T: Serialize,
 {
-    debug!("Sending POST request to {} relays", state.relays().len());
+    let relays = state.config.relays;
+    debug!("Sending POST request to {} relays", relays.len());
     // Forward constraints to all relays.
     let mut responses = FuturesUnordered::new();
 
-    for relay in state.relays() {
+    for relay in relays {
         let url = relay.get_url(path).map_err(|_| PbsClientError::BadRequest)?;
         responses.push(relay.client.post(url).json(&body).send());
     }
