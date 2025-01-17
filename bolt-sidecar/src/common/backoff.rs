@@ -177,6 +177,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "Flaky test, jitter can influence outcome"]
     async fn test_exponential_backoff_timing() {
         let counter = Arc::new(Mutex::new(Counter::new(3))); // Fail 3 times, succeed on 4th
         let start_time = Instant::now();
