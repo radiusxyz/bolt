@@ -190,7 +190,7 @@ mev_params:
   # Bolt-specific images:
   # Adding the `bolt_boost_image` will start the devnet with Bolt-Boost
   # instead of MEV-Boost
-  bolt_boost_image: ghcr.io/chainbound/bolt-boost:0.1.0
+  bolt_boost_image: ghcr.io/chainbound/bolt-boost:v0.4.0-alpha
   # ... the rest of the `mev_params`
 ```
 
