@@ -34,7 +34,7 @@ use crate::{
 const EXECUTION_API_URL: &str = "https://geth-holesky.bolt.chainbound.io";
 
 /// The URL of the test beacon client HTTP API.
-const BEACON_API_URL: &str = "https://lighthouse-holesky.bolt.chainbound.io";
+const BEACON_API_URL: &str = "http://remotebeast:44400";
 
 /// The URL of the test engine client HTTP API.
 ///
