@@ -74,9 +74,6 @@ pub enum ValidationError {
     /// The maximum commitments have been reached for the slot.
     #[error("Already requested a preconfirmation for slot {0}. Slot must be >= {0}")]
     SlotTooLow(u64),
-    /// The maximum commitments have been reached for the slot.
-    #[error("Max commitments reached for slot {0}: {1}")]
-    MaxCommitmentsReachedForSlot(u64, usize),
     /// The maximum committed gas has been reached for the slot.
     #[error("Max committed gas reached for slot {0}: {1}")]
     MaxCommittedGasReachedForSlot(u64, u64),
@@ -118,7 +115,6 @@ impl ValidationError {
             Self::Pricing(_) => "pricing",
             Self::Eip4844Limit => "eip4844_limit",
             Self::SlotTooLow(_) => "slot_too_low",
-            Self::MaxCommitmentsReachedForSlot(_, _) => "max_commitments_reached_for_slot",
             Self::MaxCommittedGasReachedForSlot(_, _) => "max_committed_gas_reached_for_slot",
             Self::Signature(_) => "signature",
             Self::RecoverSigner => "recover_signer",
