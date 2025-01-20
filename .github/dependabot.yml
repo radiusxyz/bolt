@@ -6,18 +6,64 @@
 version: 2
 updates:
   - package-ecosystem: "cargo"
-    directories:
-      - "./bolt-sidecar"
-      - "./bolt-cli"
-      - "./bolt-boost"
+    directory: "/bolt-sidecar"
     labels:
       - "T: security"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "07:00"
-    # Group all dependencies into a single pull request
     groups:
-      all-dependencies:
+      sidecar-breaking:
         patterns:
           - "*"
+        update-types:
+          - "major"
+      sidecar-non-breaking:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "cargo"
+    directory: "/bolt-cli"
+    labels:
+      - "T: security"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+    groups:
+      cli-breaking:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+      cli-non-breaking:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "cargo"
+    directory: "/bolt-boost"
+    labels:
+      - "T: security"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+    groups:
+      boost-breaking:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+      boost-non-breaking:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
