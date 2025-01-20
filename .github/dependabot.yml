@@ -5,6 +5,7 @@
 
 version: 2
 updates:
+  # bolt-sidecar: breaking major and pre v1 updates
   - package-ecosystem: "cargo"
     directory: "/bolt-sidecar"
     labels:
@@ -13,19 +14,30 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "07:00"
-    groups:
-      sidecar-breaking:
-        patterns:
-          - "*"
+    ignore:
+      - dependency-name: "*"
+        versions: ">=1.0.0"
         update-types:
-          - "major"
-      sidecar-non-breaking:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
 
+  # bolt-sidecar: non-breaking minor and patch updates
+  - package-ecosystem: "cargo"
+    directory: "/bolt-sidecar"
+    labels:
+      - "T: security"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+    ignore:
+      - dependency-name: "*"
+        versions: "<1.0.0"
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
+
+  # bolt-cli: breaking major and pre v1 updates
   - package-ecosystem: "cargo"
     directory: "/bolt-cli"
     labels:
@@ -34,19 +46,30 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "07:00"
-    groups:
-      cli-breaking:
-        patterns:
-          - "*"
+    ignore:
+      - dependency-name: "*"
+        versions: ">=1.0.0"
         update-types:
-          - "major"
-      cli-non-breaking:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
 
+  # bolt-cli: non-breaking minor and patch updates
+  - package-ecosystem: "cargo"
+    directory: "/bolt-cli"
+    labels:
+      - "T: security"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+    ignore:
+      - dependency-name: "*"
+        versions: "<1.0.0"
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
+
+  # bolt-boost: breaking major and pre v1 updates
   - package-ecosystem: "cargo"
     directory: "/bolt-boost"
     labels:
@@ -55,15 +78,25 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "07:00"
-    groups:
-      boost-breaking:
-        patterns:
-          - "*"
+    ignore:
+      - dependency-name: "*"
+        versions: ">=1.0.0"
         update-types:
-          - "major"
-      boost-non-breaking:
-        patterns:
-          - "*"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+
+  # bolt-boost: non-breaking minor and patch updates
+  - package-ecosystem: "cargo"
+    directory: "/bolt-boost"
+    labels:
+      - "T: security"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+    ignore:
+      - dependency-name: "*"
+        versions: "<1.0.0"
+      - dependency-name: "*"
         update-types:
-          - "minor"
-          - "patch"
+          - "version-update:semver-major"
