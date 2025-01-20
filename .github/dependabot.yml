@@ -14,9 +14,17 @@ updates:
       day: "monday"
       time: "07:00"
     groups:
-      sidecar-dependencies:
+      sidecar-breaking:
         patterns:
           - "*"
+        update-types:
+          - "major"
+      sidecar-non-breaking:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "cargo"
     directory: "/bolt-cli"
@@ -27,9 +35,17 @@ updates:
       day: "monday"
       time: "07:00"
     groups:
-      cli-dependencies:
+      cli-breaking:
         patterns:
           - "*"
+        update-types:
+          - "major"
+      cli-non-breaking:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "cargo"
     directory: "/bolt-boost"
@@ -40,6 +56,14 @@ updates:
       day: "monday"
       time: "07:00"
     groups:
-      boost-dependencies:
+      boost-breaking:
         patterns:
           - "*"
+        update-types:
+          - "major"
+      boost-non-breaking:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
