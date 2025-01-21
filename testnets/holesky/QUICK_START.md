@@ -173,10 +173,10 @@ Then you can follow these steps to register your operator:
    [register-operator](https://docs.symbiotic.fi/guides/cli/#register-operator):
 
    ```bash
-   python3 symb.py register-operator \
-       --private-key <operator_private_key> \
-       --chain holesky \
-       --provider http://localhost:8545
+   python3 symb.py --chain holesky \
+       --provider http://localhost:8545 \
+       register-operator \
+       --private-key <operator_private_key>
    ```
 
 2. Opt-in to the Bolt network with your operator address with
@@ -187,10 +187,10 @@ Then you can follow these steps to register your operator:
    [here](https://github.com/chainbound/bolt/blob/unstable/bolt-contracts/config/holesky/deployments.json).
 
    ```bash
-   python3 symb.py opt-in-network 0xb017002D8024d8c8870A5CECeFCc63887650D2a4 \
-       --private-key <operator_private_key> \
-       --chain holesky \
-       --provider http://localhost:8545
+   python3 symb.py --chain holesky \
+       --provider http://localhost:8545 \
+       opt-in-network 0xb017002D8024d8c8870A5CECeFCc63887650D2a4 \
+       --private-key <operator_private_key>
    ```
 
 3. Opt-in to any vault you want to use with [opt-in-vault](https://docs.symbiotic.fi/guides/cli/#opt-in-vault):
@@ -202,10 +202,10 @@ Then you can follow these steps to register your operator:
    The wETH vault is deployed at: `0xC56Ba584929c6f381744fA2d7a028fA927817f2b`
 
    ```bash
-   python3 symb.py opt-in-vault <vault_address> \
-       --private-key <operator_private_key> \
-       --chain holesky \
-       --provider http://localhost:8545
+   python3 symb.py --chain holesky \
+       --provider http://localhost:8545 \
+       opt-in-vault <vault_address> \
+       --private-key <operator_private_key>
    ```
 
 4. Deposit collateral into the vault you opted-in to with
@@ -215,10 +215,10 @@ Then you can follow these steps to register your operator:
    You MUST set the `on_behalf_of` address (i.e. the third argument in the below command) to your **operator** address.
 
    ```bash
-   python3 symb.py deposit <vault_address> <amount> <operator_address> \
-       --private-key <operator_private_key> \
-       --chain holesky \
-       --provider http://localhost:8545
+   python3 symb.py --chain holesky \
+       --provider http://localhost:8545 \
+       deposit <vault_address> <amount> <operator_address> \
+       --private-key <operator_private_key>
    ```
 
 5. Finally register into the BoltManager contract with `bolt` CLI:
