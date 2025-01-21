@@ -6,9 +6,11 @@ use axum::{
     response::IntoResponse,
     Json,
 };
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
+    config::limits::LimitsOpts,
     primitives::{
         commitment::InclusionCommitment,
         jsonrpc::{JsonRpcError, JsonRpcErrorResponse},
@@ -122,6 +124,17 @@ impl IntoResponse for CommitmentError {
 
         (status_code, json).into_response()
     }
+}
+
+/// Response structure for the metadata endpoint that combines
+/// limits configuration with version information in a flat structure
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MetadataResponse {
+    /// The operational limits of the sidecar
+    #[serde(flatten)]
+    pub limits: LimitsOpts,
+    /// The version of the Bolt sidecar
+    pub version: String,
 }
 
 /// Implements the commitments-API: <https://chainbound.github.io/bolt-docs/api/rpc>

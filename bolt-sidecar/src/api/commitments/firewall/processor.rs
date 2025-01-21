@@ -27,7 +27,8 @@ use crate::{
     api::commitments::{
         server::CommitmentEvent,
         spec::{
-            CommitmentError, GET_METADATA_METHOD, GET_VERSION_METHOD, REQUEST_INCLUSION_METHOD,
+            CommitmentError, MetadataResponse, GET_METADATA_METHOD, GET_VERSION_METHOD,
+            REQUEST_INCLUSION_METHOD,
         },
     },
     common::BOLT_SIDECAR_VERSION,
@@ -321,8 +322,11 @@ impl CommitmentRequestProcessor {
                 self.send_response(response);
             }
             GET_METADATA_METHOD => {
-                let response =
-                    JsonRpcSuccessResponse::new(json!(self.state.limits)).with_uuid(id).into();
+                let metadata = MetadataResponse {
+                    limits: self.state.limits,
+                    version: BOLT_SIDECAR_VERSION.to_string(),
+                };
+                let response = JsonRpcSuccessResponse::new(json!(metadata)).with_uuid(id).into();
                 self.send_response(response);
             }
             REQUEST_INCLUSION_METHOD => {
