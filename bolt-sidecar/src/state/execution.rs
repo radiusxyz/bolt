@@ -825,7 +825,7 @@ mod tests {
         state.update_head(None, slot).await?;
 
         // Set the sender balance to just enough to pay for 1 transaction
-        let balance = U256::from_str("600000000000000").unwrap(); // leave just 0.0005 ETH
+        let balance = U256::from_str("1200000000000000").unwrap(); // leave just 0.0005 ETH
         let sender_account = client.get_account_state(sender, None).await.unwrap();
         let balance_to_burn = sender_account.balance - balance;
 
@@ -964,7 +964,7 @@ mod tests {
 
         // Create a transaction with a max priority fee that is correct
         let tx = default_test_transaction(*sender, None)
-            .with_max_priority_fee_per_gas(3 * GWEI_TO_WEI as u128);
+            .with_max_priority_fee_per_gas(4 * GWEI_TO_WEI as u128);
 
         let mut request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
 
@@ -1007,7 +1007,7 @@ mod tests {
 
         // Create a transaction with a gas price that is correct
         let tx = default_test_transaction(*sender, None)
-            .with_gas_price(max_base_fee + 3 * GWEI_TO_WEI as u128);
+            .with_gas_price(max_base_fee + 4 * GWEI_TO_WEI as u128);
 
         let mut request = create_signed_inclusion_request(&[tx], sender_pk, 10).await?;
 
@@ -1039,7 +1039,7 @@ mod tests {
 
         // Create a transaction with a gas price that is too low
         let tx = default_test_transaction(*sender, None)
-            .with_gas_price(max_base_fee + 3 * GWEI_TO_WEI as u128);
+            .with_gas_price(max_base_fee + 4 * GWEI_TO_WEI as u128);
 
         let mut request = create_signed_inclusion_request(&[tx.clone(), tx], sender_pk, 10).await?;
 
@@ -1171,7 +1171,8 @@ mod tests {
         let mut request = create_signed_inclusion_request(&[tx], sender_pk, target_slot).await?;
         let inclusion_request = request.clone();
 
-        assert!(state.validate_request(&mut request).await.is_ok());
+        let validation = state.validate_request(&mut request).await;
+        assert!(validation.is_ok(), "{validation:?}");
 
         let bls_signer = LocalSigner::random();
         let message = ConstraintsMessage::build(Default::default(), inclusion_request);
