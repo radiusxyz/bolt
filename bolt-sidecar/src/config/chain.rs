@@ -20,9 +20,6 @@ pub const DEFAULT_COMMITMENT_DEADLINE_IN_MILLIS: u64 = 8_000;
 /// Default slot time duration in seconds.
 pub const DEFAULT_SLOT_TIME_IN_SECONDS: u64 = 12;
 
-/// Default gas limit for the sidecar.
-pub const DEFAULT_GAS_LIMIT: u64 = 30_000_000;
-
 /// The domain mask for signing application-builder messages.
 pub const APPLICATION_BUILDER_DOMAIN_MASK: [u8; 4] = [0, 0, 0, 1];
 
@@ -34,7 +31,6 @@ pub const DEFAULT_CHAIN_CONFIG: ChainConfig = ChainConfig {
     chain: Chain::Mainnet,
     commitment_deadline: DEFAULT_COMMITMENT_DEADLINE_IN_MILLIS,
     slot_time: DEFAULT_SLOT_TIME_IN_SECONDS,
-    gas_limit: DEFAULT_GAS_LIMIT,
     enable_unsafe_lookahead: false,
 };
 
@@ -65,15 +61,6 @@ pub struct ChainConfig {
         default_value_t = DEFAULT_CHAIN_CONFIG.slot_time,
     )]
     pub(crate) slot_time: u64,
-    /// The gas limit for the sidecar.
-    /// This is the maximum amount of gas that can be used for a single transaction.
-    /// If provided, it overrides the default for the selected [Chain].
-    #[clap(
-        long,
-        env = "BOLT_SIDECAR_GAS_LIMIT",
-        default_value_t = DEFAULT_CHAIN_CONFIG.gas_limit
-    )]
-    pub(crate) gas_limit: u64,
     /// Toggle to enable unsafe lookahead for the sidecar. If `true`, commitments requests will be
     /// validated against a two-epoch lookahead window.
     #[clap(
@@ -159,11 +146,6 @@ impl ChainConfig {
     /// Get the slot time for the given chain in seconds.
     pub fn slot_time(&self) -> u64 {
         self.slot_time
-    }
-
-    /// Get the gas limit for the given chain.
-    pub fn gas_limit(&self) -> u64 {
-        self.gas_limit
     }
 
     /// Get the domain for signing application-builder messages on the given chain.

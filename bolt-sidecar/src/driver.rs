@@ -200,7 +200,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         }
 
         let beacon_client = BeaconClient::new(opts.beacon_api_url.clone());
-        let execution = ExecutionState::new(fetcher, opts.limits, opts.chain.gas_limit).await?;
+        let execution = ExecutionState::new(fetcher, opts.limits).await?;
 
         let genesis_time = beacon_client.get_genesis_details().await?.genesis_time;
         let slot_stream =
