@@ -213,6 +213,8 @@ Then you can follow these steps to register your operator:
 
    Here you can re-use the same vault address as above. The amount should be in ETH (e.g. '1' for 1 ETH).
    You MUST set the `on_behalf_of` address (i.e. the third argument in the below command) to your **operator** address.
+   - NOTE: You need to hold the respective token that the vault accepts in your operator wallet (wstETH rETH stETH wETH cbETH mETH).
+     Otherwise you will receive an error (Failed! Reason: 0x1425ea42).
 
    ```bash
    python3 symb.py --chain holesky \
@@ -221,7 +223,7 @@ Then you can follow these steps to register your operator:
        --private-key <operator_private_key>
    ```
 
-5. Finally register into the BoltManager contract with `bolt` CLI:
+6. Finally register into the BoltManager contract with `bolt` CLI:
 
    - NOTE: The `--operator-rpc` flag MUST be set to a PUBLICLY ACCESSIBLE URL. This is where your bolt-sidecar will
      receive commitment requests from users and reply with signed commitments. For instance, you can simply use your IP
@@ -239,7 +241,7 @@ Then you can follow these steps to register your operator:
        --operator-rpc <operator_rpc_url>
    ```
 
-6. Check your operator status to ensure everything is set up correctly:
+7. Check your operator status to ensure everything is set up correctly:
 
    ```bash
    bolt operators symbiotic status \
