@@ -55,6 +55,13 @@ impl JsonRpcResponse {
             _ => None,
         }
     }
+
+    pub fn with_uuid(self, id: Uuid) -> Self {
+        match self {
+            Self::Success(success) => Self::Success(success.with_uuid(id)),
+            Self::Error(error) => Self::Error(error.with_uuid(id)),
+        }
+    }
 }
 
 /// A response object for successful JSON-RPC requests.

@@ -17,8 +17,8 @@ pub(crate) type CompressedHash = FixedBytes<20>;
 /// pre-images.
 ///
 /// This follows the same implementation done on-chain in the BoltValidators contract.
-pub fn pubkey_hashes(keys: Vec<BlsPublicKey>) -> HashMap<CompressedHash, BlsPublicKey> {
-    HashMap::from_iter(keys.into_iter().map(|key| (pubkey_hash(&key), key)))
+pub fn pubkey_hashes(keys: &[BlsPublicKey]) -> HashMap<CompressedHash, BlsPublicKey> {
+    HashMap::from_iter(keys.iter().map(|key| (pubkey_hash(key), key.clone())))
 }
 
 /// Hash the public key of the proposer. This follows the same

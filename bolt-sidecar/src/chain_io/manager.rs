@@ -53,7 +53,7 @@ impl BoltManager {
     /// NOTE: it also checks the operator associated to the `commitment_signer_pubkey` exists.
     pub async fn verify_validator_pubkeys(
         &self,
-        keys: Vec<BlsPublicKey>,
+        keys: &[BlsPublicKey],
         commitment_signer_pubkey: Address,
     ) -> eyre::Result<Vec<ProposerStatus>> {
         let hashes_with_preimages = utils::pubkey_hashes(keys);
@@ -250,17 +250,17 @@ mod tests {
         let keys = vec![BlsPublicKey::try_from([0; 48].as_ref()).expect("valid bls public key")];
         let commitment_signer_pubkey = Address::ZERO;
 
-        let res = manager.verify_validator_pubkeys(keys, commitment_signer_pubkey).await;
+        let res = manager.verify_validator_pubkeys(&keys, commitment_signer_pubkey).await;
         assert!(res.unwrap_err().to_string().contains("ValidatorDoesNotExist"));
 
         let keys = vec![
             BlsPublicKey::try_from(
                 hex!("87cbbfe6f08a0fd424507726cfcf5b9df2b2fd6b78a65a3d7bb6db946dca3102eb8abae32847d5a9a27e414888414c26")
                     .as_ref()).expect("valid bls public key")];
-        let res = manager.verify_validator_pubkeys(keys.clone(), commitment_signer_pubkey).await;
+        let res = manager.verify_validator_pubkeys(&keys, commitment_signer_pubkey).await;
         assert!(
-            res.unwrap_err().to_string() ==
-                generate_operator_keys_mismatch_error(
+            res.unwrap_err().to_string()
+                == generate_operator_keys_mismatch_error(
                     pubkey_hash(&keys[0]),
                     commitment_signer_pubkey,
                     operator
@@ -269,7 +269,7 @@ mod tests {
 
         let commitment_signer_pubkey = operator;
         let res = manager
-            .verify_validator_pubkeys(keys, commitment_signer_pubkey)
+            .verify_validator_pubkeys(&keys, commitment_signer_pubkey)
             .await
             .expect("active validator and correct operator");
         assert!(res[0].active);
@@ -308,11 +308,11 @@ mod tests {
         let operator =
             Address::from_hex("725028b0b7c3db8b8242d35cd3a5779838b217b1").expect("valid address");
 
-        let result = manager.verify_validator_pubkeys(keys.clone(), commitment_signer_pubkey).await;
+        let result = manager.verify_validator_pubkeys(&keys, commitment_signer_pubkey).await;
 
         assert!(
-            result.unwrap_err().to_string() ==
-                generate_operator_keys_mismatch_error(
+            result.unwrap_err().to_string()
+                == generate_operator_keys_mismatch_error(
                     pubkey_hash(&keys[0]),
                     commitment_signer_pubkey,
                     operator
