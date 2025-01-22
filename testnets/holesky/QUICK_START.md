@@ -213,6 +213,7 @@ Then you can follow these steps to register your operator:
 
    Here you can re-use the same vault address as above. The amount should be in ETH (e.g. '1' for 1 ETH).
    You MUST set the `on_behalf_of` address (i.e. the third argument in the below command) to your **operator** address.
+
    - NOTE: You need to hold the respective token that the vault accepts in your operator wallet (wstETH rETH stETH wETH cbETH mETH).
      Otherwise you will receive an error (Failed! Reason: 0x1425ea42).
 
@@ -223,7 +224,7 @@ Then you can follow these steps to register your operator:
        --private-key <operator_private_key>
    ```
 
-6. Finally register into the BoltManager contract with `bolt` CLI:
+5. Finally register into the BoltManager contract with `bolt` CLI:
 
    - NOTE: The `--operator-rpc` flag MUST be set to a PUBLICLY ACCESSIBLE URL. This is where your bolt-sidecar will
      receive commitment requests from users and reply with signed commitments. For instance, you can simply use your IP
@@ -241,7 +242,7 @@ Then you can follow these steps to register your operator:
        --operator-rpc <operator_rpc_url>
    ```
 
-7. Check your operator status to ensure everything is set up correctly:
+6. Check your operator status to ensure everything is set up correctly:
 
    ```bash
    bolt operators symbiotic status \
@@ -287,7 +288,7 @@ First, you need to install the
 
    - NOTE: The `--operator-rpc` flag MUST be set to a PUBLICLY ACCESSIBLE URL. Since bolt v0.4.0-alpha, the default configuration
      is firewall delegation, which means that your `--operator-rpc` will be set to our Bolt RPC: `https://rpc-holesky.bolt.chainbound.io/rpc`.
-     Note that the value above is *exactly* what you should register on-chain for the Bolt RPC. 
+     Note that the value above is _exactly_ what you should register on-chain for the Bolt RPC.
    - NOTE: if you do not want to use firewall delegation, you should register a public endpoint (e.g. `--operator-rpc http://<public_ip>:<port`). Make sure to open the `<port>` on your firewall. By default, it is set to `8017`, but it can be changed in the
      sidecar configuration file.
    - NOTE: If you are using a firewall such as `ufw`, you can open the port with the following command:
@@ -362,11 +363,12 @@ section, which will be covered below. Remember to set the
 the previous step.
 
 **Why firewall delegation?**
-Firewall delegation allows proposers to set an external third party as their network entrypoint or *firewall*. It gets rid of the
+Firewall delegation allows proposers to set an external third party as their network entrypoint or _firewall_. It gets rid of the
 requirement to expose an HTTP RPC endpoint for accepting inclusion requests (inbound), and instead subscribes to the configured firewall over a
 websocket connection (outbound). The firewall will then stream valid, filtered inclusion requests over the websocket connection.
 
 Some of the other duties of the firewall include:
+
 - Spam and DoS prevention
 - Pricing inclusion requests correctly (see more below)
 - Communicating prices with consumers (wallets, users)
