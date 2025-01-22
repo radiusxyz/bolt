@@ -139,7 +139,7 @@ grafana:
   fi
 
 # manually send a preconfirmation to the bolt devnet
-send-preconf count='1':
+send-preconf count='1' raw="":
     cd bolt-cli && RUST_LOG=info cargo run -- send \
         --devnet \
         --devnet.execution_url $(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc) \
@@ -148,9 +148,10 @@ send-preconf count='1':
         --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
         --max-fee 4 \
         --priority-fee 3 \
-        --count {{count}}
+        --count {{count}} \
+        {{ if raw == "true" { "--raw" } else { "" } }}
 
-send-preconf-rpc count='1' rpc='http://127.0.0.1:8015/rpc':
+send-preconf-rpc count='1' raw="" rpc='http://127.0.0.1:8015/rpc':
   cd bolt-cli && RUST_LOG=info cargo run -- send \
       --devnet \
       --devnet.execution_url $(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc) \
@@ -159,10 +160,11 @@ send-preconf-rpc count='1' rpc='http://127.0.0.1:8015/rpc':
       --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
       --max-fee 4 \
       --priority-fee 3 \
-      --count {{count}}
+      --count {{count}} \
+      {{ if raw == "true" { "--raw" } else { "" } }}
 
 # manually send a blob preconfirmation to the bolt devnet
-send-blob-preconf count='1':
+send-blob-preconf count='1' raw="":
     cd bolt-cli && RUST_LOG=info cargo run -- send \
         --devnet \
         --devnet.execution_url $(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc) \
@@ -172,9 +174,10 @@ send-blob-preconf count='1':
         --blob \
         --max-fee 4 \
         --priority-fee 3 \
-        --count {{count}}
+        --count {{count}} \
+        {{ if raw == "true" { "--raw" } else { "" } }}
 
-send-blob-preconf-rpc count='1' rpc='http://127.0.0.1:8015/rpc':
+send-blob-preconf-rpc count='1' raw="" rpc='http://127.0.0.1:8015/rpc':
   cd bolt-cli && RUST_LOG=info cargo run -- send \
       --devnet \
       --devnet.execution_url $(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc) \
@@ -184,7 +187,8 @@ send-blob-preconf-rpc count='1' rpc='http://127.0.0.1:8015/rpc':
       --blob \
       --max-fee 4 \
       --priority-fee 3 \
-      --count {{count}}
+      --count {{count}} \
+      {{ if raw == "true" { "--raw" } else { "" } }}
 
 # build all the docker images locally
 build-local-images:
