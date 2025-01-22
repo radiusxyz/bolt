@@ -178,11 +178,11 @@ fn make_router(state: Arc<CommitmentsApiInner>) -> Router {
 #[cfg(test)]
 mod test {
     use crate::{
-        api::commitments::spec::SIGNATURE_HEADER, common::BOLT_SIDECAR_VERSION,
+        api::commitments::spec::{MetadataResponse, SIGNATURE_HEADER},
+        common::BOLT_SIDECAR_VERSION,
         primitives::jsonrpc::JsonRpcError,
     };
     use alloy::signers::{k256::SecretKey, local::PrivateKeySigner};
-    use handlers::MetadataResponse;
     use serde_json::json;
 
     use crate::{

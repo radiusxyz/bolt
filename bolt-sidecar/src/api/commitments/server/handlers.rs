@@ -8,7 +8,6 @@ use axum::{
     Json,
 };
 use axum_extra::extract::WithRejection;
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::{debug, error, info, instrument};
 
@@ -16,12 +15,11 @@ use crate::{
     api::commitments::{
         server::headers::auth_from_headers,
         spec::{
-            CommitmentError, CommitmentsApi, GET_METADATA_METHOD, GET_VERSION_METHOD,
-            REQUEST_INCLUSION_METHOD,
+            CommitmentError, CommitmentsApi, MetadataResponse, GET_METADATA_METHOD,
+            GET_VERSION_METHOD, REQUEST_INCLUSION_METHOD,
         },
     },
     common::BOLT_SIDECAR_VERSION,
-    config::limits::LimitsOpts,
     primitives::{
         jsonrpc::{JsonRpcRequest, JsonRpcResponse, JsonRpcSuccessResponse},
         signature::SignatureError,
@@ -30,17 +28,6 @@ use crate::{
 };
 
 use super::CommitmentsApiInner;
-
-/// Response structure for the metadata endpoint that combines
-/// limits configuration with version information in a flat structure
-#[derive(Debug, Serialize, Deserialize)]
-pub struct MetadataResponse {
-    /// The operational limits of the sidecar
-    #[serde(flatten)]
-    pub limits: LimitsOpts,
-    /// The version of the Bolt sidecar
-    pub version: String,
-}
 
 /// Handler function for the root JSON-RPC path.
 #[instrument(skip_all, name = "POST /rpc", fields(method = %payload.method))]
