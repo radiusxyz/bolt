@@ -155,6 +155,10 @@ pub struct SendCommand {
     /// The URL of the devnet sidecar for sending transactions
     #[clap(long = "devnet.sidecar_url", hide = true)]
     pub devnet_sidecar_url: Option<Url>,
+
+    /// Toggle for using `eth_sendRawTransaction` instead of `bolt_requestInclusion`
+    #[clap(long, env = "RAW", default_value_t = false)]
+    pub raw: bool,
 }
 
 #[derive(Debug, Clone, Parser)]

@@ -96,14 +96,18 @@ impl SendCommand {
                 }
             };
 
-            send_rpc_request(
-                vec![hex::encode(&raw_tx)],
-                vec![tx_hash],
-                target_slot,
-                target_url.clone(),
-                &wallet,
-            )
-            .await?;
+            if self.raw {
+                send_raw_transaction(hex::encode(&raw_tx), tx_hash, target_url.clone()).await?;
+            } else {
+                send_bolt_request_inclusion(
+                    vec![hex::encode(&raw_tx)],
+                    vec![tx_hash],
+                    target_slot,
+                    target_url.clone(),
+                    &wallet,
+                )
+                .await?;
+            }
 
             // Sleep for a bit to avoid spamming
             tokio::time::sleep(Duration::from_millis(200)).await;
@@ -149,14 +153,18 @@ impl SendCommand {
                 }
             };
 
-            send_rpc_request(
-                vec![hex::encode(&raw_tx)],
-                vec![tx_hash],
-                slot + 2,
-                sidecar_url.clone(),
-                &wallet,
-            )
-            .await?;
+            if self.raw {
+                send_raw_transaction(hex::encode(&raw_tx), tx_hash, sidecar_url.clone()).await?;
+            } else {
+                send_bolt_request_inclusion(
+                    vec![hex::encode(&raw_tx)],
+                    vec![tx_hash],
+                    slot + 2,
+                    sidecar_url.clone(),
+                    &wallet,
+                )
+                .await?;
+            }
 
             // Sleep for a bit to avoid spamming
             tokio::time::sleep(Duration::from_millis(200)).await;
@@ -188,7 +196,7 @@ fn create_tx_request(to: Address, with_blob: bool) -> TransactionRequest {
     req
 }
 
-async fn send_rpc_request(
+async fn send_bolt_request_inclusion(
     txs_rlp: Vec<String>,
     tx_hashes: Vec<B256>,
     target_slot: u64,
@@ -210,6 +218,31 @@ async fn send_rpc_request(
         .post(target_sidecar_url)
         .header("content-type", "application/json")
         .header("x-bolt-signature", signature)
+        .body(serde_json::to_string(&request)?)
+        .send()
+        .await
+        .wrap_err("failed to send POST request")?;
+
+    let response = response.text().await?;
+
+    // strip out long series of zeros in the response (to avoid spamming blob contents)
+    let response = response.replace(&"0".repeat(32), ".").replace(&".".repeat(4), "");
+    info!("Response: {:?}", response);
+    Ok(())
+}
+
+async fn send_raw_transaction(
+    tx_rlp: String,
+    tx_hash: B256,
+    target_sidecar_url: Url,
+) -> Result<()> {
+    let request = prepare_rpc_request("eth_sendRawTransaction", serde_json::json!(tx_rlp));
+
+    info!(?tx_hash, %target_sidecar_url);
+
+    let response = reqwest::Client::new()
+        .post(target_sidecar_url)
+        .header("content-type", "application/json")
         .body(serde_json::to_string(&request)?)
         .send()
         .await
