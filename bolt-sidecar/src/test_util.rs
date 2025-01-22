@@ -13,7 +13,6 @@ use alloy::{
 };
 use alloy_node_bindings::{Anvil, AnvilInstance};
 use blst::min_pk::SecretKey;
-use clap::Parser;
 use ethereum_consensus::crypto::bls::{PublicKey as BlsPublicKey, Signature as BlsSignature};
 use rand::Rng;
 use secp256k1::Message;
@@ -86,7 +85,7 @@ pub(crate) async fn get_test_config() -> Option<Opts> {
 
     let _ = dotenvy::dotenv();
 
-    let mut opts = Opts::parse();
+    let mut opts = Opts::try_parse().expect("to parse envs");
 
     let Some(jwt) = env::var("ENGINE_JWT").ok() else {
         warn!("ENGINE_JWT not found in environment variables");
@@ -122,7 +121,7 @@ pub(crate) fn default_test_transaction(sender: Address, nonce: Option<u64>) -> T
         .with_nonce(nonce.unwrap_or(0))
         .with_value(U256::from(100))
         .with_gas_limit(21_000)
-        .with_max_priority_fee_per_gas(3_000_000_000) // 3 gwei
+        .with_max_priority_fee_per_gas(10_000_000_000) // 10 gwei
         .with_max_fee_per_gas(20_000_000_000)
 }
 
