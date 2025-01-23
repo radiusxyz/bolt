@@ -55,6 +55,14 @@ impl JsonRpcResponse {
             _ => None,
         }
     }
+
+    /// Set the ID of the response from a UUID.
+    pub fn with_uuid(self, id: Uuid) -> Self {
+        match self {
+            Self::Success(success) => Self::Success(success.with_uuid(id)),
+            Self::Error(error) => Self::Error(error.with_uuid(id)),
+        }
+    }
 }
 
 /// A response object for successful JSON-RPC requests.
@@ -138,11 +146,19 @@ pub struct JsonRpcError {
     pub code: i32,
     /// The error message
     pub message: String,
+    /// The optional data of the error
+    pub data: Option<Value>,
 }
 
 impl JsonRpcError {
     /// Create a new JSON-RPC error object
     pub fn new(code: i32, message: String) -> Self {
-        Self { code, message }
+        Self { code, message, data: None }
+    }
+
+    /// Set the data of the error
+    pub fn with_data(mut self, data: Value) -> Self {
+        self.data = Some(data);
+        self
     }
 }

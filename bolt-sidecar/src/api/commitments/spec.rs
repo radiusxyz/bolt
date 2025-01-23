@@ -7,6 +7,7 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use thiserror::Error;
 
 use crate::{
@@ -15,7 +16,7 @@ use crate::{
         commitment::InclusionCommitment,
         jsonrpc::{JsonRpcError, JsonRpcErrorResponse},
         signature::SignatureError,
-        InclusionRequest,
+        BlsPublicKey, InclusionRequest,
     },
     state::{consensus::ConsensusError, ValidationError},
 };
@@ -66,6 +67,9 @@ pub enum CommitmentError {
     /// Invalid JSON-RPC request params.
     #[error("Invalid JSON-RPC request params: {0}")]
     InvalidParams(String),
+    /// The requested validator is not available on this sidecar.
+    #[error("Validator not available on this sidecar")]
+    ValidatorNotAvailable(BlsPublicKey),
     /// Invalid JSON.
     /// FIXME: (thedevbirb, 2025-13-01) this should be removed because it is dead code,
     /// but it allows Rust to pull the correct axum version and not older ones from
@@ -93,6 +97,9 @@ impl From<CommitmentError> for JsonRpcError {
             CommitmentError::InvalidParams(err) => Self::new(-32602, err.to_string()),
             CommitmentError::Internal => Self::new(-32603, err.to_string()),
             CommitmentError::RejectedJson(err) => Self::new(-32604, err.to_string()),
+            CommitmentError::ValidatorNotAvailable(ref pk) => {
+                Self::new(600, err.to_string()).with_data(json!(pk))
+            }
         }
     }
 }
@@ -112,6 +119,7 @@ impl From<&CommitmentError> for StatusCode {
             | CommitmentError::RejectedJson(_)
             | CommitmentError::InvalidJson(_) => Self::BAD_REQUEST,
             CommitmentError::Internal => Self::INTERNAL_SERVER_ERROR,
+            CommitmentError::ValidatorNotAvailable(_) => Self::NOT_FOUND,
         }
     }
 }

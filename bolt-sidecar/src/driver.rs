@@ -188,7 +188,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             );
 
             manager
-                .verify_validator_pubkeys(validator_pubkeys, commitment_signer.public_key())
+                .verify_validator_pubkeys(&validator_pubkeys, commitment_signer.public_key())
                 .await?;
 
             info!("Successfully verified validators and operator keys with BoltManager");
@@ -236,6 +236,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                 opts.chain.chain,
                 opts.limits,
                 urls,
+                validator_pubkeys.into_iter().collect(),
             )
             .run()
         } else {

@@ -1,5 +1,10 @@
 use alloy::signers::local::PrivateKeySigner;
-use std::fmt::{self, Debug, Formatter};
+use ethereum_consensus::crypto::PublicKey;
+use std::{
+    collections::HashSet,
+    fmt::{self, Debug, Formatter},
+    sync::Arc,
+};
 use thiserror::Error;
 use tokio::sync::{mpsc, watch};
 use tokio_tungstenite::{
@@ -59,6 +64,8 @@ pub struct CommitmentsReceiver {
     signal: ShutdownSignal,
     /// The sidecar running limits.
     limits: LimitsOpts,
+    /// The available validator public keys on the sidecar.
+    available_validators: HashSet<PublicKey>,
 }
 
 impl Debug for CommitmentsReceiver {
@@ -78,12 +85,14 @@ impl CommitmentsReceiver {
         chain: Chain,
         limits: LimitsOpts,
         urls: Vec<Url>,
+        available_validators: HashSet<PublicKey>,
     ) -> Self {
         Self {
             operator_private_key,
             chain,
             urls,
             limits,
+            available_validators,
             signal: Box::pin(async {
                 let _ = tokio::signal::ctrl_c().await;
             }),
@@ -107,7 +116,7 @@ impl CommitmentsReceiver {
         ShutdownTicker::new(self.signal).spawn(shutdown_tx);
 
         let signer = PrivateKeySigner::from_signing_key(self.operator_private_key.0);
-        let state = ProcessorState::new(self.limits);
+        let state = Arc::new(ProcessorState::new(self.limits, self.available_validators));
         let retry_config = RetryConfig { initial_delay_ms: 100, max_delay_secs: 2, factor: 2 };
 
         for url in &self.urls {
@@ -117,6 +126,7 @@ impl CommitmentsReceiver {
             let api_events_tx = api_events_tx.clone();
             let shutdown_rx = shutdown_rx.clone();
             let signer = signer.clone();
+            let state = state.clone();
 
             tokio::spawn(async move {
                 retry_with_backoff_if(
@@ -137,6 +147,7 @@ impl CommitmentsReceiver {
 
                         let api_events_tx = api_events_tx.clone();
                         let shutdown_rx = shutdown_rx.clone();
+                        let state = state.clone();
 
                         async move {
                             handle_connection(url, state, jwt, api_events_tx, shutdown_rx).await
@@ -160,7 +171,7 @@ impl CommitmentsReceiver {
 /// Opens the websocket connection and starts the commitment request processor.
 async fn handle_connection(
     url: String,
-    state: ProcessorState,
+    state: Arc<ProcessorState>,
     jwt: String,
     api_events_tx: mpsc::Sender<CommitmentEvent>,
     shutdown_rx: watch::Receiver<()>,
@@ -310,6 +321,7 @@ mod tests {
                 format!("ws://127.0.0.1:{}{}", port_1, FIREWALL_STREAM_PATH).parse().unwrap(),
                 // format!("ws://127.0.0.1:{}{}", port_2, FIREWALL_STREAM_PATH).parse().unwrap(),
             ],
+            HashSet::new(),
         )
         .with_shutdown(async move { shutdown_connections_rx.recv().await.unwrap() }.boxed());
 

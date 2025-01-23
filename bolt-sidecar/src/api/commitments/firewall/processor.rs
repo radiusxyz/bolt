@@ -1,3 +1,4 @@
+use ethereum_consensus::crypto::PublicKey;
 use futures::{
     pin_mut,
     stream::{FuturesUnordered, SplitSink, SplitStream},
@@ -5,7 +6,7 @@ use futures::{
 };
 use serde::Serialize;
 use serde_json::{json, Value};
-use std::time::Duration;
+use std::{collections::HashSet, sync::Arc, time::Duration};
 use std::{collections::VecDeque, future::Future, pin::Pin, task::Poll};
 use tokio::{
     net::TcpStream,
@@ -82,16 +83,18 @@ impl Future for PendingCommitmentResponse {
 }
 
 /// The internal state of the [CommitmentRequestProcessor].
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ProcessorState {
     /// The running limits of the sidecar.
     limits: LimitsOpts,
+    /// The available validator public keys in the sidecar.
+    available_validators: HashSet<PublicKey>,
 }
 
 impl ProcessorState {
     /// Creates a new instance of the [ProcessorState].
-    pub fn new(limits: LimitsOpts) -> Self {
-        Self { limits }
+    pub fn new(limits: LimitsOpts, available_validators: HashSet<PublicKey>) -> Self {
+        Self { limits, available_validators }
     }
 }
 
@@ -102,7 +105,7 @@ pub struct CommitmentRequestProcessor {
     /// The URL of the connected websocket server.
     url: String,
     /// The internal state of the processor.
-    state: ProcessorState,
+    state: Arc<ProcessorState>,
     /// The channel to send commitment events to be processed.
     api_events_tx: mpsc::Sender<CommitmentEvent>,
     /// The websocket writer sink.
@@ -125,7 +128,7 @@ impl CommitmentRequestProcessor {
     /// Creates a new instance of the [CommitmentRequestProcessor].
     pub fn new(
         url: String,
-        state: ProcessorState,
+        state: Arc<ProcessorState>,
         tx: mpsc::Sender<CommitmentEvent>,
         stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
         shutdown_rx: watch::Receiver<()>,
@@ -322,12 +325,37 @@ impl CommitmentRequestProcessor {
                 self.send_response(response);
             }
             GET_METADATA_METHOD => {
-                let metadata = MetadataResponse {
-                    limits: self.state.limits,
-                    version: BOLT_SIDECAR_VERSION.to_string(),
+                let public_key = request
+                    .params
+                    .first()
+                    .and_then(|p| p.as_str())
+                    .and_then(|p| hex::decode(p.trim_start_matches("0x")).ok())
+                    .and_then(|p| PublicKey::try_from(p.as_slice()).ok());
+
+                let response: JsonRpcResponse = if let Some(public_key) = public_key {
+                    if self.state.available_validators.contains(&public_key) {
+                        let metadata = MetadataResponse {
+                            limits: self.state.limits,
+                            version: BOLT_SIDECAR_VERSION.to_string(),
+                        };
+                        JsonRpcSuccessResponse::new(json!(metadata)).into()
+                    } else {
+                        JsonRpcErrorResponse::new(
+                            CommitmentError::ValidatorNotAvailable(public_key).into(),
+                        )
+                        .into()
+                    }
+                } else {
+                    JsonRpcErrorResponse::new(
+                        CommitmentError::InvalidParams(
+                            "missing or invalid validator public key".into(),
+                        )
+                        .into(),
+                    )
+                    .into()
                 };
-                let response = JsonRpcSuccessResponse::new(json!(metadata)).with_uuid(id).into();
-                self.send_response(response);
+
+                self.send_response(response.with_uuid(id));
             }
             REQUEST_INCLUSION_METHOD => {
                 let Some(param) = request.params.first().cloned() else {
