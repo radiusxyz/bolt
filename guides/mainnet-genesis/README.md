@@ -123,7 +123,40 @@ contract and is out of the scope of this guide. Please check out the official Ei
 for more information.
 
 Currently (as of 2025-01-23) the EigenLayer ELIP-002 update is not deployed yet, so there
-is no way to join OperatorSets and allocate slashable magnitudes to the AVS.
+is no way to [join OperatorSets and allocate slashable magnitudes](https://docs.eigenlayer.xyz/eigenlayer/operator-guides/operator-sets#unique-stake-allocation--deallocation) to the AVS.
 
-Once the update is deployed on Mainnet, you will be able to join the bolt OperatorSet
+Once the EigenLayer ELIP-002 update is deployed on Mainnet, you will be able to join the bolt OperatorSet
 and allocate slashable magnitudes to the AVS as you see fit.
+
+## Symbiotic Operators
+
+### Step 1: Register as a Symbiotic operator (if you haven't already)
+
+You need to be a registered [Symbiotic operator](https://docs.symbiotic.fi/guides/cli#write-commands---for-operators)
+in order to start opting into any Symbiotic Network. Make sure you have an active operator account to proceed.
+
+### Step 2: Register your operator into bolt's Symbiotic Network
+
+To register in bolt's Symbiotic Network middleware contract, you can use this bolt CLI command:
+
+```bash
+bolt mainnet operators symbiotic register \
+    --rpc-url <your-rpc-url> \
+    --operator-private-key <your-operator-private-key> \
+    --extra-data <your-extra-data-string>
+    # [OPTIONAL] --operator-rpc <your-operator-rpc-url>
+```
+
+where:
+
+- `<your-rpc-url>` is the URL of the Ethereum RPC node you are using
+- `<your-operator-private-key>` is the private key of the operator account you are using
+- `<your-extra-data-string>` is any extra string you want to include in the registration,
+  such as your operator name, website or a custom identifier
+- `<your-operator-rpc-url>` is the URL of the bolt-sidecar RPC server you will be receiving
+  preconfirmation requests on. By default, this is set to Chainbound's "bolt RPC" that acts
+  as proxy for all operators. You can also change this setting at any time later on.
+
+### Step 3: Deposit collateral in Symbiotic Vaults
+
+TODO
