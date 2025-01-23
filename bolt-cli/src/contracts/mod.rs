@@ -211,8 +211,7 @@ lazy_static! {
             ("w_eth".to_string(), address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")),
             ("cb_eth".to_string(), address!("Be9895146f7AF43049ca1c1AE358B0541Ea49704")),
             ("m_eth".to_string(), address!("d5F7838F5C461fefF7FE49ea5ebaF7728bB0ADfa")),
-            // TODO: this one
-            ("st_eth".to_string(), address!("3F1c547b21f65e10480dE3ad8E19fAAC46C95034")),
+            ("st_eth".to_string(), address!("ae7ab96520DE3A18E5e111B5EaAb095312D7fE84")),
         ],
     };
 }
