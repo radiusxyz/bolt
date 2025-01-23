@@ -529,7 +529,7 @@ impl Chain {
     /// Returns None if bolt RPC is not deployed for the chain.
     pub fn bolt_rpc(&self) -> Option<Url> {
         match self {
-            Self::Mainnet => Some(Url::parse("https://rpc-mainnet.bolt.chainbound.io").unwrap()),
+            Self::Mainnet => Some(Url::parse("https://rpc.boltprotocol.xyz").unwrap()),
             Self::Holesky => Some(Url::parse("https://rpc-holesky.bolt.chainbound.io").unwrap()),
             _ => None,
         }
