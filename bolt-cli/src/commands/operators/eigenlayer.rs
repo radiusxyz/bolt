@@ -73,6 +73,14 @@ impl EigenLayerSubcommand {
 
                 let balance = token_erc20.balanceOf(operator).call().await?._0;
 
+                if amount > balance {
+                    bail!(
+                        "Insufficient balance: {} < {}",
+                        format_ether(balance),
+                        format_ether(amount)
+                    )
+                }
+
                 info!("Operator token balance: {}", format_ether(balance));
 
                 let result = token_erc20.approve(strategy_manager_address, amount).send().await?;
