@@ -181,7 +181,14 @@ there are some actions needed before your operator shares are updated/visible in
 
 Regardless of the type of vault, we have to activate & whitelist the vault on our network.
 Please reach out to us through the **Bolt Node Operator Working Group: Cohort 1** Telegram channel, 
-or at [dev@chainbound.io](mailto:dev@chainbound.io)
+or at [dev@chainbound.io](mailto:dev@chainbound.io). 
+
+We'll need the following information about your vault:
+- Collateral
+- Type
+- Manager
+
+Note that Bolt only works with collateral that are ETH derivatives right now.
 
 #### OperatorSpecific and OperatorNetworkSpecific Vaults
 - **Us**: whitelist vault
