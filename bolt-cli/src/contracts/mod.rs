@@ -105,7 +105,10 @@ pub fn deployments() -> HashMap<Chain, Contracts> {
 }
 
 pub fn deployments_for_chain(chain: Chain) -> Contracts {
-    deployments().get(&chain).cloned().expect("no deployments for chain")
+    deployments()
+        .get(&chain)
+        .cloned()
+        .unwrap_or_else(|| panic!("no deployments for chain: {:?}", chain))
 }
 
 lazy_static! {

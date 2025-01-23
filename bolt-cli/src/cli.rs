@@ -258,9 +258,13 @@ pub enum EigenLayerSubcommand {
         /// The URL of the operator RPC.
         #[clap(long, env = "OPERATOR_RPC")]
         operator_rpc: Url,
-        /// The salt for the operator signature.
+        /// The operator's extra data string to be stored in the registry.
+        #[clap(long, env = "OPERATOR_EXTRA_DATA")]
+        extra_data: String,
+        /// The salt for the operator signature, to prevent replay attacks.
+        /// If not provided, a random value is used.
         #[clap(long, env = "OPERATOR_SIGNATURE_SALT")]
-        salt: B256,
+        salt: Option<B256>,
     },
 
     /// Deregister an EigenLayer operator from the bolt AVS.
@@ -310,6 +314,9 @@ pub enum SymbioticSubcommand {
         /// The URL of the operator RPC.
         #[clap(long, env = "OPERATOR_RPC")]
         operator_rpc: Url,
+        /// The operator's extra data string to be stored in the registry.
+        #[clap(long, env = "OPERATOR_EXTRA_DATA")]
+        extra_data: String,
     },
 
     /// Deregister a Symbiotic operator from bolt.

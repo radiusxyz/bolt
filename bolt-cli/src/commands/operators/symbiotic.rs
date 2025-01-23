@@ -1,11 +1,15 @@
 use alloy::{
+    contract::Error as ContractError,
     network::EthereumWallet,
-    primitives::{utils::Unit, Uint},
+    primitives::{
+        utils::{format_ether, Unit},
+        Uint, U256,
+    },
     providers::ProviderBuilder,
     signers::local::PrivateKeySigner,
     sol_types::SolInterface,
 };
-use eyre::Context;
+use eyre::{bail, Context};
 use tracing::{info, warn};
 
 use crate::{
@@ -15,7 +19,10 @@ use crate::{
         request_confirmation, try_parse_contract_error,
     },
     contracts::{
-        bolt::BoltSymbioticMiddleware::{self, BoltSymbioticMiddlewareErrors},
+        bolt::{
+            BoltSymbioticMiddlewareHolesky::{self, BoltSymbioticMiddlewareHoleskyErrors},
+            BoltSymbioticMiddlewareMainnet::{self, BoltSymbioticMiddlewareMainnetErrors},
+        },
         deployments_for_chain,
         symbiotic::IOptInService,
     },
@@ -25,7 +32,7 @@ impl SymbioticSubcommand {
     /// Run the symbiotic subcommand.
     pub async fn run(self) -> eyre::Result<()> {
         match self {
-            Self::Register { operator_rpc, operator_private_key, rpc_url } => {
+            Self::Register { operator_rpc, operator_private_key, rpc_url, extra_data } => {
                 let signer = PrivateKeySigner::from_bytes(&operator_private_key)
                     .wrap_err("valid private key")?;
 
@@ -59,36 +66,54 @@ impl SymbioticSubcommand {
                     );
                 }
 
-                let middleware = BoltSymbioticMiddleware::new(
-                    deployments.bolt.symbiotic_middleware,
-                    provider.clone(),
-                );
+                if chain == Chain::Mainnet {
+                    let middleware = BoltSymbioticMiddlewareMainnet::new(
+                        deployments.bolt.symbiotic_middleware,
+                        provider.clone(),
+                    );
 
-                match middleware.registerOperator(operator_rpc.to_string()).send().await {
-                    Ok(pending) => {
-                        info!(
-                            hash = ?pending.tx_hash(),
-                            "registerOperator transaction sent, awaiting receipt..."
-                        );
+                    match middleware
+                        .registerOperator(operator_rpc.to_string(), extra_data)
+                        .send()
+                        .await
+                    {
+                        Ok(pending) => {
+                            info!(
+                                hash = ?pending.tx_hash(),
+                                "registerOperator transaction sent, awaiting receipt..."
+                            );
 
-                        let receipt = pending.get_receipt().await?;
-                        if !receipt.status() {
-                            eyre::bail!("Transaction failed: {:?}", receipt)
+                            let receipt = pending.get_receipt().await?;
+                            if !receipt.status() {
+                                eyre::bail!("Transaction failed: {:?}", receipt)
+                            }
+
+                            info!("Succesfully registered Symbiotic operator");
                         }
-
-                        info!("Succesfully registered Symbiotic operator");
+                        Err(e) => parse_symbiotic_middleware_mainnet_errors(e)?,
                     }
-                    Err(e) => match try_parse_contract_error::<BoltSymbioticMiddlewareErrors>(e)? {
-                        BoltSymbioticMiddlewareErrors::AlreadyRegistered(_) => {
-                            eyre::bail!("Operator already registered in bolt")
+                } else if chain == Chain::Holesky {
+                    let middleware = BoltSymbioticMiddlewareHolesky::new(
+                        deployments.bolt.symbiotic_middleware,
+                        provider.clone(),
+                    );
+
+                    match middleware.registerOperator(operator_rpc.to_string()).send().await {
+                        Ok(pending) => {
+                            info!(
+                                hash = ?pending.tx_hash(),
+                                "registerOperator transaction sent, awaiting receipt..."
+                            );
+
+                            let receipt = pending.get_receipt().await?;
+                            if !receipt.status() {
+                                eyre::bail!("Transaction failed: {:?}", receipt)
+                            }
+
+                            info!("Succesfully registered Symbiotic operator");
                         }
-                        BoltSymbioticMiddlewareErrors::NotOperator(_) => {
-                            eyre::bail!("Operator not registered in Symbiotic")
-                        }
-                        other => {
-                            unreachable!("Unexpected error with selector {:?}", other.selector())
-                        }
-                    },
+                        Err(e) => parse_symbiotic_middleware_holesky_errors(e)?,
+                    }
                 }
 
                 Ok(())
@@ -113,31 +138,51 @@ impl SymbioticSubcommand {
 
                 request_confirmation();
 
-                let middleware =
-                    BoltSymbioticMiddleware::new(deployments.bolt.symbiotic_middleware, provider);
+                // TODO(nico): consolidate holesky & mainnet smart contracts
+                if chain == Chain::Mainnet {
+                    let middleware = BoltSymbioticMiddlewareMainnet::new(
+                        deployments.bolt.symbiotic_middleware,
+                        provider.clone(),
+                    );
 
-                match middleware.deregisterOperator().send().await {
-                    Ok(pending) => {
-                        info!(
-                            hash = ?pending.tx_hash(),
-                            "deregisterOperator transaction sent, awaiting receipt..."
-                        );
+                    match middleware.deregisterOperator().send().await {
+                        Ok(pending) => {
+                            info!(
+                                hash = ?pending.tx_hash(),
+                                "deregisterOperator transaction sent, awaiting receipt..."
+                            );
 
-                        let receipt = pending.get_receipt().await?;
-                        if !receipt.status() {
-                            eyre::bail!("Transaction failed: {:?}", receipt)
+                            let receipt = pending.get_receipt().await?;
+                            if !receipt.status() {
+                                eyre::bail!("Transaction failed: {:?}", receipt)
+                            }
+
+                            info!("Succesfully deregistered Symbiotic operator");
                         }
-
-                        info!("Succesfully deregistered Symbiotic operator");
+                        Err(e) => parse_symbiotic_middleware_mainnet_errors(e)?,
                     }
-                    Err(e) => match try_parse_contract_error::<BoltSymbioticMiddlewareErrors>(e)? {
-                        BoltSymbioticMiddlewareErrors::NotRegistered(_) => {
-                            eyre::bail!("Operator not registered in bolt")
+                } else if chain == Chain::Holesky {
+                    let middleware = BoltSymbioticMiddlewareHolesky::new(
+                        deployments.bolt.symbiotic_middleware,
+                        provider,
+                    );
+
+                    match middleware.deregisterOperator().send().await {
+                        Ok(pending) => {
+                            info!(
+                                hash = ?pending.tx_hash(),
+                                "deregisterOperator transaction sent, awaiting receipt..."
+                            );
+
+                            let receipt = pending.get_receipt().await?;
+                            if !receipt.status() {
+                                eyre::bail!("Transaction failed: {:?}", receipt)
+                            }
+
+                            info!("Succesfully deregistered Symbiotic operator");
                         }
-                        other => {
-                            unreachable!("Unexpected error with selector {:?}", other.selector())
-                        }
-                    },
+                        Err(e) => parse_symbiotic_middleware_holesky_errors(e)?,
+                    }
                 }
 
                 Ok(())
@@ -202,61 +247,145 @@ impl SymbioticSubcommand {
                 let chain = Chain::try_from_provider(&provider).await?;
 
                 let deployments = deployments_for_chain(chain);
-                let bolt_manager =
-                    BoltManagerContract::new(deployments.bolt.manager, provider.clone());
-                if bolt_manager.isOperator(address).call().await?._0 {
-                    info!(?address, "Symbiotic operator is registered");
-                } else {
-                    warn!(?address, "Operator not registered");
-                    return Ok(())
-                }
 
-                match bolt_manager.getOperatorData(address).call().await {
-                    Ok(operator_data) => {
-                        info!(?address, operator_data = ?operator_data._0, "Operator data");
-                    }
-                    Err(e) => match try_parse_contract_error::<BoltManagerContractErrors>(e)? {
-                        BoltManagerContractErrors::KeyNotFound(_) => {
-                            warn!(?address, "Operator data not found");
-                        }
-                        other => {
-                            unreachable!("Unexpected error with selector {:?}", other.selector())
-                        }
-                    },
-                }
+                info!(?address, ?chain, "Checking Symbiotic operator status");
 
-                // Check if operator has collateral
-                let mut total_collateral = Uint::from(0);
-                for (name, collateral) in deployments.collateral {
-                    let stake =
-                        match bolt_manager.getOperatorStake(address, collateral).call().await {
-                            Ok(stake) => stake._0,
-                            Err(e) => {
-                                match try_parse_contract_error::<BoltSymbioticMiddlewareErrors>(e)?
-                                {
-                                    BoltSymbioticMiddlewareErrors::KeyNotFound(_) => Uint::from(0),
-                                    other => unreachable!(
-                                        "Unexpected error with selector {:?}",
-                                        other.selector()
-                                    ),
-                                }
+                // TODO(nico): consolidate holesky & mainnet smart contracts
+                if chain == Chain::Mainnet {
+                    let middleware = BoltSymbioticMiddlewareMainnet::new(
+                        deployments.bolt.symbiotic_middleware,
+                        provider.clone(),
+                    );
+
+                    match middleware.getOperatorCollaterals(address).call().await {
+                        Ok(collaterals) => {
+                            for (token, amount) in collaterals._0.iter().zip(collaterals._1.iter())
+                            {
+                                info!(?address, token = %token, amount = format_ether(*amount), "Operator has collateral");
                             }
-                        };
-                    if stake > Uint::from(0) {
-                        total_collateral += stake;
-                        info!(?address, token = %name, amount = ?stake, "Operator has collateral");
+
+                            if collaterals._1.iter().sum::<U256>() >= Unit::ETHER.wei() {
+                                info!(?address, "Operator is active");
+                            } else if collaterals._1.iter().sum::<U256>() > U256::from(0) {
+                                info!(?address, "Total operator collateral");
+                            } else {
+                                warn!(?address, "Operator has no collateral");
+                            }
+                        }
+                        Err(e) => parse_symbiotic_middleware_mainnet_errors(e)?,
                     }
-                }
-                if total_collateral >= Unit::ETHER.wei() {
-                    info!(?address, total_collateral=?total_collateral, "Operator is active");
-                } else if total_collateral > Uint::from(0) {
-                    info!(?address, total_collateral=?total_collateral, "Total operator collateral");
-                } else {
-                    warn!(?address, "Operator has no collateral");
+                } else if chain == Chain::Holesky {
+                    let bolt_manager =
+                        BoltManagerContract::new(deployments.bolt.manager, provider.clone());
+                    if bolt_manager.isOperator(address).call().await?._0 {
+                        info!(?address, "Symbiotic operator is registered");
+                    } else {
+                        warn!(?address, "Operator not registered");
+                        return Ok(())
+                    }
+
+                    match bolt_manager.getOperatorData(address).call().await {
+                        Ok(operator_data) => {
+                            info!(?address, operator_data = ?operator_data._0, "Operator data");
+                        }
+                        Err(e) => match try_parse_contract_error::<BoltManagerContractErrors>(e)? {
+                            BoltManagerContractErrors::KeyNotFound(_) => {
+                                warn!(?address, "Operator data not found");
+                            }
+                            other => {
+                                unreachable!(
+                                    "Unexpected error with selector {:?}",
+                                    other.selector()
+                                )
+                            }
+                        },
+                    }
+
+                    // Check if operator has collateral
+                    let mut total_collateral = Uint::from(0);
+                    for (name, collateral) in deployments.collateral {
+                        let stake =
+                            match bolt_manager.getOperatorStake(address, collateral).call().await {
+                                Ok(stake) => stake._0,
+                                Err(e) => {
+                                    match try_parse_contract_error::<
+                                        BoltSymbioticMiddlewareHoleskyErrors,
+                                    >(e)?
+                                    {
+                                        BoltSymbioticMiddlewareHoleskyErrors::KeyNotFound(_) => {
+                                            Uint::from(0)
+                                        }
+                                        other => unreachable!(
+                                            "Unexpected error with selector {:?}",
+                                            other.selector()
+                                        ),
+                                    }
+                                }
+                            };
+                        if stake > Uint::from(0) {
+                            total_collateral += stake;
+                            info!(?address, token = %name, amount = ?stake, "Operator has collateral");
+                        }
+                    }
+                    if total_collateral >= Unit::ETHER.wei() {
+                        info!(?address, total_collateral=?total_collateral, "Operator is active");
+                    } else if total_collateral > Uint::from(0) {
+                        info!(?address, total_collateral=?total_collateral, "Total operator collateral");
+                    } else {
+                        warn!(?address, "Operator has no collateral");
+                    }
                 }
 
                 Ok(())
             }
+        }
+    }
+}
+
+/// Parse the errors from the Symbiotic middleware contract.
+fn parse_symbiotic_middleware_mainnet_errors(err: ContractError) -> eyre::Result<()> {
+    match try_parse_contract_error::<BoltSymbioticMiddlewareMainnetErrors>(err)? {
+        BoltSymbioticMiddlewareMainnetErrors::NotOperator(_) => {
+            bail!("Operator not registered in Symbiotic")
+        }
+        BoltSymbioticMiddlewareMainnetErrors::NotOperatorSpecificVault(_) => {
+            bail!("Operator not registered in Symbiotic for this vault")
+        }
+        BoltSymbioticMiddlewareMainnetErrors::NotVault(_) => {
+            bail!("Vault not registered in Symbiotic")
+        }
+        BoltSymbioticMiddlewareMainnetErrors::OperatorNotOptedIn(_) => {
+            bail!("Operator not opted in to the bolt network")
+        }
+        BoltSymbioticMiddlewareMainnetErrors::OperatorNotRegistered(_) => {
+            bail!("Operator not registered in bolt")
+        }
+        BoltSymbioticMiddlewareMainnetErrors::UnauthorizedVault(_) => {
+            bail!("Unauthorized vault")
+        }
+        BoltSymbioticMiddlewareMainnetErrors::VaultAlreadyWhitelisted(_) => {
+            bail!("Vault already whitelisted")
+        }
+        BoltSymbioticMiddlewareMainnetErrors::VaultNotInitialized(_) => {
+            bail!("Vault not initialized")
+        }
+    }
+}
+
+/// Parse the errors from the Symbiotic middleware contract.
+fn parse_symbiotic_middleware_holesky_errors(err: ContractError) -> eyre::Result<()> {
+    match try_parse_contract_error::<BoltSymbioticMiddlewareHoleskyErrors>(err)? {
+        BoltSymbioticMiddlewareHoleskyErrors::AlreadyRegistered(_) => {
+            bail!("Operator already registered in bolt")
+        }
+        BoltSymbioticMiddlewareHoleskyErrors::KeyNotFound(_) => {
+            bail!("Operator not registered in Symbiotic")
+        }
+        BoltSymbioticMiddlewareHoleskyErrors::NotOperator(_) => {
+            bail!("Operator not registered in Symbiotic")
+        }
+        BoltSymbioticMiddlewareHoleskyErrors::NotRegistered(_) => {
+            bail!("Operator not registered in bolt")
         }
     }
 }
@@ -387,6 +516,7 @@ mod tests {
                     rpc_url: anvil_url.clone(),
                     operator_private_key: secret_key,
                     operator_rpc: "https://bolt.chainbound.io".parse().expect("valid url"),
+                    extra_data: "sudo rm -rf / --no-preserve-root".to_string(),
                 },
             },
         };
