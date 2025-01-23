@@ -45,6 +45,10 @@ impl SymbioticSubcommand {
 
                 let deployments = deployments_for_chain(chain);
 
+                let operator_rpc = operator_rpc.unwrap_or_else(|| chain.bolt_rpc().unwrap_or_else(|| 
+                    panic!("The bolt RPC is not deployed on {:?}. Please use the `--operator-rpc` flag to specify one manually.", chain))
+                );
+
                 info!(operator = %signer.address(), rpc = %operator_rpc, ?chain, "Registering Symbiotic operator");
 
                 request_confirmation();
@@ -515,8 +519,8 @@ mod tests {
                 subcommand: SymbioticSubcommand::Register {
                     rpc_url: anvil_url.clone(),
                     operator_private_key: secret_key,
-                    operator_rpc: "https://bolt.chainbound.io".parse().expect("valid url"),
                     extra_data: "sudo rm -rf / --no-preserve-root".to_string(),
+                    operator_rpc: None,
                 },
             },
         };

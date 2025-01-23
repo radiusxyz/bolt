@@ -131,8 +131,8 @@ pub fn request_confirmation() {
                 std::process::exit(0);
             }
             InquireError::OperationInterrupted => {
-	       // Triggered a SIGINT via Ctrl-C
-	       std::process::exit(130);     
+                // Triggered a SIGINT via Ctrl-C
+                std::process::exit(130);
             }
             _ => {
                 error!("aborting due to unexpected error: {}", err);

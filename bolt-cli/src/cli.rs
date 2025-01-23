@@ -256,8 +256,10 @@ pub enum EigenLayerSubcommand {
         #[clap(long, env = "OPERATOR_PRIVATE_KEY")]
         operator_private_key: B256,
         /// The URL of the operator RPC.
+        /// If not provided, the "bolt RPC" URL is used, which is
+        /// consistent with bolt-sidecars running in "firewall delegation" mode.
         #[clap(long, env = "OPERATOR_RPC")]
-        operator_rpc: Url,
+        operator_rpc: Option<Url>,
         /// The operator's extra data string to be stored in the registry.
         #[clap(long, env = "OPERATOR_EXTRA_DATA")]
         extra_data: String,
@@ -312,8 +314,10 @@ pub enum SymbioticSubcommand {
         #[clap(long, env = "OPERATOR_PRIVATE_KEY")]
         operator_private_key: B256,
         /// The URL of the operator RPC.
+        /// If not provided, the "bolt RPC" URL is used, which is
+        /// consistent with bolt-sidecars running in "firewall delegation" mode.
         #[clap(long, env = "OPERATOR_RPC")]
-        operator_rpc: Url,
+        operator_rpc: Option<Url>,
         /// The operator's extra data string to be stored in the registry.
         #[clap(long, env = "OPERATOR_EXTRA_DATA")]
         extra_data: String,
@@ -517,6 +521,17 @@ impl Chain {
             Self::Holesky => [1, 1, 112, 0],
             Self::Helder => [16, 0, 0, 0],
             Self::Kurtosis => [16, 0, 0, 56],
+        }
+    }
+
+    /// Get the bolt RPC URL for the given chain.
+    ///
+    /// Returns None if bolt RPC is not deployed for the chain.
+    pub fn bolt_rpc(&self) -> Option<Url> {
+        match self {
+            Self::Mainnet => Some(Url::parse("https://rpc-mainnet.bolt.chainbound.io").unwrap()),
+            Self::Holesky => Some(Url::parse("https://rpc-holesky.bolt.chainbound.io").unwrap()),
+            _ => None,
         }
     }
 

@@ -109,6 +109,10 @@ impl EigenLayerSubcommand {
 
                 let chain = Chain::try_from_provider(&provider).await?;
 
+                let operator_rpc = operator_rpc.unwrap_or_else(|| chain.bolt_rpc().unwrap_or_else(||
+                    panic!("The bolt RPC is not deployed on {:?}. Please use the `--operator-rpc` flag to specify one manually.", chain))
+                );
+
                 info!(operator = %signer.address(), rpc = %operator_rpc, ?chain, "Registering EigenLayer operator");
 
                 request_confirmation();
@@ -601,8 +605,8 @@ mod tests {
                 subcommand: EigenLayerSubcommand::Register {
                     rpc_url: anvil_url.clone(),
                     operator_private_key: secret_key,
-                    operator_rpc: "https://bolt.chainbound.io/rpc".parse().expect("valid url"),
                     extra_data: "hello world computer 🌐".to_string(),
+                    operator_rpc: None,
                     salt: None,
                 },
             },
