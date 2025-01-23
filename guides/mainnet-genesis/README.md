@@ -74,7 +74,7 @@ in order to start opting into any AVS. Make sure you have an active operator acc
 To register in bolt's AVS contract, you can use this bolt CLI command:
 
 ```bash
-bolt mainnet operators eigenlayer register \
+bolt operators eigenlayer register \
     --rpc-url <your-rpc-url> \
     --operator-private-key <your-operator-private-key> \
     --extra-data <your-extra-data-string>
@@ -94,7 +94,7 @@ where:
 You can check your operator registration status with this command:
 
 ```bash
-bolt mainnet operators eigenlayer status \
+bolt operators eigenlayer status \
     --rpc-url <your-rpc-url> \
     --address <your-operator-address>
 ```
@@ -140,7 +140,7 @@ in order to start opting into any Symbiotic Network. Make sure you have an activ
 To register in bolt's Symbiotic Network middleware contract, you can use this bolt CLI command:
 
 ```bash
-bolt mainnet operators symbiotic register \
+bolt operators symbiotic register \
     --rpc-url <your-rpc-url> \
     --operator-private-key <your-operator-private-key> \
     --extra-data <your-extra-data-string>
@@ -159,4 +159,8 @@ where:
 
 ### Step 3: Deposit collateral in Symbiotic Vaults
 
-TODO
+As a staker, you can deposit collateral in a Vault. Depending on the type of vault,
+there are some actions needed before your operator shares are updated/visible in the Network:
+
+- Operator-specific / Operator-Network specific: no action required
+- Full-restake and Network-restake vaults: `delegator.setOperatorNetworkShares()`
