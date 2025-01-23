@@ -13,6 +13,10 @@ The following sections are divided based on the restaking protocol you are using
 - [EigenLayer Operators](#eigenlayer-operators)
 - [Symbiotic Operators](#symbiotic-operators)
 
+> [!CAUTION]
+> ONLY register operators as an EOA (no Safe or other multisig). Bolt will require you to have access
+> to a singular private key for the operator, which contracts do not have.
+
 ## Prerequisites
 
 To install the bolt CLI tool, you can either use our pre-built binaries or build it from source:
