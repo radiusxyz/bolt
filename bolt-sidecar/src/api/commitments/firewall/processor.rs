@@ -340,8 +340,10 @@ impl CommitmentRequestProcessor {
                         };
                         JsonRpcSuccessResponse::new(json!(metadata)).into()
                     } else {
-                        JsonRpcErrorResponse::new(CommitmentError::ValidatorNotAvailable.into())
-                            .into()
+                        JsonRpcErrorResponse::new(
+                            CommitmentError::ValidatorNotAvailable(public_key).into(),
+                        )
+                        .into()
                     }
                 } else {
                     JsonRpcErrorResponse::new(

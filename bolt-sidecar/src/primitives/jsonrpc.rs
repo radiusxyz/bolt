@@ -145,11 +145,18 @@ pub struct JsonRpcError {
     pub code: i32,
     /// The error message
     pub message: String,
+    /// The optional data of the error
+    pub data: Option<Value>,
 }
 
 impl JsonRpcError {
     /// Create a new JSON-RPC error object
     pub fn new(code: i32, message: String) -> Self {
-        Self { code, message }
+        Self { code, message, data: None }
+    }
+
+    pub fn with_data(mut self, data: Value) -> Self {
+        self.data = Some(data);
+        self
     }
 }
