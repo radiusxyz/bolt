@@ -6,7 +6,7 @@ use futures::{
 };
 use serde::Serialize;
 use serde_json::{json, Value};
-use std::{collections::HashSet, time::Duration};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 use std::{collections::VecDeque, future::Future, pin::Pin, task::Poll};
 use tokio::{
     net::TcpStream,
@@ -105,7 +105,7 @@ pub struct CommitmentRequestProcessor {
     /// The URL of the connected websocket server.
     url: String,
     /// The internal state of the processor.
-    state: ProcessorState,
+    state: Arc<ProcessorState>,
     /// The channel to send commitment events to be processed.
     api_events_tx: mpsc::Sender<CommitmentEvent>,
     /// The websocket writer sink.
@@ -128,7 +128,7 @@ impl CommitmentRequestProcessor {
     /// Creates a new instance of the [CommitmentRequestProcessor].
     pub fn new(
         url: String,
-        state: ProcessorState,
+        state: Arc<ProcessorState>,
         tx: mpsc::Sender<CommitmentEvent>,
         stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
         shutdown_rx: watch::Receiver<()>,

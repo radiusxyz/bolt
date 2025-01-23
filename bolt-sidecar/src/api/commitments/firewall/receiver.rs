@@ -3,6 +3,7 @@ use ethereum_consensus::crypto::PublicKey;
 use std::{
     collections::HashSet,
     fmt::{self, Debug, Formatter},
+    sync::Arc,
 };
 use thiserror::Error;
 use tokio::sync::{mpsc, watch};
@@ -115,7 +116,7 @@ impl CommitmentsReceiver {
         ShutdownTicker::new(self.signal).spawn(shutdown_tx);
 
         let signer = PrivateKeySigner::from_signing_key(self.operator_private_key.0);
-        let state = ProcessorState::new(self.limits, self.available_validators);
+        let state = Arc::new(ProcessorState::new(self.limits, self.available_validators));
         let retry_config = RetryConfig { initial_delay_ms: 100, max_delay_secs: 2, factor: 2 };
 
         for url in &self.urls {
@@ -170,7 +171,7 @@ impl CommitmentsReceiver {
 /// Opens the websocket connection and starts the commitment request processor.
 async fn handle_connection(
     url: String,
-    state: ProcessorState,
+    state: Arc<ProcessorState>,
     jwt: String,
     api_events_tx: mpsc::Sender<CommitmentEvent>,
     shutdown_rx: watch::Receiver<()>,
