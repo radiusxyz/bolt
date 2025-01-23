@@ -146,8 +146,8 @@ send-preconf count='1' raw="":
         --devnet.beacon_url $(kurtosis port print bolt-devnet cl-1-lighthouse-geth http) \
         --devnet.sidecar_url http://$(kurtosis port print bolt-devnet bolt-sidecar-1-lighthouse-geth api) \
         --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
-        --max-fee 4 \
-        --priority-fee 3 \
+        --max-fee 5 \
+        --priority-fee 4 \
         --count {{count}} \
         {{ if raw == "true" { "--raw" } else { "" } }}
 
@@ -158,8 +158,8 @@ send-preconf-rpc count='1' raw="" rpc='http://127.0.0.1:8015/rpc':
       --devnet.beacon_url $(kurtosis port print bolt-devnet cl-1-lighthouse-geth http) \
       --devnet.sidecar_url {{ rpc }} \
       --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
-      --max-fee 4 \
-      --priority-fee 3 \
+      --max-fee 5 \
+      --priority-fee 4 \
       --count {{count}} \
       {{ if raw == "true" { "--raw" } else { "" } }}
 
@@ -172,8 +172,8 @@ send-blob-preconf count='1' raw="":
         --devnet.sidecar_url http://$(kurtosis port print bolt-devnet bolt-sidecar-1-lighthouse-geth api) \
         --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
         --blob \
-        --max-fee 4 \
-        --priority-fee 3 \
+        --max-fee 5 \
+        --priority-fee 4 \
         --count {{count}} \
         {{ if raw == "true" { "--raw" } else { "" } }}
 
@@ -185,8 +185,8 @@ send-blob-preconf-rpc count='1' raw="" rpc='http://127.0.0.1:8015/rpc':
       --devnet.sidecar_url {{ rpc }} \
       --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
       --blob \
-      --max-fee 4 \
-      --priority-fee 3 \
+      --max-fee 5 \
+      --priority-fee 4 \
       --count {{count}} \
       {{ if raw == "true" { "--raw" } else { "" } }}
 
