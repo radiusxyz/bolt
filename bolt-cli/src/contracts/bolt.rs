@@ -166,6 +166,11 @@ sol! {
             string extraData;
         }
 
+        error InvalidRpc();
+        error InvalidSigner();
+        error UnknownOperator();
+        error KeyNotFound();
+
         /// @notice Emitted when a new operator is registered
         /// @param signer The address of the operator
         /// @param rpcEndpoint The rpc endpoint of the operator

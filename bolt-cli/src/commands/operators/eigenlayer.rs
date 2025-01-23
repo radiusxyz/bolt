@@ -25,6 +25,7 @@ use crate::{
         bolt::{
             BoltEigenLayerMiddlewareHolesky::{self, BoltEigenLayerMiddlewareHoleskyErrors},
             BoltEigenLayerMiddlewareMainnet::{self, BoltEigenLayerMiddlewareMainnetErrors},
+            OperatorsRegistryV1::{self, OperatorsRegistryV1Errors},
             SignatureWithSaltAndExpiry,
         },
         deployments_for_chain,
@@ -374,6 +375,43 @@ impl EigenLayerSubcommand {
                         deployments.bolt.eigenlayer_middleware,
                         provider.clone(),
                     );
+
+                    let registry = OperatorsRegistryV1::new(
+                        deployments.bolt.operators_registry,
+                        provider.clone(),
+                    );
+
+                    // TOOD: clean up, concurrent calls
+                    match registry.isOperator(address).call().await {
+                        Ok(is_operator) => {
+                            if is_operator._0 {
+                                info!(?address, "EigenLayer operator is registered");
+                            } else {
+                                warn!(?address, "Operator not registered");
+                                return Ok(())
+                            }
+                        }
+                        Err(e) => match try_parse_contract_error::<OperatorsRegistryV1Errors>(e)? {
+                            other => {
+                                bail!("Unexpected error with selector {:?}", other.selector())
+                            }
+                        },
+                    }
+
+                    match registry.isActiveOperator(address).call().await {
+                        Ok(is_active) => {
+                            if is_active._0 {
+                                info!(?address, "Operator is active");
+                            } else {
+                                warn!(?address, "Operator is not active yet");
+                            }
+                        }
+                        Err(e) => match try_parse_contract_error::<OperatorsRegistryV1Errors>(e)? {
+                            other => {
+                                bail!("Unexpected error with selector {:?}", other.selector())
+                            }
+                        },
+                    }
 
                     match el_middleware.getOperatorCollaterals(address).call().await {
                         Ok(collaterals) => {
