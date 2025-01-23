@@ -56,6 +56,7 @@ impl JsonRpcResponse {
         }
     }
 
+    /// Set the ID of the response from a UUID.
     pub fn with_uuid(self, id: Uuid) -> Self {
         match self {
             Self::Success(success) => Self::Success(success.with_uuid(id)),
@@ -155,6 +156,7 @@ impl JsonRpcError {
         Self { code, message, data: None }
     }
 
+    /// Set the data of the error
     pub fn with_data(mut self, data: Value) -> Self {
         self.data = Some(data);
         self
