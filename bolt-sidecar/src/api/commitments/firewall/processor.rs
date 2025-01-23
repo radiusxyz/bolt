@@ -329,7 +329,7 @@ impl CommitmentRequestProcessor {
                     .params
                     .first()
                     .and_then(|p| p.as_str())
-                    .and_then(|p| hex::decode(p).ok())
+                    .and_then(|p| hex::decode(p.trim_start_matches("0x")).ok())
                     .and_then(|p| PublicKey::try_from(p.as_slice()).ok());
 
                 let response: JsonRpcResponse = if let Some(public_key) = public_key {
