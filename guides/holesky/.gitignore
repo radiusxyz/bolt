@@ -1,5 +1,6 @@
 *.env*
 !*.env.example
 *.toml
+!commit-boost/cb-bolt-config.toml
 
 delegations.json

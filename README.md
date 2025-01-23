@@ -103,7 +103,7 @@ In particular, the core components are:
 - [**Bolt Boost**](./bolt-boost/): A [Commit-Boost][commit-boost] module that implements the Constraints-API.
 - [**Bolt CLI**](./bolt-cli/): A CLI tool to interact with Bolt components in a safe and easy way.
 - [**Boltup**](./boltup/): Script to install the `bolt` CLI tool on any machine with a single command.
-- [**Testnets**](./testnets/): A set of guides and scripts to deploy the Bolt contracts on testnets.
+- [**Guides**](./guides/): A set of guides and scripts for consumers and builders to learn how to use Bolt.
 - [**Scripts**](./scripts/): A collection of scripts to build and run the Kurtosis devnet locally.
 
 ### Additional components

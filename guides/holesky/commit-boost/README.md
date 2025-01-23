@@ -19,7 +19,7 @@ Here is a quick overview of the architecture described in [`cb.docker-compose.ym
 ## Setup
 
 1. Clone the repository if you haven't already: `git clone https://github.com/chainbound/bolt`
-2. Navigate to the directory containing this README: `cd bolt/testnets/holesky/commit-boost`
+2. Navigate to the directory containing this README: `cd bolt/guides/holesky/commit-boost`
 3. Copy the sidecar ENV example file: `cp bolt-sidecar.env.example bolt-sidecar.env`
 4. Modify the ENV file to your liking: `vim bolt-sidecar.env`. See [Sidecar Configuration](#sidecar-configuration).
 5. (Optional) Modify the [`cb-bolt-config.toml`](./cb-bolt-config.toml) file if necessary. It should be fine as is.

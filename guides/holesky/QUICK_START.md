@@ -195,7 +195,7 @@ Then you can follow these steps to register your operator:
 
 3. Opt-in to any vault you want to use with [opt-in-vault](https://docs.symbiotic.fi/guides/cli/#opt-in-vault):
 
-   [Here](https://github.com/chainbound/bolt/tree/unstable/testnets/holesky#on-chain-registration)
+   [Here](https://github.com/chainbound/bolt/tree/unstable/guides/holesky#on-chain-registration)
    is a list of the available vaults. We recommend using the `wETH` vault address for testing
    if you are not familiar with vault policies.
 
@@ -337,11 +337,11 @@ separate guide [here](./commit-boost/README.md) in detail.
 
 ### Docker mode
 
-First, change directory to the `testnets/holesky` folder in the bolt repository
+First, change directory to the `guides/holesky` folder in the bolt repository
 you cloned in step 1:
 
 ```bash
-cd testnets/holesky
+cd guides/holesky
 ```
 
 In this directory you will find a `docker-compose.yml` file that you can use to
