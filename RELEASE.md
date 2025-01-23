@@ -8,7 +8,7 @@ error-case scenarios. This includes the Kurtosis devnet environment and any
 live testnet deployment that is available at time of release.
 
 For testnets, if the launch setup has changed since the previous version,
-the `testnets/` directory should be updated to reflect the new setup.
+the `guides/` directory should be updated to reflect the new setup.
 Pay special attention to the `README` and `docker-compose` files.
 
 ## 1. Update the version tag in the necessary packages
@@ -17,7 +17,7 @@ For instance, for the Bolt sidecar this is in `bolt-sidecar/Cargo.toml`.
 Similar changes should be made in the other packages getting updated.
 
 Next, update the version of the Docker images used in any `docker-compose` files.
-These currently only live inside the `testnets/` dir.
+These currently only live inside the `guides/` dir.
 
 ## 2. Create a release on Github
 

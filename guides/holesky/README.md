@@ -12,35 +12,35 @@ This document provides instructions for running Bolt on the Holesky testnet.
 
 <!-- vim-markdown-toc GFM -->
 
-* [Prerequisites](#prerequisites)
-* [On-Chain Registration](#on-chain-registration)
-  * [Validator Registration](#validator-registration)
-    * [Registration Steps](#registration-steps)
-  * [Bolt Network Entrypoint](#bolt-network-entrypoint)
-  * [Operator Registration](#operator-registration)
-    * [Symbiotic Registration Steps](#symbiotic-registration-steps)
-    * [EigenLayer Registration Steps](#eigenlayer-registration-steps)
-* [Off-Chain Setup](#off-chain-setup)
-  * [Docker Mode (recommended)](#docker-mode-recommended)
-  * [Commit-Boost Mode](#commit-boost-mode)
-  * [Native Mode (advanced)](#native-mode-advanced)
-    * [Building and running the MEV-Boost fork binary](#building-and-running-the-mev-boost-fork-binary)
-    * [Building and running the Bolt sidecar binary](#building-and-running-the-bolt-sidecar-binary)
-      * [Configuration file](#configuration-file)
-  * [Observability](#observability)
-  * [Firewall Delegation](#firewall-delegation)
-* [Reference](#reference)
-  * [Supported RPC nodes](#supported-rpc-nodes)
-  * [Supported Relays](#supported-relays)
-  * [Command-line options](#command-line-options)
-  * [Delegations and signing options for Native and Docker Compose Mode](#delegations-and-signing-options-for-native-and-docker-compose-mode)
-    * [`bolt` CLI](#bolt-cli)
-      * [Installation and usage](#installation-and-usage)
-    * [Using a private key directly](#using-a-private-key-directly)
-    * [Using a ERC-2335 Keystore](#using-a-erc-2335-keystore)
-  * [Avoid restarting the beacon node](#avoid-restarting-the-beacon-node)
-  * [Vouch configuration](#vouch-configuration)
-      * [`execution_config.json`](#execution_configjson)
+- [Prerequisites](#prerequisites)
+- [On-Chain Registration](#on-chain-registration)
+  - [Validator Registration](#validator-registration)
+    - [Registration Steps](#registration-steps)
+  - [Bolt Network Entrypoint](#bolt-network-entrypoint)
+  - [Operator Registration](#operator-registration)
+    - [Symbiotic Registration Steps](#symbiotic-registration-steps)
+    - [EigenLayer Registration Steps](#eigenlayer-registration-steps)
+- [Off-Chain Setup](#off-chain-setup)
+  - [Docker Mode (recommended)](#docker-mode-recommended)
+  - [Commit-Boost Mode](#commit-boost-mode)
+  - [Native Mode (advanced)](#native-mode-advanced)
+    - [Building and running the MEV-Boost fork binary](#building-and-running-the-mev-boost-fork-binary)
+    - [Building and running the Bolt sidecar binary](#building-and-running-the-bolt-sidecar-binary)
+      - [Configuration file](#configuration-file)
+  - [Observability](#observability)
+  - [Firewall Delegation](#firewall-delegation)
+- [Reference](#reference)
+  - [Supported RPC nodes](#supported-rpc-nodes)
+  - [Supported Relays](#supported-relays)
+  - [Command-line options](#command-line-options)
+  - [Delegations and signing options for Native and Docker Compose Mode](#delegations-and-signing-options-for-native-and-docker-compose-mode)
+    - [`bolt` CLI](#bolt-cli)
+      - [Installation and usage](#installation-and-usage)
+    - [Using a private key directly](#using-a-private-key-directly)
+    - [Using a ERC-2335 Keystore](#using-a-erc-2335-keystore)
+  - [Avoid restarting the beacon node](#avoid-restarting-the-beacon-node)
+  - [Vouch configuration](#vouch-configuration)
+    - [`execution_config.json`](#execution_configjson)
 
 <!-- vim-markdown-toc -->
 
@@ -446,8 +446,10 @@ Options:
 After all of the steps above have been completed, we can proceed with running the off-chain infrastructure.
 
 ## Beacon Node
+
 Bolt only uses standardized APIs to interact with the beacon node, so any beacon node implementation should work. However, you will need to configure the beacon node
 with some flags to make sure it doesn't fall back to execution client blocks and ignores blocks from the Bolt sidecar (using Lighthouse flags as examples):
+
 - `--builder-boost-factor` or equivalent flag should be set to a large value like `18446744073709551615` (`2**64 - 1`). This will ensure that payloads from Bolt always
   have priority over EL payloads.
   - In [Prysm](https://docs.prylabs.network/docs/advanced/builder#prioritizing-local-blocks), set `--local-block-value-boost` to 0.
@@ -474,7 +476,7 @@ Then clone the Bolt repository by running:
 
 ```bash
 git clone htts://github.com/chainbound/bolt.git
-cd bolt/testnets/holesky
+cd bolt/guides/holesky
 ```
 
 The Docker Compose setup will spin up the Bolt sidecar along with the Bolt
@@ -485,7 +487,7 @@ containing the necessary environment variables:
 
 1. **Bolt Sidecar Configuration:**
 
-   Change directory to `testnets/holesky` if you haven't already, and create a
+   Change directory to `guides/holesky` if you haven't already, and create a
    `bolt-sidecar.env` file starting from the reference template:
 
    ```bash
@@ -500,7 +502,7 @@ containing the necessary environment variables:
 
 1. **MEV-Boost Configuration:**
 
-   Change directory to the `testnets/holesky` folder if you haven't already and
+   Change directory to the `guides/holesky` folder if you haven't already and
    copy over the example configuration file:
 
    ```bash
@@ -513,7 +515,7 @@ If you prefer not to restart your beacon node, follow the instructions in the
 [Avoid Restarting the Beacon Node](#avoid-restarting-the-beacon-node) section.
 
 Once the configuration files are in place, make sure you are in the
-`testnets/holesky` directory and then run:
+`guides/holesky` directory and then run:
 
 ```bash
 docker compose --env-file bolt-sidecar.env up -d

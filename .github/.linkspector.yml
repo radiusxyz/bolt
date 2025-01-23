@@ -3,7 +3,7 @@ dirs:
 
 excludedDirs:
   - bolt-contracts/lib
-  - testnets/helder
+  - guides/helder
 
 useGitIgnore: true
 
