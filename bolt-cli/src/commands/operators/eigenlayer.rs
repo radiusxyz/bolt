@@ -517,7 +517,7 @@ mod tests {
     use alloy_node_bindings::WEI_IN_ETHER;
 
     #[tokio::test]
-    async fn test_eigenlayer_flow() {
+    async fn test_eigenlayer_flow_holesky() {
         let _ = tracing_subscriber::fmt::try_init();
         let s1 = PrivateKeySigner::random();
         let secret_key = s1.to_bytes();
@@ -667,5 +667,11 @@ mod tests {
         };
 
         check_operator_registration.run().await.expect("to check operator registration");
+    }
+
+    #[tokio::test]
+    async fn test_eigenlayer_flow_mainnet() {
+        // TODO: do the same as above, but fork from mainnet instead
+        // and use the mainnet EigenLayer contracts
     }
 }
