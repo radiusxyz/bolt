@@ -129,13 +129,23 @@ Once the EigenLayer ELIP-002 update is deployed on Mainnet, you will be able to 
 and allocate slashable magnitudes to the AVS as you see fit.
 
 ## Symbiotic Operators
+> [!NOTE]
+> You need to be a registered Symbiotic operator in order to proceed.
+> If you're not registered yet, follow [this guide](https://docs.symbiotic.fi/handbooks/operators-handbook#actions-in-symbiotic-core) in the
+> Symbiotic docs.
 
-### Step 1: Register as a Symbiotic operator (if you haven't already)
+### Step 1: Opt in to the Bolt Symbiotic Network
+As an operator, you need to opt in to our network. This is the `opt-in-network` command in the CLI ([docs](https://docs.symbiotic.fi/handbooks/operators-handbook#through-cli)).
 
-You need to be a registered [Symbiotic operator](https://docs.symbiotic.fi/guides/cli#write-commands---for-operators)
-in order to start opting into any Symbiotic Network. Make sure you have an active operator account to proceed.
+> [!IMPORTANT]
+> Our network address is **`0xA42ec46F2c9DC671a72218E145CC13dc119fB722`**.
 
-### Step 2: Register your operator into bolt's Symbiotic Network
+Example:
+```bash
+python symb.py --chain mainnet opt-in-network 0xA42ec46F2c9DC671a72218E145CC13dc119fB722 --private-key $YOUR_OPERATOR_PRIVATE_KEY
+```
+
+### Step 2: Register your operator with Bolt
 
 To register in bolt's Symbiotic Network middleware contract, you can use this bolt CLI command:
 
@@ -157,10 +167,25 @@ where:
   preconfirmation requests on. By default, this is set to Chainbound's "bolt RPC" that acts
   as proxy for all operators. You can also change this setting at any time later on.
 
+This will make your operator readable to the Bolt smart contracts and off-chain infrastructure, as well as provide
+a link between your operator signer and your deposited collateral.
+
 ### Step 3: Deposit collateral in Symbiotic Vaults
 
-As a staker, you can deposit collateral in a Vault. Depending on the type of vault,
-there are some actions needed before your operator shares are updated/visible in the Network:
+As a staker, you can deposit collateral in a vault. Depending on the type of vault,
+there are some actions needed before your operator shares are updated/visible in **bolt**.
 
-- Operator-specific / Operator-Network specific: no action required
-- Full-restake and Network-restake vaults: `delegator.setOperatorNetworkShares()`
+Regardless of the type of vault, we have to activate & whitelist the vault on our network.
+Please reach out to us through the **Bolt Node Operator Working Group: Cohort 1** Telegram channel, 
+or at [dev@chainbound.io](mailto:dev@chainbound.io)
+
+#### OperatorSpecific and OperatorNetworkSpecific Vaults
+- **Us**: whitelist vault
+- **Operator**: Deposit collateral in the vault ([guide](https://docs.symbiotic.fi/handbooks/vaults-handbook#deposit-to-vault))
+- **Vault manager**: set network limit on the vault delegator ([guide](https://docs.symbiotic.fi/handbooks/vaults-handbook#network-onboarding))
+
+#### FullRestake and NetworkRestake Vaults
+- **Us**: whitelist vault
+- **Operator**: Deposit collateral in the vault ([guide](https://docs.symbiotic.fi/handbooks/vaults-handbook#deposit-to-vault))
+- **Vault manager**: set network limit on the vault delegator ([guide](https://docs.symbiotic.fi/handbooks/vaults-handbook#network-onboarding))
+- **Vault manager**: set operator network limit on the vault delegator ([guide](https://docs.symbiotic.fi/handbooks/vaults-handbook#operator-onboarding))
