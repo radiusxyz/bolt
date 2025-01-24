@@ -14,12 +14,12 @@ The following sections are divided based on the restaking protocol you are using
 - [EigenLayer Operators](#eigenlayer-operators)
   - [Step 1: Register as an EigenLayer operator](#step-1-register-as-an-eigenlayer-operator)
   - [Step 2: Register your operator into bolt's AVS](#step-2-register-your-operator-into-bolts-avs)
-  - [Step 3: Deposit collateral](#step-3-deposit-collateral)
+  - [Step 3: Deposit collateral](#step-3-deposit-collateral-optional)
   - [Deregistration](#deregistration)
 - [Symbiotic Operators](#symbiotic-operators)
   - [Step 1: Opt in to the Bolt Symbiotic Network](#step-1-opt-in-to-the-bolt-symbiotic-network)
   - [Step 2: Register your operator with Bolt](#step-2-register-your-operator-with-bolt)
-  - [Step 3: Deposit Collateral](#step-3-deposit-collateral)
+  - [Step 3: Deposit Collateral](#step-3-deposit-collateral-optional-1)
   - [Step 4: Post Deposit Actions](#step-4-post-deposit-actions)
   - [Deregistration](#deregistration-1)
 
@@ -122,7 +122,7 @@ where:
 > The operator registration should immediately go through, but it won't be active yet.
 > The activation process takes 24 hours.
 
-### Step 3 (optional): Deposit collateral in EigenLayer strategies
+### Step 3: Deposit Collateral (Optional)
 
 You can already start depositing collateral for the AVS through one of the
 whitelisted EigenLayer strategies. Here is a list of the strategies you can use:
@@ -232,7 +232,7 @@ where:
 > The operator registration should immediately go through, but it won't be active yet.
 > The activation process takes 24 hours.
 
-### Step 3: Deposit Collateral
+### Step 3: Deposit Collateral (Optional)
 
 As a staker, you can deposit collateral in a vault. **Please note that this is not mandatory for mainnet genesis**.
 
