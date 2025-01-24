@@ -415,7 +415,9 @@ impl EigenLayerSubcommand {
                         Ok(collaterals) => {
                             for (token, amount) in collaterals._0.iter().zip(collaterals._1.iter())
                             {
-                                info!(?address, token = %token, amount = format_ether(*amount), "Operator has collateral");
+                                if !amount.is_zero() {
+                                    info!(?address, token = %token, amount = format_ether(*amount), "Operator has collateral");
+                                }
                             }
 
                             let total_collateral = collaterals._1.iter().sum::<U256>();

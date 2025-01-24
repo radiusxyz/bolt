@@ -21,7 +21,7 @@ use crate::{
     contracts::{
         bolt::{
             BoltSymbioticMiddlewareHolesky::{self, BoltSymbioticMiddlewareHoleskyErrors},
-            BoltSymbioticMiddlewareMainnet::{self, BoltSymbioticMiddlewareMainnetErrors},
+            BoltSymbioticMiddlewareMainnet::{self, BoltSymbioticMiddlewareMainnetErrors}, OperatorsRegistryV1::{self, OperatorsRegistryV1Errors},
         },
         deployments_for_chain,
         symbiotic::IOptInService,
@@ -261,20 +261,58 @@ impl SymbioticSubcommand {
                         provider.clone(),
                     );
 
+                    let registry = OperatorsRegistryV1::new(
+                        deployments.bolt.operators_registry,
+                        provider.clone(),
+                    );
+
+                    // TOOD: clean up, concurrent calls
+                    match registry.isOperator(address).call().await {
+                        Ok(is_operator) => {
+                            if is_operator._0 {
+                                info!(?address, "Symbiotic operator is registered");
+                            } else {
+                                warn!(?address, "Operator not registered");
+                                return Ok(())
+                            }
+                        }
+                        Err(e) => match try_parse_contract_error::<OperatorsRegistryV1Errors>(e)? {
+                            other => {
+                                bail!("Unexpected error with selector {:?}", other.selector())
+                            }
+                        },
+                    }
+
+                    match registry.isActiveOperator(address).call().await {
+                        Ok(is_active) => {
+                            if is_active._0 {
+                                info!(?address, "Operator is active");
+                            } else {
+                                warn!(?address, "Operator is not active yet");
+                            }
+                        }
+                        Err(e) => match try_parse_contract_error::<OperatorsRegistryV1Errors>(e)? {
+                            other => {
+                                bail!("Unexpected error with selector {:?}", other.selector())
+                            }
+                        },
+                    }
+
                     match middleware.getOperatorCollaterals(address).call().await {
                         Ok(collaterals) => {
                             for (token, amount) in collaterals._0.iter().zip(collaterals._1.iter())
                             {
-                                info!(?address, token = %token, amount = format_ether(*amount), "Operator has collateral");
+                                if !amount.is_zero() {
+                                    info!(?address, token = %token, amount = format_ether(*amount), "Operator has collateral");
+                                }
                             }
 
-                            if collaterals._1.iter().sum::<U256>() >= Unit::ETHER.wei() {
-                                info!(?address, "Operator is active");
-                            } else if collaterals._1.iter().sum::<U256>() > U256::from(0) {
-                                info!(?address, "Total operator collateral");
-                            } else {
-                                warn!(?address, "Operator has no collateral");
-                            }
+                            let total_collateral = collaterals._1.iter().sum::<U256>();
+                            info!(
+                                ?address,
+                                "Total operator collateral: {}",
+                                format_ether(total_collateral)
+                            );
                         }
                         Err(e) => parse_symbiotic_middleware_mainnet_errors(e)?,
                     }
