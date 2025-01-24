@@ -11,8 +11,6 @@ for node operators to start opting into bolt.
 The following sections are divided based on the restaking protocol you are using.
 
 - [Prerequisites](#prerequisites)
-  - [Install from pre-built binaries](#install-from-pre-built-binaries)
-  - [Building from source](#building-from-source)
 - [EigenLayer Operators](#eigenlayer-operators)
   - [Step 1: Register as an EigenLayer operator](#step-1-register-as-an-eigenlayer-operator)
   - [Step 2: Register your operator into bolt's AVS](#step-2-register-your-operator-into-bolts-avs)
@@ -80,7 +78,7 @@ bolt --help
 > These instructions follow the latest EigenLayer deployment as of 2025-01-23
 > corresponding to the [Rewards V2](https://github.com/Layr-Labs/eigenlayer-contracts/releases/tag/v0.5.4) release.
 
-### Step 1: Register as an EigenLayer operator (if you haven't already)
+### Step 1: Register as an EigenLayer operator
 
 You need to be a registered [EigenLayer operator](https://docs.eigenlayer.xyz/eigenlayer/operator-guides/operator-installation)
 in order to start opting into any AVS. Make sure you have an active operator account to proceed.
