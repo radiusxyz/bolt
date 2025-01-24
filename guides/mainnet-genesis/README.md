@@ -127,7 +127,12 @@ where:
 You can already start depositing collateral for the AVS through one of the
 whitelisted EigenLayer strategies. Here is a list of the strategies you can use:
 
-- [StEth](https://etherscan.io/address/0x93c4b944D05dfe6df7645A86cd2206016c51564D)
+| Collateral | Strategy Address                                                                                                         |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `stETH`    | [`0x93c4b944D05dfe6df7645A86cd2206016c51564D`](https://etherscan.io/address/0x93c4b944D05dfe6df7645A86cd2206016c51564D)  |
+| `rETH`     | [`0x1bee69b7dfffa4e2d53c2a2df135c388ad25dcd2`](https://etherscan.io/address/0x1bee69b7dfffa4e2d53c2a2df135c388ad25dcd2)  |
+| `mETH`     | [`0x298afb19a105d59e74658c4c334ff360bade6dd2`](https://etherscan.io/address/0x298afb19a105d59e74658c4c334ff360bade6dd2)  |
+
 <!-- TODO: add strategies -->
 
 If you wish to use a different strategy, please reach out to us (at `dev@chainbound.io`
