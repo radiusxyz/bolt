@@ -144,7 +144,7 @@ pub struct ExecutionState<C> {
     basefee: u128,
     /// The blob basefee at the head block.
     blob_basefee: u128,
-    /// The cached account states. This should never be read directly. These only contain the
+    /// The cached account states. These only contain the
     /// canonical account states at the head block, not the intermediate states.
     ///
     /// INVARIANT: the entries are modified only when receiving a new head.
