@@ -13,9 +13,6 @@ use inquire::{error::InquireError, Confirm};
 use serde::Serialize;
 use tracing::{error, info};
 
-/// BoltManager contract bindings.
-pub mod bolt_manager;
-
 /// Utilities for working with DIRK remote keystores.
 pub mod dirk;
 

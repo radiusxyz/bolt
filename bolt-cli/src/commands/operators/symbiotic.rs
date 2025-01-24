@@ -15,13 +15,14 @@ use tracing::{info, warn};
 use crate::{
     cli::{Chain, SymbioticSubcommand},
     common::{
-        bolt_manager::BoltManagerContract::{self, BoltManagerContractErrors},
         request_confirmation, try_parse_contract_error,
     },
     contracts::{
         bolt::{
-            BoltSymbioticMiddlewareHolesky::{self, BoltSymbioticMiddlewareHoleskyErrors},
-            BoltSymbioticMiddlewareMainnet::{self, BoltSymbioticMiddlewareMainnetErrors}, OperatorsRegistryV1::{self, OperatorsRegistryV1Errors},
+            BoltManager::{self, BoltManagerErrors}, 
+            BoltSymbioticMiddlewareHolesky::{self, BoltSymbioticMiddlewareHoleskyErrors}, 
+            BoltSymbioticMiddlewareMainnet::{self, BoltSymbioticMiddlewareMainnetErrors}, 
+            OperatorsRegistryV1::{self, OperatorsRegistryV1Errors}
         },
         deployments_for_chain,
         symbiotic::IOptInService,
@@ -210,8 +211,7 @@ impl SymbioticSubcommand {
 
                 let deployments = deployments_for_chain(chain);
 
-                let bolt_manager =
-                    BoltManagerContract::new(deployments.bolt.manager, provider.clone());
+                let bolt_manager = BoltManager::new(deployments.bolt.manager, provider.clone());
                 if bolt_manager.isOperator(address).call().await?._0 {
                     info!(?address, "Symbiotic operator is registered");
                 } else {
@@ -233,8 +233,8 @@ impl SymbioticSubcommand {
 
                         info!("Succesfully updated Symbiotic operator RPC");
                     }
-                    Err(e) => match try_parse_contract_error::<BoltManagerContractErrors>(e)? {
-                        BoltManagerContractErrors::OperatorNotRegistered(_) => {
+                    Err(e) => match try_parse_contract_error::<BoltManagerErrors>(e)? {
+                        BoltManagerErrors::OperatorNotRegistered(_) => {
                             eyre::bail!("Operator not registered in bolt")
                         }
                         other => {
@@ -315,8 +315,8 @@ impl SymbioticSubcommand {
                         Err(e) => parse_symbiotic_middleware_mainnet_errors(e)?,
                     }
                 } else if chain == Chain::Holesky {
-                    let bolt_manager =
-                        BoltManagerContract::new(deployments.bolt.manager, provider.clone());
+                    let bolt_manager = BoltManager::new(deployments.bolt.manager, provider.clone());
+
                     if bolt_manager.isOperator(address).call().await?._0 {
                         info!(?address, "Symbiotic operator is registered");
                     } else {
@@ -330,8 +330,8 @@ impl SymbioticSubcommand {
                         Ok(operator_data) => {
                             info!(?address, operator_data = ?operator_data._0, "Operator data");
                         }
-                        Err(e) => match try_parse_contract_error::<BoltManagerContractErrors>(e)? {
-                            BoltManagerContractErrors::KeyNotFound(_) => {
+                        Err(e) => match try_parse_contract_error::<BoltManagerErrors>(e)? {
+                            BoltManagerErrors::KeyNotFound(_) => {
                                 warn!(?address, "Operator data not found");
                             }
                             other => {

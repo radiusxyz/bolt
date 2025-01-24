@@ -3,6 +3,48 @@ use serde::Serialize;
 
 // Mainnet Genesis: deprecated
 sol! {
+    #[sol(rpc)]
+    interface BoltManager {
+        #[derive(Debug, Default, Serialize)]
+        struct ProposerStatus {
+            bytes32 pubkeyHash;
+            bool active;
+            address operator;
+            string operatorRPC;
+            address[] collaterals;
+            uint256[] amounts;
+        }
+
+        #[derive(Debug, Default, Serialize)]
+        struct Operator {
+            // RPC endpoint
+            string rpc;
+            // Middleware contract address
+            address middleware;
+            // Timestamp of registration
+            uint256 timestamp;
+        }
+
+        function getProposerStatus(bytes32 pubkeyHash) external view returns (ProposerStatus memory);
+
+        function isOperator(address operator) public view returns (bool);
+
+        function getOperatorStake(address operator, address collateral) public view returns (uint256);
+
+        /// @notice Update the RPC associated to msg.sender.
+        function updateOperatorRPC(string calldata rpc) external;
+
+        function getOperatorData(address operator) public view returns (Operator memory);
+
+        error InvalidQuery();
+        error ValidatorDoesNotExist();
+        error OperatorNotRegistered();
+        error KeyNotFound(address key);
+    }
+}
+
+// Mainnet Genesis: deprecated
+sol! {
     #[allow(missing_docs)]
     #[sol(rpc)]
     interface BoltValidators {
@@ -120,13 +162,15 @@ sol! {
 
         function getOperatorStake(address operator, address collateral) public view returns (uint256);
 
-        function registerThroughAVSDirectory(
+        function registerOperatorToAVS(
             string memory rpcEndpoint,
             string memory extraData,
             SignatureWithSaltAndExpiry calldata operatorSignature
         ) public;
 
-        function deregisterThroughAVSDirectory() public;
+        function deregisterOperatorFromAVS() public;
+
+        function updateOperatorsRegistryAddress(address newOperatorsRegistry) public;
 
         error InvalidRpc();
         error InvalidSigner();
