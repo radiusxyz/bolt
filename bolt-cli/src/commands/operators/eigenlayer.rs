@@ -64,8 +64,6 @@ impl EigenLayerSubcommand {
 
                 let token = strategy_contract.underlyingToken().call().await?.token;
 
-                let amount = amount * Unit::ETHER.wei();
-
                 info!(%strategy, %token, amount = format_ether(amount), ?operator, "Depositing funds into EigenLayer strategy");
 
                 request_confirmation();
