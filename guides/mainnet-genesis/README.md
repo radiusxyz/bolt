@@ -175,7 +175,7 @@ where:
 - `<your-rpc-url>` is the URL of the Ethereum RPC node you are using
 - `<your-operator-private-key>` is the private key of the operator account you are using
 
-This will unlink your Symbiotic operator from the bolt middleware. 
+This will unlink your EigenLayer operator from the bolt middleware. 
 
 ## Symbiotic Operators
 > [!NOTE]
