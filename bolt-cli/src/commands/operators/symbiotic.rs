@@ -276,10 +276,9 @@ impl SymbioticSubcommand {
                                 return Ok(())
                             }
                         }
-                        Err(e) => match try_parse_contract_error::<OperatorsRegistryV1Errors>(e)? {
-                            other => {
-                                bail!("Unexpected error with selector {:?}", other.selector())
-                            }
+                        Err(e) => {
+                            let other = try_parse_contract_error::<OperatorsRegistryV1Errors>(e)?;
+                            bail!("Unexpected error with selector {:?}", other.selector())
                         },
                     }
 
@@ -291,10 +290,9 @@ impl SymbioticSubcommand {
                                 warn!(?address, "Operator is not active yet");
                             }
                         }
-                        Err(e) => match try_parse_contract_error::<OperatorsRegistryV1Errors>(e)? {
-                            other => {
-                                bail!("Unexpected error with selector {:?}", other.selector())
-                            }
+                        Err(e) => {
+                            let other = try_parse_contract_error::<OperatorsRegistryV1Errors>(e)?;
+                            bail!("Unexpected error with selector {:?}", other.selector())
                         },
                     }
 
