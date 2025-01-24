@@ -11,10 +11,7 @@ use clap::{
 };
 use reqwest::Url;
 
-use crate::{
-    common::{keystore::DEFAULT_KEYSTORE_PASSWORD, parse_ether_value},
-    contracts::EigenLayerStrategy,
-};
+use crate::common::{keystore::DEFAULT_KEYSTORE_PASSWORD, parse_ether_value};
 
 /// `bolt` is a CLI tool to interact with bolt Protocol ✨
 #[derive(Parser, Debug, Clone)]
@@ -109,7 +106,7 @@ pub struct SendCommand {
     ///
     /// Leaving this empty will default to the canonical bolt RPC URL, which
     /// automatically manages increasing nonces on preconfirmed state.
-    #[clap(long, env = "BOLT_RPC_URL", default_value = "https://rpc-holesky.bolt.chainbound.io")]
+    #[clap(long, env = "BOLT_RPC_URL", default_value = "https://rpc.holesky.boltprotocol.xyz")]
     pub bolt_rpc_url: Url,
 
     /// The private key to sign the transaction with.
@@ -216,12 +213,13 @@ pub struct OperatorsCommand {
 #[derive(Debug, Clone, Parser)]
 pub enum OperatorsSubcommand {
     /// Commands to interact with EigenLayer and bolt.
-    #[clap(name = "eigenlayer")] // and not eigen-layer
+    #[clap(name = "eigenlayer", alias = "el")]
     EigenLayer {
         #[clap(subcommand)]
         subcommand: EigenLayerSubcommand,
     },
     /// Commands to interact with Symbiotic and bolt.
+    #[clap(alias = "symb")]
     Symbiotic {
         #[clap(subcommand)]
         subcommand: SymbioticSubcommand,
@@ -240,9 +238,8 @@ pub enum EigenLayerSubcommand {
         operator_private_key: B256,
         /// The name of the strategy to deposit into.
         #[clap(long, env = "EIGENLAYER_STRATEGY")]
-        strategy: EigenLayerStrategy,
-        /// The amount to deposit into the strategy, in units (e.g. '1ether', '10gwei')
-        /// If no unit is provided, it is assumed to be in wei.
+        strategy: Address,
+        /// The amount to deposit into the strategy, in units (e.g. '1ether', '10gwei').
         #[clap(long, env = "EIGENLAYER_STRATEGY_DEPOSIT_AMOUNT", value_parser = parse_ether_value)]
         amount: U256,
     },
@@ -256,11 +253,17 @@ pub enum EigenLayerSubcommand {
         #[clap(long, env = "OPERATOR_PRIVATE_KEY")]
         operator_private_key: B256,
         /// The URL of the operator RPC.
+        /// If not provided, the "bolt RPC" URL is used, which is
+        /// consistent with bolt-sidecars running in "firewall delegation" mode.
         #[clap(long, env = "OPERATOR_RPC")]
-        operator_rpc: Url,
-        /// The salt for the operator signature.
+        operator_rpc: Option<Url>,
+        /// The operator's extra data string to be stored in the registry.
+        #[clap(long, env = "OPERATOR_EXTRA_DATA")]
+        extra_data: String,
+        /// The salt for the operator signature, to prevent replay attacks.
+        /// If not provided, a random value is used.
         #[clap(long, env = "OPERATOR_SIGNATURE_SALT")]
-        salt: B256,
+        salt: Option<B256>,
     },
 
     /// Deregister an EigenLayer operator from the bolt AVS.
@@ -288,12 +291,19 @@ pub enum EigenLayerSubcommand {
 
     /// Check the status of an operator in the bolt AVS.
     Status {
-        /// The URL of the RPC to broadcast the transaction.
+        /// The URL of the RPC to read data from
         #[clap(long, env = "RPC_URL")]
         rpc_url: Url,
         /// The address of the operator to check.
         #[clap(long, env = "OPERATOR_ADDRESS")]
         address: Address,
+    },
+
+    /// List all whitelisted EigenLayer strategies
+    ListStrategies {
+        /// The URL of the RPC to read data from
+        #[clap(long, env = "RPC_URL")]
+        rpc_url: Url,
     },
 }
 
@@ -308,8 +318,13 @@ pub enum SymbioticSubcommand {
         #[clap(long, env = "OPERATOR_PRIVATE_KEY")]
         operator_private_key: B256,
         /// The URL of the operator RPC.
+        /// If not provided, the "bolt RPC" URL is used, which is
+        /// consistent with bolt-sidecars running in "firewall delegation" mode.
         #[clap(long, env = "OPERATOR_RPC")]
-        operator_rpc: Url,
+        operator_rpc: Option<Url>,
+        /// The operator's extra data string to be stored in the registry.
+        #[clap(long, env = "OPERATOR_EXTRA_DATA")]
+        extra_data: String,
     },
 
     /// Deregister a Symbiotic operator from bolt.
@@ -343,6 +358,13 @@ pub enum SymbioticSubcommand {
         /// The address of the operator to check.
         #[clap(long, env = "OPERATOR_ADDRESS")]
         address: Address,
+    },
+
+    /// List all whitelisted Symbiotic vaults
+    ListVaults {
+        /// The URL of the RPC to read data from
+        #[clap(long, env = "RPC_URL")]
+        rpc_url: Url,
     },
 }
 
@@ -510,6 +532,17 @@ impl Chain {
             Self::Holesky => [1, 1, 112, 0],
             Self::Helder => [16, 0, 0, 0],
             Self::Kurtosis => [16, 0, 0, 56],
+        }
+    }
+
+    /// Get the bolt RPC URL for the given chain.
+    ///
+    /// Returns None if bolt RPC is not deployed for the chain.
+    pub fn bolt_rpc(&self) -> Option<Url> {
+        match self {
+            Self::Mainnet => Some(Url::parse("https://rpc.boltprotocol.xyz").unwrap()),
+            Self::Holesky => Some(Url::parse("https://rpc.holesky.boltprotocol.xyz").unwrap()),
+            _ => None,
         }
     }
 
