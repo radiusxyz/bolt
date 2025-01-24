@@ -526,7 +526,7 @@ impl Chain {
     pub fn bolt_rpc(&self) -> Option<Url> {
         match self {
             Self::Mainnet => Some(Url::parse("https://rpc.boltprotocol.xyz").unwrap()),
-            Self::Holesky => Some(Url::parse("https://rpc-holesky.bolt.chainbound.io").unwrap()),
+            Self::Holesky => Some(Url::parse("https://rpc.holesky.boltprotocol.xyz").unwrap()),
             _ => None,
         }
     }
