@@ -213,12 +213,13 @@ pub struct OperatorsCommand {
 #[derive(Debug, Clone, Parser)]
 pub enum OperatorsSubcommand {
     /// Commands to interact with EigenLayer and bolt.
-    #[clap(name = "eigenlayer")] // and not eigen-layer
+    #[clap(name = "eigenlayer", alias = "el")]
     EigenLayer {
         #[clap(subcommand)]
         subcommand: EigenLayerSubcommand,
     },
     /// Commands to interact with Symbiotic and bolt.
+    #[clap(alias = "symb")]
     Symbiotic {
         #[clap(subcommand)]
         subcommand: SymbioticSubcommand,
