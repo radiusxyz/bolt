@@ -231,6 +231,23 @@ impl<C: StateFetcher> ExecutionState<C> {
         self.basefee
     }
 
+    /// Get the canonical account state at the head of the block for the given address from the
+    /// [AccountStateCache]. If not available, it's fetched from the EL client, added to the cache
+    /// and returned.
+    pub async fn get_or_fetch_account_state(
+        &mut self,
+        address: Address,
+    ) -> Result<AccountState, TransportError> {
+        match self.account_states.get(&address) {
+            Some(account) => Ok(*account),
+            None => {
+                let account = self.client.get_account_state(&address, None).await?;
+                self.account_states.insert(address, account);
+                Ok(account)
+            }
+        }
+    }
+
     /// Validates the commitment request against state (historical + intermediate).
     ///
     /// NOTE: This function only simulates against execution state, it does not consider
@@ -345,24 +362,9 @@ impl<C: StateFetcher> ExecutionState<C> {
                 return Err(ValidationError::SlotTooLow(highest_slot_for_account));
             }
 
-            let account_state = match self.account_states.get(sender).copied() {
-                Some(account) => account,
-                None => {
-                    // Fetch the account state from the client if it does not exist
-                    let account = match self.client.get_account_state(sender, None).await {
-                        Ok(account) => account,
-                        Err(err) => {
-                            return Err(ValidationError::Internal(format!(
-                                "Error fetching account state: {:?}",
-                                err
-                            )))
-                        }
-                    };
-
-                    self.account_states.insert(*sender, account);
-                    account
-                }
-            };
+            let account_state = self.get_or_fetch_account_state(*sender).await.map_err(|e| {
+                ValidationError::Internal(format!("Error fetching account state: {:?}", e))
+            })?;
 
             debug!(?account_state, ?nonce_diff, ?balance_diff, "Validating transaction");
 
