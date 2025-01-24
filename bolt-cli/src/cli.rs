@@ -106,7 +106,7 @@ pub struct SendCommand {
     ///
     /// Leaving this empty will default to the canonical bolt RPC URL, which
     /// automatically manages increasing nonces on preconfirmed state.
-    #[clap(long, env = "BOLT_RPC_URL", default_value = "https://rpc-holesky.bolt.chainbound.io")]
+    #[clap(long, env = "BOLT_RPC_URL", default_value = "https://rpc.holesky.boltprotocol.xyz")]
     pub bolt_rpc_url: Url,
 
     /// The private key to sign the transaction with.
