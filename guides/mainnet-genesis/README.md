@@ -126,7 +126,7 @@ and we will consider adding it to the whitelist. Please note that we only accept
 ETH-derivative strategies currently.
 
 > [!NOTE]
-> The vault activation process takes 24 hours. You can deposit collateral immediately, but it won't show up After
+> The vault activation process takes 24 hours. You can deposit collateral immediately, but it won't show up until
 > the activation period has passed.
 
 Depositing as a staker is done through the [StrategyManager](https://github.com/Layr-Labs/eigenlayer-contracts/blob/ecaff6304de6cb0f43b42024ad55d0e8a0430790/src/contracts/core/StrategyManager.sol#L94-L100)
@@ -233,7 +233,7 @@ bolt operators symbiotic status \
 ```
 
 > [!NOTE]
-> The vault activation process takes 24 hours. You can deposit collateral immediately, but it won't show up After
+> The vault activation process takes 24 hours. You can deposit collateral immediately, but it won't show up until
 > the activation period has passed.
 
 ### Step 4: Post Deposit Actions
