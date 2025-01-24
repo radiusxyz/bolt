@@ -108,6 +108,10 @@ where:
 - `<your-rpc-url>` is the URL of the Ethereum RPC node you are using
 - `<your-operator-address>` is the Ethereum address of your operator
 
+> [!NOTE]
+> The operator registration should immediately go through, but it won't be active yet.
+> The activation process takes 24 hours.
+
 ### Step 3 (optional): Deposit collateral in EigenLayer strategies
 
 You can already start depositing collateral for the AVS through one of the
@@ -121,6 +125,10 @@ or through [Discord](https://discord.gg/G5BJjCD9ss)/[X](https://x.com/boltprotoc
 and we will consider adding it to the whitelist. Please note that we only accept
 ETH-derivative strategies currently.
 
+> [!NOTE]
+> The vault activation process takes 24 hours. You can deposit collateral immediately, but it won't show up After
+> the activation period has passed.
+
 Depositing as a staker is done through the [StrategyManager](https://github.com/Layr-Labs/eigenlayer-contracts/blob/ecaff6304de6cb0f43b42024ad55d0e8a0430790/src/contracts/core/StrategyManager.sol#L94-L100)
 contract and is out of the scope of this guide. Please check out the official EigenLayer
 [delegation guide](https://docs.eigenlayer.xyz/eigenlayer/restaking-guides/restaking-user-guide/liquid-restaking/restake-lsts)
@@ -131,6 +139,14 @@ is no way to [join OperatorSets and allocate slashable magnitudes](https://docs.
 
 Once the EigenLayer ELIP-002 update is deployed on Mainnet, you will be able to join the bolt OperatorSet
 and allocate slashable magnitudes to the AVS as you see fit.
+
+To check your collateral, you can use the following command:
+
+```bash
+bolt operators eigenlayer status \
+    --rpc-url <your-rpc-url> \
+    --address <your-operator-address>
+```
 
 ## Symbiotic Operators
 > [!NOTE]
@@ -173,6 +189,23 @@ where:
 This will make your operator readable to the Bolt smart contracts and off-chain infrastructure, as well as provide
 a link between your operator signer and your deposited collateral.
 
+You can check your operator registration status with this command:
+
+```bash
+bolt operators symbiotic status \
+    --rpc-url <your-rpc-url> \
+    --address <your-operator-address>
+```
+
+where:
+
+- `<your-rpc-url>` is the URL of the Ethereum RPC node you are using
+- `<your-operator-address>` is the Ethereum address of your operator
+
+> [!NOTE]
+> The operator registration should immediately go through, but it won't be active yet.
+> The activation process takes 24 hours.
+
 ### Step 3: Deposit Collateral
 
 As a staker, you can deposit collateral in a vault. **Please note that this is not mandatory for mainnet genesis**.
@@ -190,6 +223,18 @@ Note that Bolt only works with collateral that are ETH derivatives right now.
 
 After the vault has been whitelisted, you can deposit collateral in it. Please refer to the [Symbiotic docs](https://docs.symbiotic.fi/guides/cli#deposit)
 on how to do that.
+
+To check your collateral, you can use the following command:
+
+```bash
+bolt operators symbiotic status \
+    --rpc-url <your-rpc-url> \
+    --address <your-operator-address>
+```
+
+> [!NOTE]
+> The vault activation process takes 24 hours. You can deposit collateral immediately, but it won't show up After
+> the activation period has passed.
 
 ### Step 4: Post Deposit Actions
 Depending on the type of vault, there are some actions needed before your operator shares are visible in bolt.
