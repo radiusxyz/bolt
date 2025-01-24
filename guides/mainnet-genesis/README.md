@@ -10,8 +10,20 @@ for node operators to start opting into bolt.
 
 The following sections are divided based on the restaking protocol you are using.
 
+- [Prerequisites](#prerequisites)
+  - [Install from pre-built binaries](#install-from-pre-built-binaries)
+  - [Building from source](#building-from-source)
 - [EigenLayer Operators](#eigenlayer-operators)
+  - [Step 1: Register as an EigenLayer operator](#step-1-register-as-an-eigenlayer-operator)
+  - [Step 2: Register your operator into bolt's AVS](#step-2-register-your-operator-into-bolts-avs)
+  - [Step 3: Deposit collateral](#step-3-deposit-collateral)
+  - [Deregistration](#deregistration)
 - [Symbiotic Operators](#symbiotic-operators)
+  - [Step 1: Opt in to the Bolt Symbiotic Network](#step-1-opt-in-to-the-bolt-symbiotic-network)
+  - [Step 2: Register your operator with Bolt](#step-2-register-your-operator-with-bolt)
+  - [Step 3: Deposit Collateral](#step-3-deposit-collateral)
+  - [Step 4: Post Deposit Actions](#step-4-post-deposit-actions)
+  - [Deregistration](#deregistration-1)
 
 > [!CAUTION]
 > ONLY register operators as an EOA (no Safe or other multisig). Bolt will require you to have access
