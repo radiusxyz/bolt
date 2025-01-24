@@ -147,11 +147,7 @@ impl EigenLayerSubcommand {
                         BoltEigenLayerMiddlewareMainnet::new(bolt_avs_address, provider.clone());
 
                     match el_middleware
-                        .registerThroughAVSDirectory(
-                            operator_rpc.to_string(),
-                            extra_data,
-                            signature,
-                        )
+                        .registerOperatorToAVS(operator_rpc.to_string(), extra_data, signature)
                         .send()
                         .await
                     {
@@ -223,7 +219,7 @@ impl EigenLayerSubcommand {
                     let el_middleware =
                         BoltEigenLayerMiddlewareMainnet::new(bolt_avs_address, provider);
 
-                    match el_middleware.deregisterThroughAVSDirectory().send().await {
+                    match el_middleware.deregisterOperatorFromAVS().send().await {
                         Ok(pending) => {
                             info!(
                                 hash = ?pending.tx_hash(),
@@ -384,7 +380,7 @@ impl EigenLayerSubcommand {
                         Err(e) => {
                             let other = try_parse_contract_error::<OperatorsRegistryV1Errors>(e)?;
                             bail!("Unexpected error with selector {:?}", other.selector())
-                        },
+                        }
                     }
 
                     match registry.isActiveOperator(address).call().await {
@@ -398,7 +394,7 @@ impl EigenLayerSubcommand {
                         Err(e) => {
                             let other = try_parse_contract_error::<OperatorsRegistryV1Errors>(e)?;
                             bail!("Unexpected error with selector {:?}", other.selector())
-                        },
+                        }
                     }
 
                     match el_middleware.getOperatorCollaterals(address).call().await {

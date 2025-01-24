@@ -120,13 +120,15 @@ sol! {
 
         function getOperatorStake(address operator, address collateral) public view returns (uint256);
 
-        function registerThroughAVSDirectory(
+        function registerOperatorToAVS(
             string memory rpcEndpoint,
             string memory extraData,
             SignatureWithSaltAndExpiry calldata operatorSignature
         ) public;
 
-        function deregisterThroughAVSDirectory() public;
+        function deregisterOperatorFromAVS() public;
+
+        function updateOperatorsRegistryAddress(address newOperatorsRegistry) public;
 
         error InvalidRpc();
         error InvalidSigner();
