@@ -150,8 +150,7 @@ python symb.py --chain mainnet opt-in-network 0xA42ec46F2c9DC671a72218E145CC13dc
 ```
 
 ### Step 2: Register your operator with Bolt
-
-To register in bolt's Symbiotic Network middleware contract, you can use this bolt CLI command:
+To register in the bolt Symbiotic Network middleware contract, use the following bolt CLI command:
 
 ```bash
 bolt operators symbiotic register \
@@ -174,10 +173,9 @@ where:
 This will make your operator readable to the Bolt smart contracts and off-chain infrastructure, as well as provide
 a link between your operator signer and your deposited collateral.
 
-### Step 3: Deposit collateral in Symbiotic Vaults
+### Step 3: Deposit Collateral
 
-As a staker, you can deposit collateral in a vault. Depending on the type of vault,
-there are some actions needed before your operator shares are updated/visible in **bolt**.
+As a staker, you can deposit collateral in a vault. **Please note that this is not mandatory for mainnet genesis**.
 
 Regardless of the type of vault, we have to activate & whitelist the vault on our network.
 Please reach out to us through the **Bolt Node Operator Working Group: Cohort 1** Telegram channel, 
@@ -190,13 +188,17 @@ We'll need the following information about your vault:
 
 Note that Bolt only works with collateral that are ETH derivatives right now.
 
+After the vault has been whitelisted, you can deposit collateral in it. Please refer to the [Symbiotic docs](https://docs.symbiotic.fi/guides/cli#deposit)
+on how to do that.
+
+### Step 4: Post Deposit Actions
+Depending on the type of vault, there are some actions needed before your operator shares are visible in bolt.
+
 #### OperatorSpecific and OperatorNetworkSpecific Vaults
 - **Us**: whitelist vault
-- **Operator**: Deposit collateral in the vault ([guide](https://docs.symbiotic.fi/handbooks/vaults-handbook#deposit-to-vault))
 - **Vault manager**: set network limit on the vault delegator ([guide](https://docs.symbiotic.fi/handbooks/vaults-handbook#network-onboarding))
 
 #### FullRestake and NetworkRestake Vaults
 - **Us**: whitelist vault
-- **Operator**: Deposit collateral in the vault ([guide](https://docs.symbiotic.fi/handbooks/vaults-handbook#deposit-to-vault))
 - **Vault manager**: set network limit on the vault delegator ([guide](https://docs.symbiotic.fi/handbooks/vaults-handbook#network-onboarding))
 - **Vault manager**: set operator network limit on the vault delegator ([guide](https://docs.symbiotic.fi/handbooks/vaults-handbook#operator-onboarding))
