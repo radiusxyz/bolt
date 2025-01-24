@@ -1,9 +1,7 @@
 use alloy::{
+    contract::Error as ContractError,
     network::EthereumWallet,
-    primitives::{
-        utils::{format_ether, Unit},
-        Bytes, Uint, U256,
-    },
+    primitives::{utils::format_ether, Bytes, B256, U256},
     providers::ProviderBuilder,
     signers::{local::PrivateKeySigner, SignerSync},
     sol_types::SolInterface,
@@ -11,26 +9,31 @@ use alloy::{
 
 use chrono::{Duration, TimeDelta, Utc};
 
-use eyre::Context;
+use eyre::{bail, Context};
 use tracing::{info, warn};
 
 use crate::{
     cli::{Chain, EigenLayerSubcommand},
     common::{
-        bolt_manager::BoltManagerContract::{self, BoltManagerContractErrors},
-        request_confirmation, try_parse_contract_error,
+        // bolt_manager::BoltManagerContract::{self, BoltManagerContractErrors},
+        request_confirmation,
+        try_parse_contract_error,
     },
     contracts::{
         bolt::{
-            BoltEigenLayerMiddleware::{self, BoltEigenLayerMiddlewareErrors},
+            BoltEigenLayerMiddlewareHolesky::{self, BoltEigenLayerMiddlewareHoleskyErrors},
+            BoltEigenLayerMiddlewareMainnet::{self, BoltEigenLayerMiddlewareMainnetErrors},
+            BoltManager::{self, BoltManagerErrors},
+            OperatorsRegistryV1::{self, OperatorsRegistryV1Errors},
             SignatureWithSaltAndExpiry,
         },
         deployments_for_chain,
         eigenlayer::{
-            AVSDirectory, IStrategy::IStrategyInstance, IStrategyManager::IStrategyManagerInstance,
+            AVSDirectory,
+            IStrategy::{self, IStrategyInstance},
+            IStrategyManager::IStrategyManagerInstance,
         },
-        erc20::IERC20::IERC20Instance,
-        strategy_to_address,
+        erc20::IERC20::{self, IERC20Instance},
     },
 };
 
@@ -52,16 +55,12 @@ impl EigenLayerSubcommand {
 
                 let deployments = deployments_for_chain(chain);
 
-                let strategy_address =
-                    strategy_to_address(strategy, deployments.eigen_layer.supported_strategies);
-                let strategy_contract = IStrategyInstance::new(strategy_address, provider.clone());
-                let strategy_manager_address = deployments.eigen_layer.strategy_manager;
+                let strategy_contract = IStrategyInstance::new(strategy, provider.clone());
+                let strategy_manager_address = deployments.eigenlayer.strategy_manager;
                 let strategy_manager =
                     IStrategyManagerInstance::new(strategy_manager_address, provider.clone());
 
                 let token = strategy_contract.underlyingToken().call().await?.token;
-
-                let amount = amount * Unit::ETHER.wei();
 
                 info!(%strategy, %token, amount = format_ether(amount), ?operator, "Depositing funds into EigenLayer strategy");
 
@@ -71,6 +70,14 @@ impl EigenLayerSubcommand {
 
                 let balance = token_erc20.balanceOf(operator).call().await?._0;
 
+                if amount > balance {
+                    bail!(
+                        "Insufficient balance: {} < {}",
+                        format_ether(balance),
+                        format_ether(amount)
+                    )
+                }
+
                 info!("Operator token balance: {}", format_ether(balance));
 
                 let result = token_erc20.approve(strategy_manager_address, amount).send().await?;
@@ -79,10 +86,8 @@ impl EigenLayerSubcommand {
                 let result = result.watch().await?;
                 info!("Approval transaction included. Transaction hash: {:?}", result);
 
-                let result = strategy_manager
-                    .depositIntoStrategy(strategy_address, token, amount)
-                    .send()
-                    .await?;
+                let result =
+                    strategy_manager.depositIntoStrategy(strategy, token, amount).send().await?;
 
                 info!(hash = ?result.tx_hash(), "Submitted deposit transaction, awaiting receipt...");
                 let receipt = result.get_receipt().await?;
@@ -96,7 +101,7 @@ impl EigenLayerSubcommand {
                 Ok(())
             }
 
-            Self::Register { rpc_url, operator_rpc, salt, operator_private_key } => {
+            Self::Register { rpc_url, operator_rpc, salt, operator_private_key, extra_data } => {
                 let signer = PrivateKeySigner::from_bytes(&operator_private_key)
                     .wrap_err("valid private key")?;
 
@@ -107,6 +112,10 @@ impl EigenLayerSubcommand {
 
                 let chain = Chain::try_from_provider(&provider).await?;
 
+                let operator_rpc = operator_rpc.unwrap_or_else(|| chain.bolt_rpc().unwrap_or_else(||
+                    panic!("The bolt RPC is not deployed on {:?}. Please use the `--operator-rpc` flag to specify one manually.", chain))
+                );
+
                 info!(operator = %signer.address(), rpc = %operator_rpc, ?chain, "Registering EigenLayer operator");
 
                 request_confirmation();
@@ -114,16 +123,15 @@ impl EigenLayerSubcommand {
                 let deployments = deployments_for_chain(chain);
 
                 let bolt_avs_address = deployments.bolt.eigenlayer_middleware;
-                let bolt_eigenlayer_middleware =
-                    BoltEigenLayerMiddleware::new(bolt_avs_address, provider.clone());
-
-                let avs_directory =
-                    AVSDirectory::new(deployments.eigen_layer.avs_directory, provider);
 
                 const EXPIRY_DURATION: TimeDelta = Duration::minutes(20);
                 let expiry = U256::from((Utc::now() + EXPIRY_DURATION).timestamp());
+                let salt = salt.unwrap_or_else(|| B256::from_slice(&rand::random::<[u8; 32]>()));
 
-                let signature_digest_hash = avs_directory
+                let avs_directory =
+                    AVSDirectory::new(deployments.eigenlayer.avs_directory, &provider);
+
+                let signature_digest = avs_directory
                     .calculateOperatorAVSRegistrationDigestHash(
                         signer.address(),
                         bolt_avs_address,
@@ -134,44 +142,57 @@ impl EigenLayerSubcommand {
                     .await?
                     ._0;
 
-                let signature =
-                    Bytes::from(signer.sign_hash_sync(&signature_digest_hash)?.as_bytes());
+                let signature = Bytes::from(signer.sign_hash_sync(&signature_digest)?.as_bytes());
                 let signature = SignatureWithSaltAndExpiry { signature, expiry, salt };
 
-                match bolt_eigenlayer_middleware
-                    .registerOperator(operator_rpc.to_string(), signature)
-                    .send()
-                    .await
-                {
-                    Ok(pending) => {
-                        info!(
-                            hash = ?pending.tx_hash(),
-                            "registerOperator transaction sent, awaiting receipt..."
-                        );
+                // TODO(nico): consolidate holesky & mainnet smart contracts
+                if chain == Chain::Mainnet {
+                    let el_middleware =
+                        BoltEigenLayerMiddlewareMainnet::new(bolt_avs_address, provider.clone());
 
-                        let receipt = pending.get_receipt().await?;
-                        if !receipt.status() {
-                            eyre::bail!("Transaction failed: {:?}", receipt)
+                    match el_middleware
+                        .registerOperatorToAVS(operator_rpc.to_string(), extra_data, signature)
+                        .send()
+                        .await
+                    {
+                        Ok(pending) => {
+                            info!(
+                                hash = ?pending.tx_hash(),
+                                "registerOperator transaction sent, awaiting receipt..."
+                            );
+
+                            let receipt = pending.get_receipt().await?;
+                            if !receipt.status() {
+                                eyre::bail!("Transaction failed: {:?}", receipt)
+                            }
+
+                            info!("Succesfully registered EigenLayer operator");
                         }
-
-                        info!("Succesfully registered EigenLayer operator");
+                        Err(e) => parse_eigenlayer_middleware_mainnet_errors(e)?,
                     }
-                    Err(e) => {
-                        match try_parse_contract_error::<BoltEigenLayerMiddlewareErrors>(e)? {
-                            BoltEigenLayerMiddlewareErrors::AlreadyRegistered(_) => {
-                                eyre::bail!("Operator already registered in bolt")
+                } else if chain == Chain::Holesky {
+                    let el_middleware =
+                        BoltEigenLayerMiddlewareHolesky::new(bolt_avs_address, provider.clone());
+
+                    match el_middleware
+                        .registerOperator(operator_rpc.to_string(), signature)
+                        .send()
+                        .await
+                    {
+                        Ok(pending) => {
+                            info!(
+                                hash = ?pending.tx_hash(),
+                                "registerOperator transaction sent, awaiting receipt..."
+                            );
+
+                            let receipt = pending.get_receipt().await?;
+                            if !receipt.status() {
+                                eyre::bail!("Transaction failed: {:?}", receipt)
                             }
-                            BoltEigenLayerMiddlewareErrors::NotOperator(_) => {
-                                eyre::bail!("Operator not registered in EigenLayer")
-                            }
-                            BoltEigenLayerMiddlewareErrors::SaltSpent(_) => {
-                                eyre::bail!("Salt already spent")
-                            }
-                            other => unreachable!(
-                                "Unexpected error with selector {:?}",
-                                other.selector()
-                            ),
+
+                            info!("Succesfully registered EigenLayer operator");
                         }
+                        Err(e) => parse_eigenlayer_middleware_holesky_errors(e)?,
                     }
                 }
 
@@ -197,33 +218,46 @@ impl EigenLayerSubcommand {
                 let deployments = deployments_for_chain(chain);
 
                 let bolt_avs_address = deployments.bolt.eigenlayer_middleware;
-                let bolt_eigenlayer_middleware =
-                    BoltEigenLayerMiddleware::new(bolt_avs_address, provider);
 
-                match bolt_eigenlayer_middleware.deregisterOperator().send().await {
-                    Ok(pending) => {
-                        info!(
-                            hash = ?pending.tx_hash(),
-                            "deregisterOperator transaction sent, awaiting receipt..."
-                        );
+                if chain == Chain::Mainnet {
+                    let el_middleware =
+                        BoltEigenLayerMiddlewareMainnet::new(bolt_avs_address, provider);
 
-                        let receipt = pending.get_receipt().await?;
-                        if !receipt.status() {
-                            eyre::bail!("Transaction failed: {:?}", receipt)
-                        }
+                    match el_middleware.deregisterOperatorFromAVS().send().await {
+                        Ok(pending) => {
+                            info!(
+                                hash = ?pending.tx_hash(),
+                                "deregisterOperator transaction sent, awaiting receipt..."
+                            );
 
-                        info!("Succesfully deregistered EigenLayer operator");
-                    }
-                    Err(e) => {
-                        match try_parse_contract_error::<BoltEigenLayerMiddlewareErrors>(e)? {
-                            BoltEigenLayerMiddlewareErrors::NotRegistered(_) => {
-                                eyre::bail!("Operator not registered in bolt")
+                            let receipt = pending.get_receipt().await?;
+                            if !receipt.status() {
+                                eyre::bail!("Transaction failed: {:?}", receipt)
                             }
-                            other => unreachable!(
-                                "Unexpected error with selector {:?}",
-                                other.selector()
-                            ),
+
+                            info!("Succesfully deregistered EigenLayer operator");
                         }
+                        Err(e) => parse_eigenlayer_middleware_mainnet_errors(e)?,
+                    }
+                } else if chain == Chain::Holesky {
+                    let el_middleware =
+                        BoltEigenLayerMiddlewareHolesky::new(bolt_avs_address, provider);
+
+                    match el_middleware.deregisterOperator().send().await {
+                        Ok(pending) => {
+                            info!(
+                                hash = ?pending.tx_hash(),
+                                "deregisterOperator transaction sent, awaiting receipt..."
+                            );
+
+                            let receipt = pending.get_receipt().await?;
+                            if !receipt.status() {
+                                eyre::bail!("Transaction failed: {:?}", receipt)
+                            }
+
+                            info!("Succesfully deregistered EigenLayer operator");
+                        }
+                        Err(e) => parse_eigenlayer_middleware_holesky_errors(e)?,
                     }
                 }
 
@@ -248,38 +282,71 @@ impl EigenLayerSubcommand {
 
                 let deployments = deployments_for_chain(chain);
 
-                let bolt_manager =
-                    BoltManagerContract::new(deployments.bolt.manager, provider.clone());
-                if bolt_manager.isOperator(address).call().await?._0 {
-                    info!(?address, "EigenLayer operator is registered");
-                } else {
-                    warn!(?address, "Operator not registered");
-                    return Ok(());
-                }
+                // TODO(nico): consolidate holesky & mainnet smart contracts
+                if chain == Chain::Mainnet {
+                    let el_middleware = BoltEigenLayerMiddlewareMainnet::new(
+                        deployments.bolt.eigenlayer_middleware,
+                        provider.clone(),
+                    );
 
-                match bolt_manager.updateOperatorRPC(operator_rpc.to_string()).send().await {
-                    Ok(pending) => {
-                        info!(
-                            hash = ?pending.tx_hash(),
-                            "updateOperatorRPC transaction sent, awaiting receipt..."
-                        );
+                    match el_middleware
+                        .updateOperatorRpcEndpoint(operator_rpc.to_string())
+                        .send()
+                        .await
+                    {
+                        Ok(pending) => {
+                            info!(
+                                hash = ?pending.tx_hash(),
+                                "updateOperatorRPCEndpoint transaction sent, awaiting receipt..."
+                            );
 
-                        let receipt = pending.get_receipt().await?;
-                        if !receipt.status() {
-                            eyre::bail!("Transaction failed: {:?}", receipt)
+                            let receipt = pending.get_receipt().await?;
+                            if !receipt.status() {
+                                eyre::bail!("Transaction failed: {:?}", receipt)
+                            }
+
+                            info!("Succesfully updated EigenLayer operator RPC");
                         }
-
-                        info!("Succesfully updated EigenLayer operator RPC");
+                        Err(e) => parse_eigenlayer_middleware_mainnet_errors(e)?,
                     }
-                    Err(e) => match try_parse_contract_error::<BoltManagerContractErrors>(e)? {
-                        BoltManagerContractErrors::OperatorNotRegistered(_) => {
-                            eyre::bail!("Operator not registered in bolt")
+                } else if chain == Chain::Holesky {
+                    let bolt_manager = BoltManager::new(deployments.bolt.manager, provider.clone());
+
+                    if bolt_manager.isOperator(address).call().await?._0 {
+                        info!(?address, "EigenLayer operator is registered");
+                    } else {
+                        warn!(?address, "Operator not registered");
+                        return Ok(());
+                    }
+
+                    match bolt_manager.updateOperatorRPC(operator_rpc.to_string()).send().await {
+                        Ok(pending) => {
+                            info!(
+                                hash = ?pending.tx_hash(),
+                                "updateOperatorRPC transaction sent, awaiting receipt..."
+                            );
+
+                            let receipt = pending.get_receipt().await?;
+                            if !receipt.status() {
+                                eyre::bail!("Transaction failed: {:?}", receipt)
+                            }
+
+                            info!("Succesfully updated EigenLayer operator RPC");
                         }
-                        other => {
-                            unreachable!("Unexpected error with selector {:?}", other.selector())
-                        }
-                    },
+                        Err(e) => match try_parse_contract_error::<BoltManagerErrors>(e)? {
+                            BoltManagerErrors::OperatorNotRegistered(_) => {
+                                eyre::bail!("Operator not registered in bolt")
+                            }
+                            other => {
+                                unreachable!(
+                                    "Unexpected error with selector {:?}",
+                                    other.selector()
+                                )
+                            }
+                        },
+                    }
                 }
+
                 Ok(())
             }
 
@@ -289,62 +356,204 @@ impl EigenLayerSubcommand {
                 let chain = Chain::try_from_provider(&provider).await?;
 
                 let deployments = deployments_for_chain(chain);
-                let bolt_manager =
-                    BoltManagerContract::new(deployments.bolt.manager, provider.clone());
-                if bolt_manager.isOperator(address).call().await?._0 {
-                    info!(?address, "EigenLayer operator is registered");
-                } else {
-                    warn!(?address, "Operator not registered");
-                    return Ok(())
-                }
 
-                match bolt_manager.getOperatorData(address).call().await {
-                    Ok(operator_data) => {
-                        info!(?address, operator_data = ?operator_data._0, "Operator data");
+                info!(?address, ?chain, "Checking EigenLayer operator status");
+
+                if chain == Chain::Mainnet {
+                    let el_middleware = BoltEigenLayerMiddlewareMainnet::new(
+                        deployments.bolt.eigenlayer_middleware,
+                        provider.clone(),
+                    );
+
+                    let registry = OperatorsRegistryV1::new(
+                        deployments.bolt.operators_registry,
+                        provider.clone(),
+                    );
+
+                    // TOOD: clean up, concurrent calls
+                    match registry.isOperator(address).call().await {
+                        Ok(is_operator) => {
+                            if is_operator._0 {
+                                info!(?address, "EigenLayer operator is registered");
+                            } else {
+                                warn!(?address, "Operator not registered");
+                                return Ok(())
+                            }
+                        }
+                        Err(e) => {
+                            let other = try_parse_contract_error::<OperatorsRegistryV1Errors>(e)?;
+                            bail!("Unexpected error with selector {:?}", other.selector())
+                        }
                     }
-                    Err(e) => match try_parse_contract_error::<BoltManagerContractErrors>(e)? {
-                        BoltManagerContractErrors::KeyNotFound(_) => {
-                            warn!(?address, "Operator data not found");
-                        }
-                        other => {
-                            unreachable!("Unexpected error with selector {:?}", other.selector())
-                        }
-                    },
-                }
 
-                // Check if operator has collateral
-                let mut total_collateral = Uint::from(0);
-                for (name, collateral) in deployments.collateral {
-                    let stake =
-                        match bolt_manager.getOperatorStake(address, collateral).call().await {
-                            Ok(stake) => stake._0,
-                            Err(e) => {
-                                match try_parse_contract_error::<BoltEigenLayerMiddlewareErrors>(e)?
-                                {
-                                    BoltEigenLayerMiddlewareErrors::KeyNotFound(_) => Uint::from(0),
-                                    other => unreachable!(
-                                        "Unexpected error with selector {:?}",
-                                        other.selector()
-                                    ),
+                    match registry.isActiveOperator(address).call().await {
+                        Ok(is_active) => {
+                            if is_active._0 {
+                                info!(?address, "Operator is active");
+                            } else {
+                                warn!(?address, "Operator is not active yet");
+                            }
+                        }
+                        Err(e) => {
+                            let other = try_parse_contract_error::<OperatorsRegistryV1Errors>(e)?;
+                            bail!("Unexpected error with selector {:?}", other.selector())
+                        }
+                    }
+
+                    match el_middleware.getOperatorCollaterals(address).call().await {
+                        Ok(collaterals) => {
+                            for (token, amount) in collaterals._0.iter().zip(collaterals._1.iter())
+                            {
+                                if !amount.is_zero() {
+                                    info!(?address, token = %token, amount = format_ether(*amount), "Operator has collateral");
                                 }
                             }
-                        };
-                    if stake > Uint::from(0) {
-                        total_collateral += stake;
-                        info!(?address, token = %name, amount = ?stake, "Operator has collateral");
+
+                            let total_collateral = collaterals._1.iter().sum::<U256>();
+                            info!(
+                                ?address,
+                                "Total operator collateral: {}",
+                                format_ether(total_collateral)
+                            );
+                        }
+                        Err(e) => parse_eigenlayer_middleware_mainnet_errors(e)?,
+                    }
+                } else if chain == Chain::Holesky {
+                    let bolt_manager = BoltManager::new(deployments.bolt.manager, provider.clone());
+
+                    if bolt_manager.isOperator(address).call().await?._0 {
+                        info!(?address, "EigenLayer operator is registered");
+                    } else {
+                        warn!(?address, "Operator not registered");
+                        return Ok(())
+                    }
+
+                    let middleware = BoltEigenLayerMiddlewareHolesky::new(
+                        deployments.bolt.eigenlayer_middleware,
+                        provider.clone(),
+                    );
+
+                    match bolt_manager.getOperatorData(address).call().await {
+                        Ok(operator_data) => {
+                            info!(?address, operator_data = ?operator_data._0, "Operator data");
+                        }
+                        Err(e) => match try_parse_contract_error::<BoltManagerErrors>(e)? {
+                            BoltManagerErrors::KeyNotFound(key) => {
+                                warn!(?address, "Operator data not found: {:?}", key.key);
+                            }
+                            other => {
+                                unreachable!(
+                                    "Unexpected error with selector {:?}",
+                                    other.selector()
+                                )
+                            }
+                        },
+                    }
+
+                    match middleware.getOperatorCollaterals(address).call().await {
+                        Ok(collaterals) => {
+                            for (token, amount) in collaterals._0.iter().zip(collaterals._1.iter())
+                            {
+                                if !amount.is_zero() {
+                                    info!(?address, token = %token, amount = format_ether(*amount), "Operator has collateral");
+                                }
+                            }
+
+                            let total_collateral = collaterals._1.iter().sum::<U256>();
+                            info!(
+                                ?address,
+                                "Total operator collateral: {}",
+                                format_ether(total_collateral)
+                            );
+                        }
+                        Err(e) => parse_eigenlayer_middleware_mainnet_errors(e)?,
                     }
                 }
-                if total_collateral >= Unit::ETHER.wei() {
-                    info!(?address, total_collateral=?total_collateral, "Operator is active");
-                } else if total_collateral > Uint::from(0) {
-                    info!(?address, total_collateral=?total_collateral, "Total operator collateral");
+
+                Ok(())
+            }
+
+            Self::ListStrategies { rpc_url } => {
+                let provider = ProviderBuilder::new().on_http(rpc_url.clone());
+
+                let chain = Chain::try_from_provider(&provider).await?;
+
+                let deployments = deployments_for_chain(chain);
+
+                info!("Listing all EigenLayer whitelisted strategies:");
+
+                // TODO(nico): consolidate holesky & mainnet smart contracts
+                let strategies = if chain == Chain::Mainnet {
+                    let el_middleware = BoltEigenLayerMiddlewareMainnet::new(
+                        deployments.bolt.eigenlayer_middleware,
+                        &provider,
+                    );
+
+                    el_middleware.getActiveWhitelistedStrategies().call().await?._0
+                } else if chain == Chain::Holesky {
+                    let el_middleware = BoltEigenLayerMiddlewareHolesky::new(
+                        deployments.bolt.eigenlayer_middleware,
+                        &provider,
+                    );
+
+                    el_middleware.getRestakeableStrategies().call().await?._0
                 } else {
-                    warn!(?address, "Operator has no collateral");
+                    unreachable!("Invalid chain");
+                };
+
+                for strategy_address in strategies {
+                    let strategy = IStrategy::new(strategy_address, &provider);
+                    let token_address = strategy.underlyingToken().call().await?.token;
+                    let token = IERC20::new(token_address, &provider);
+                    let token_symbol = token.symbol().call().await?._0;
+
+                    info!("- Token: {} - Strategy: {}", token_symbol, strategy_address);
                 }
 
                 Ok(())
             }
         }
+    }
+}
+
+/// Parse EigenLayer middleware errors.
+fn parse_eigenlayer_middleware_holesky_errors(err: ContractError) -> eyre::Result<()> {
+    match try_parse_contract_error::<BoltEigenLayerMiddlewareHoleskyErrors>(err)? {
+        BoltEigenLayerMiddlewareHoleskyErrors::AlreadyRegistered(_) => {
+            bail!("Operator already registered in bolt")
+        }
+        BoltEigenLayerMiddlewareHoleskyErrors::NotOperator(_) => {
+            bail!("Operator not registered in EigenLayer")
+        }
+        BoltEigenLayerMiddlewareHoleskyErrors::SaltSpent(_) => {
+            bail!("Salt already spent")
+        }
+        BoltEigenLayerMiddlewareHoleskyErrors::NotRegistered(_) => {
+            bail!("Operator not registered in bolt")
+        }
+        BoltEigenLayerMiddlewareHoleskyErrors::KeyNotFound(_) => bail!("Key not found"),
+        BoltEigenLayerMiddlewareHoleskyErrors::NotActivelyDelegated(_) => {
+            bail!("Operator not actively delegated")
+        }
+        BoltEigenLayerMiddlewareHoleskyErrors::OperatorNotRegistered(_) => {
+            bail!("Operator not registered in bolt")
+        }
+    }
+}
+
+/// Parse EigenLayer middleware errors.
+fn parse_eigenlayer_middleware_mainnet_errors(err: ContractError) -> eyre::Result<()> {
+    match try_parse_contract_error::<BoltEigenLayerMiddlewareMainnetErrors>(err)? {
+        BoltEigenLayerMiddlewareMainnetErrors::InvalidRpc(_) => bail!("Invalid RPC URL"),
+        BoltEigenLayerMiddlewareMainnetErrors::InvalidMiddleware(inner) => {
+            bail!("Invalid middleware: {}", inner.reason)
+        }
+        BoltEigenLayerMiddlewareMainnetErrors::InvalidSigner(_) => bail!("Invalid signer"),
+        BoltEigenLayerMiddlewareMainnetErrors::OnlyRestakingMiddlewares(_) => {
+            bail!("Only restaking middlewares are allowed to call this function")
+        }
+        BoltEigenLayerMiddlewareMainnetErrors::Unauthorized(_) => bail!("Unauthorized call"),
+        BoltEigenLayerMiddlewareMainnetErrors::UnknownOperator(_) => bail!("Unknown operator"),
     }
 }
 
@@ -355,13 +564,13 @@ mod tests {
         contracts::{
             deployments_for_chain,
             eigenlayer::{DelegationManager, IStrategy},
-            strategy_to_address, EigenLayerStrategy,
         },
     };
+
     use alloy::{
         network::EthereumWallet,
         node_bindings::Anvil,
-        primitives::{keccak256, utils::parse_units, Address, B256, U256},
+        primitives::{address, keccak256, utils::parse_units, Address, U256},
         providers::{ext::AnvilApi, Provider, ProviderBuilder, WalletProvider},
         signers::local::PrivateKeySigner,
         sol_types::SolValue,
@@ -369,7 +578,7 @@ mod tests {
     use alloy_node_bindings::WEI_IN_ETHER;
 
     #[tokio::test]
-    async fn test_eigenlayer_flow() {
+    async fn test_eigenlayer_flow_holesky() {
         let _ = tracing_subscriber::fmt::try_init();
         let s1 = PrivateKeySigner::random();
         let secret_key = s1.to_bytes();
@@ -394,10 +603,7 @@ mod tests {
 
         let deployments = deployments_for_chain(Chain::Holesky);
 
-        let weth_strategy_address = strategy_to_address(
-            EigenLayerStrategy::WEth,
-            deployments.eigen_layer.supported_strategies,
-        );
+        let weth_strategy_address = address!("80528D6e9A2BAbFc766965E0E26d5aB08D9CFaF9");
         let strategy = IStrategy::new(weth_strategy_address, provider.clone());
         let weth_address = strategy.underlyingToken().call().await.expect("underlying token").token;
 
@@ -413,7 +619,7 @@ mod tests {
         //    EigenLayer CLI, but we do it here for testing purposes.
 
         let delegation_manager =
-            DelegationManager::new(deployments.eigen_layer.delegation_manager, provider.clone());
+            DelegationManager::new(deployments.eigenlayer.delegation_manager, provider.clone());
 
         let receipt = delegation_manager
             .registerAsOperator(Address::ZERO, 0, "https://bolt.chainbound.io/rpc".to_string())
@@ -442,7 +648,7 @@ mod tests {
                 subcommand: EigenLayerSubcommand::Deposit {
                     rpc_url: anvil_url.clone(),
                     operator_private_key: secret_key,
-                    strategy: EigenLayerStrategy::WEth,
+                    strategy: weth_strategy_address,
                     amount: U256::from(1),
                 },
             },
@@ -457,8 +663,9 @@ mod tests {
                 subcommand: EigenLayerSubcommand::Register {
                     rpc_url: anvil_url.clone(),
                     operator_private_key: secret_key,
-                    operator_rpc: "https://bolt.chainbound.io/rpc".parse().expect("valid url"),
-                    salt: B256::ZERO,
+                    extra_data: "hello world computer 🌐".to_string(),
+                    operator_rpc: None,
+                    salt: None,
                 },
             },
         };
@@ -518,5 +725,11 @@ mod tests {
         };
 
         check_operator_registration.run().await.expect("to check operator registration");
+    }
+
+    #[tokio::test]
+    async fn test_eigenlayer_flow_mainnet() {
+        // TODO: do the same as above, but fork from mainnet instead
+        // and use the mainnet EigenLayer contracts
     }
 }

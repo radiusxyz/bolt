@@ -79,5 +79,14 @@ sol! {
         * Emits a {Transfer} event.
         */
         function transferFrom(address from, address to, uint256 value) external returns (bool);
+
+        /// @notice Returns the name of the token.
+        function name() external view returns (string memory);
+
+        /// @notice Returns the symbol of the token.
+        function symbol() external view returns (string memory);
+
+        /// @notice Returns the decimals places of the token.
+        function decimals() external view returns (uint8);
     }
 }

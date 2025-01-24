@@ -1,6 +1,49 @@
 use alloy::sol;
 use serde::Serialize;
 
+// Mainnet Genesis: deprecated
+sol! {
+    #[sol(rpc)]
+    interface BoltManager {
+        #[derive(Debug, Default, Serialize)]
+        struct ProposerStatus {
+            bytes32 pubkeyHash;
+            bool active;
+            address operator;
+            string operatorRPC;
+            address[] collaterals;
+            uint256[] amounts;
+        }
+
+        #[derive(Debug, Default, Serialize)]
+        struct Operator {
+            // RPC endpoint
+            string rpc;
+            // Middleware contract address
+            address middleware;
+            // Timestamp of registration
+            uint256 timestamp;
+        }
+
+        function getProposerStatus(bytes32 pubkeyHash) external view returns (ProposerStatus memory);
+
+        function isOperator(address operator) public view returns (bool);
+
+        function getOperatorStake(address operator, address collateral) public view returns (uint256);
+
+        /// @notice Update the RPC associated to msg.sender.
+        function updateOperatorRPC(string calldata rpc) external;
+
+        function getOperatorData(address operator) public view returns (Operator memory);
+
+        error InvalidQuery();
+        error ValidatorDoesNotExist();
+        error OperatorNotRegistered();
+        error KeyNotFound(address key);
+    }
+}
+
+// Mainnet Genesis: deprecated
 sol! {
     #[allow(missing_docs)]
     #[sol(rpc)]
@@ -38,6 +81,7 @@ sol! {
     }
 }
 
+// Mainnet Genesis: deprecated
 sol! {
     #[allow(missing_docs)]
     #[sol(rpc)]
@@ -47,9 +91,11 @@ sol! {
         uint256 expiry;
     }
 
+    // === Holesky contracts ===
+
     #[allow(missing_docs)]
     #[sol(rpc)]
-    interface BoltEigenLayerMiddleware {
+    interface BoltEigenLayerMiddlewareHolesky {
         /// @notice Allow an operator to signal opt-in to Bolt Protocol.
         /// @dev This requires calling the EigenLayer AVS Directory contract to register the operator.
         /// EigenLayer internally contains a mapping from `msg.sender` (our AVS contract) to the operator.
@@ -60,6 +106,16 @@ sol! {
         /// @dev This requires calling the EigenLayer AVS Directory contract to deregister the operator.
         /// EigenLayer internally contains a mapping from `msg.sender` (our AVS contract) to the operator.
         function deregisterOperator() public;
+
+        /// @notice Get the collaterals and amounts staked by an operator across the supported strategies.
+        ///
+        /// @param operator The operator address to get the collaterals and amounts staked for.
+        /// @return collaterals The collaterals staked by the operator.
+        /// @dev Assumes that the operator is registered and enabled.
+        function getOperatorCollaterals(address operator) public view returns (address[] memory, uint256[] memory);
+
+        /// @notice Get the list of currently restakeable strategies
+        function getRestakeableStrategies() external view returns (address[] memory);
 
         error AlreadyRegistered();
         error NotOperator();
@@ -76,7 +132,7 @@ sol! {
 
     #[allow(missing_docs)]
     #[sol(rpc)]
-    interface BoltSymbioticMiddleware {
+    interface BoltSymbioticMiddlewareHolesky {
         /// @notice Allow an operator to signal opt-in to Bolt Protocol.
         /// msg.sender must be an operator in the Symbiotic network.
         function registerOperator(string calldata rpc) public;
@@ -92,9 +148,181 @@ sol! {
         /// @dev Assumes that the operator is registered and enabled.
         function getOperatorCollaterals(address operator) public view returns (address[] memory, uint256[] memory);
 
+        /// @notice Get the whitelisted vaults.
+        function getWhitelistedVaults() public view returns (address[] memory);
+
         error AlreadyRegistered();
         error NotOperator();
         error NotRegistered();
         error KeyNotFound();
+    }
+
+    // === Mainnet contracts ===
+
+    #[allow(missing_docs)]
+    #[sol(rpc)]
+    interface BoltEigenLayerMiddlewareMainnet {
+        function updateOperatorRpcEndpoint(string calldata rpcEndpoint) public;
+
+        function getOperatorCollaterals(address operator) public view returns (address[] memory, uint256[] memory);
+
+        function getOperatorStake(address operator, address collateral) public view returns (uint256);
+
+        function registerOperatorToAVS(
+            string memory rpcEndpoint,
+            string memory extraData,
+            SignatureWithSaltAndExpiry calldata operatorSignature
+        ) public;
+
+        function deregisterOperatorFromAVS() public;
+
+        function updateOperatorsRegistryAddress(address newOperatorsRegistry) public;
+
+        function getActiveWhitelistedStrategies() public view returns (address[] memory);
+
+        error InvalidRpc();
+        error InvalidSigner();
+        error Unauthorized();
+        error UnknownOperator();
+        error OnlyRestakingMiddlewares();
+        error InvalidMiddleware(string reason);
+    }
+
+    #[allow(missing_docs)]
+    #[sol(rpc)]
+    interface BoltSymbioticMiddlewareMainnet {
+        function updateOperatorRpcEndpoint(string calldata rpcEndpoint) public;
+
+        function getOperatorCollaterals(address operator) public view returns (address[] memory, uint256[] memory);
+
+        function getOperatorStake(address operator, address collateral) public view returns (uint256);
+
+        function registerOperator(string calldata rpcEndpoint, string calldata extraData) public;
+
+        function deregisterOperator() public;
+
+        /// @notice Gets all _active_ whitelisted vaults.
+        /// @return An array of active whitelisted vaults.
+        function getActiveWhitelistedVaults() public view returns (address[] memory);
+
+        error NotOperator();
+        error OperatorNotOptedIn();
+        error OperatorNotRegistered();
+
+        error NotVault();
+        error VaultNotInitialized();
+        error VaultAlreadyWhitelisted();
+        error UnauthorizedVault();
+        error NotOperatorSpecificVault();
+    }
+}
+
+sol! {
+    #[allow(missing_docs)]
+    #[sol(rpc)]
+    interface OperatorsRegistryV1 {
+        /// @notice Operator struct
+        struct Operator {
+            address signer;
+            string rpcEndpoint;
+            address restakingMiddleware;
+            string extraData;
+        }
+
+        error InvalidRpc();
+        error InvalidSigner();
+        error UnknownOperator();
+        error KeyNotFound();
+
+        /// @notice Emitted when a new operator is registered
+        /// @param signer The address of the operator
+        /// @param rpcEndpoint The rpc endpoint of the operator
+        /// @param restakingMiddleware The address of the restaking middleware
+        event OperatorRegistered(address signer, string rpcEndpoint, address restakingMiddleware, string extraData);
+
+        /// @notice Emitted when an operator is deregistered
+        /// @param signer The address of the operator
+        /// @param restakingMiddleware The address of the restaking middleware
+        event OperatorDeregistered(address signer, address restakingMiddleware);
+
+        /// @notice Emitted when an operator is paused
+        /// @param signer The address of the operator
+        /// @param restakingMiddleware The address of the restaking middleware
+        event OperatorPaused(address signer, address restakingMiddleware);
+
+        /// @notice Emitted when an operator is unpaused
+        /// @param signer The address of the operator
+        /// @param restakingMiddleware The address of the restaking middleware
+        event OperatorUnpaused(address signer, address restakingMiddleware);
+
+        /// @notice Returns the start timestamp of the registry contract
+        function START_TIMESTAMP() external view returns (uint48);
+
+        /// @notice Returns the duration of an epoch in seconds
+        function EPOCH_DURATION() external view returns (uint48);
+
+        /// @notice Returns the address of the EigenLayer restaking middleware
+        function EIGENLAYER_RESTAKING_MIDDLEWARE() external view returns (address);
+
+        /// @notice Returns the address of the Symbiotic restaking middleware
+        function SYMBIOTIC_RESTAKING_MIDDLEWARE() external view returns (address);
+
+        /// @notice Register an operator in the registry
+        /// @param signer The address of the operator
+        /// @param rpcEndpoint The rpc endpoint of the operator
+        /// @param extraData Arbitrary data the operator can provide as part of registration
+        function registerOperator(address signer, string memory rpcEndpoint, string memory extraData) external;
+
+        /// @notice Deregister an operator from the registry
+        /// @param signer The address of the operator
+        function deregisterOperator(
+            address signer
+        ) external;
+
+        /// @notice Update the rpc endpoint of an operator
+        /// @param signer The address of the operator
+        /// @param rpcEndpoint The new rpc endpoint
+        /// @dev Only restaking middleware contracts can call this function
+        function updateOperatorRpcEndpoint(address signer, string memory rpcEndpoint) external;
+
+        /// @notice Pause an operator in the registry
+        /// @param signer The address of the operator
+        function pauseOperator(
+            address signer
+        ) external;
+
+        /// @notice Unpause an operator in the registry, marking them as "active"
+        /// @param signer The address of the operator
+        function unpauseOperator(
+            address signer
+        ) external;
+
+        /// @notice Returns all the operators saved in the registry, including inactive ones.
+        /// @return operators The array of operators
+        function getAllOperators() external view returns (Operator[] memory);
+
+        /// @notice Returns the active operators in the registry.
+        /// @return operators The array of active operators.
+        function getActiveOperators() external view returns (Operator[] memory);
+
+        /// @notice Returns true if the given address is an operator in the registry.
+        /// @param signer The address of the operator.
+        /// @return isOperator True if the address is an operator, false otherwise.
+        function isOperator(
+            address signer
+        ) external view returns (bool);
+
+        /// @notice Returns true if the given operator is registered AND active.
+        /// @param signer The address of the operator
+        /// @return isActiveOperator True if the operator is active, false otherwise.
+        function isActiveOperator(
+            address signer
+        ) external view returns (bool);
+
+        /// @notice Cleans up any expired operators (i.e. paused + IMMUTABLE_PERIOD has passed).
+        function cleanup() external;
+
+        /// @notice Returns the timestamp of when the current epoch started
+        function getCurrentEpochStartTimestamp() external view returns (uint48);
     }
 }
