@@ -247,6 +247,7 @@ We'll need the following information about your vault:
 - Collateral
 - Type
 - Manager
+- Epoch duration
 
 Note that Bolt only works with collateral that are ETH derivatives right now.
 
