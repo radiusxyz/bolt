@@ -28,4 +28,14 @@ sol! {
          */
         function isOptedIn(address who, address where) external view returns (bool);
     }
+
+    #[allow(missing_docs)]
+    #[sol(rpc)]
+    interface IVault {
+        /**
+         * @notice Get a vault collateral.
+         * @return address of the underlying collateral
+         */
+        function collateral() external view returns (address);
+    }
 }

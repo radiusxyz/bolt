@@ -29,9 +29,11 @@ use crate::{
         },
         deployments_for_chain,
         eigenlayer::{
-            AVSDirectory, IStrategy::IStrategyInstance, IStrategyManager::IStrategyManagerInstance,
+            AVSDirectory,
+            IStrategy::{self, IStrategyInstance},
+            IStrategyManager::IStrategyManagerInstance,
         },
-        erc20::IERC20::IERC20Instance,
+        erc20::IERC20::{self, IERC20Instance},
     },
 };
 
@@ -466,6 +468,46 @@ impl EigenLayerSubcommand {
                         }
                         Err(e) => parse_eigenlayer_middleware_mainnet_errors(e)?,
                     }
+                }
+
+                Ok(())
+            }
+
+            Self::ListStrategies { rpc_url } => {
+                let provider = ProviderBuilder::new().on_http(rpc_url.clone());
+
+                let chain = Chain::try_from_provider(&provider).await?;
+
+                let deployments = deployments_for_chain(chain);
+
+                info!("Listing all EigenLayer whitelisted strategies:");
+
+                // TODO(nico): consolidate holesky & mainnet smart contracts
+                let strategies = if chain == Chain::Mainnet {
+                    let el_middleware = BoltEigenLayerMiddlewareMainnet::new(
+                        deployments.bolt.eigenlayer_middleware,
+                        &provider,
+                    );
+
+                    el_middleware.getActiveWhitelistedStrategies().call().await?._0
+                } else if chain == Chain::Holesky {
+                    let el_middleware = BoltEigenLayerMiddlewareHolesky::new(
+                        deployments.bolt.eigenlayer_middleware,
+                        &provider,
+                    );
+
+                    el_middleware.getRestakeableStrategies().call().await?._0
+                } else {
+                    unreachable!("Invalid chain");
+                };
+
+                for strategy_address in strategies {
+                    let strategy = IStrategy::new(strategy_address, &provider);
+                    let token_address = strategy.underlyingToken().call().await?.token;
+                    let token = IERC20::new(token_address, &provider);
+                    let token_symbol = token.symbol().call().await?._0;
+
+                    info!("- Token: {} - Strategy: {}", token_symbol, strategy_address);
                 }
 
                 Ok(())
