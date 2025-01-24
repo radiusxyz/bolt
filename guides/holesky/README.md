@@ -12,35 +12,35 @@ This document provides instructions for running Bolt on the Holesky testnet.
 
 <!-- vim-markdown-toc GFM -->
 
-* [Prerequisites](#prerequisites)
-* [On-Chain Registration](#on-chain-registration)
-  * [Validator Registration](#validator-registration)
-    * [Registration Steps](#registration-steps)
-  * [Bolt Network Entrypoint](#bolt-network-entrypoint)
-  * [Operator Registration](#operator-registration)
-    * [Symbiotic Registration Steps](#symbiotic-registration-steps)
-    * [EigenLayer Registration Steps](#eigenlayer-registration-steps)
-* [Off-Chain Setup](#off-chain-setup)
-  * [Docker Mode (recommended)](#docker-mode-recommended)
-  * [Commit-Boost Mode](#commit-boost-mode)
-  * [Native Mode (advanced)](#native-mode-advanced)
-    * [Building and running the MEV-Boost fork binary](#building-and-running-the-mev-boost-fork-binary)
-    * [Building and running the Bolt sidecar binary](#building-and-running-the-bolt-sidecar-binary)
-      * [Configuration file](#configuration-file)
-  * [Observability](#observability)
-  * [Firewall Delegation](#firewall-delegation)
-* [Reference](#reference)
-  * [Supported RPC nodes](#supported-rpc-nodes)
-  * [Supported Relays](#supported-relays)
-  * [Command-line options](#command-line-options)
-  * [Delegations and signing options for Native and Docker Compose Mode](#delegations-and-signing-options-for-native-and-docker-compose-mode)
-    * [`bolt` CLI](#bolt-cli)
-      * [Installation and usage](#installation-and-usage)
-    * [Using a private key directly](#using-a-private-key-directly)
-    * [Using a ERC-2335 Keystore](#using-a-erc-2335-keystore)
-  * [Avoid restarting the beacon node](#avoid-restarting-the-beacon-node)
-  * [Vouch configuration](#vouch-configuration)
-    * [`execution_config.json`](#execution_configjson)
+- [Prerequisites](#prerequisites)
+- [On-Chain Registration](#on-chain-registration)
+  - [Validator Registration](#validator-registration)
+    - [Registration Steps](#registration-steps)
+  - [Bolt Network Entrypoint](#bolt-network-entrypoint)
+  - [Operator Registration](#operator-registration)
+    - [Symbiotic Registration Steps](#symbiotic-registration-steps)
+    - [EigenLayer Registration Steps](#eigenlayer-registration-steps)
+- [Off-Chain Setup](#off-chain-setup)
+  - [Docker Mode (recommended)](#docker-mode-recommended)
+  - [Commit-Boost Mode](#commit-boost-mode)
+  - [Native Mode (advanced)](#native-mode-advanced)
+    - [Building and running the MEV-Boost fork binary](#building-and-running-the-mev-boost-fork-binary)
+    - [Building and running the Bolt sidecar binary](#building-and-running-the-bolt-sidecar-binary)
+      - [Configuration file](#configuration-file)
+  - [Observability](#observability)
+  - [Firewall Delegation](#firewall-delegation)
+- [Reference](#reference)
+  - [Supported RPC nodes](#supported-rpc-nodes)
+  - [Supported Relays](#supported-relays)
+  - [Command-line options](#command-line-options)
+  - [Delegations and signing options for Native and Docker Compose Mode](#delegations-and-signing-options-for-native-and-docker-compose-mode)
+    - [`bolt` CLI](#bolt-cli)
+      - [Installation and usage](#installation-and-usage)
+    - [Using a private key directly](#using-a-private-key-directly)
+    - [Using a ERC-2335 Keystore](#using-a-erc-2335-keystore)
+  - [Avoid restarting the beacon node](#avoid-restarting-the-beacon-node)
+  - [Vouch configuration](#vouch-configuration)
+    - [`execution_config.json`](#execution_configjson)
 
 <!-- vim-markdown-toc -->
 
@@ -321,7 +321,7 @@ Fill the required options and run the script. If the script executed
 successfully, your validators were registered.
 
 > [!IMPORTANT]
-> If you want to run in firewall delegation mode, set the `--operator-rpc` to `https://rpc-holesky.bolt.chainbound.io/rpc`.
+> If you want to run in firewall delegation mode, set the `--operator-rpc` to `https://rpc.holesky.boltprotocol.xyz/rpc`.
 > Firewall delegation is covered [here](#firewall-delegation).
 
 To check your operator status, you can use the `bolt operator
@@ -412,7 +412,7 @@ Options:
 ```
 
 > [!IMPORTANT]
-> If you want to run in firewall delegation mode, set the `--operator-rpc` to `https://rpc-holesky.bolt.chainbound.io/rpc`.
+> If you want to run in firewall delegation mode, set the `--operator-rpc` to `https://rpc.holesky.boltprotocol.xyz/rpc`.
 > Firewall delegation is covered [here](#firewall-delegation).
 
 A note on the `--salt` parameter:
@@ -662,7 +662,7 @@ docker compose -f telemetry.compose.yml down
 
 ## Firewall Delegation
 
-The Bolt sidecar will run in firewall delegation mode by default (specified in `BOLT_SIDECAR_FIREWALL_RPCS=“wss://rpc-holesky.bolt.chainbound.io/api/v1/firewall_stream”`). This means that it will initiate an outbound connection to the WebSocket endpoint
+The Bolt sidecar will run in firewall delegation mode by default (specified in `BOLT_SIDECAR_FIREWALL_RPCS=“wss://rpc.holesky.boltprotocol.xyz/api/v1/firewall_stream”`). This means that it will initiate an outbound connection to the WebSocket endpoint
 defined above. It is recommended to run this mode because it will protect you from spam and DoS.
 
 If you wish to disable this, you'll have to expose an endpoint yourself on which to receive inclusion requests.
@@ -682,9 +682,9 @@ sudo ufw allow from any to any port $BOLT_SIDECAR_PORT
 Currently the only deployed [Bolt RPC](https://docs.boltprotocol.xyz/technical-docs/api/rpc)
 API is the one provided by Chainbound:
 
-- [`https://rpc-holesky.bolt.chainbound.io`](https://rpc-holesky.bolt.chainbound.io)
-  - RPC entrypoint: [/rpc](https://rpc-holesky.bolt.chainbound.io/rpc)
-  - OpenAPI documentation: [/docs](https://rpc-holesky.bolt.chainbound.io/docs)
+- [`https://rpc.holesky.boltprotocol.xyz`](https://rpc.holesky.boltprotocol.xyz)
+  - RPC entrypoint: [/rpc](https://rpc.holesky.boltprotocol.xyz/rpc)
+  - OpenAPI documentation: [/docs](https://rpc.holesky.boltprotocol.xyz/docs)
 
 ## Supported Relays
 
