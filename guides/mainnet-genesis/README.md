@@ -148,6 +148,20 @@ bolt operators eigenlayer status \
     --address <your-operator-address>
 ```
 
+### Deregistration
+Use the following command to deregister from bolt:
+
+```bash
+bolt operators eigenlayer deregister \
+    --rpc-url <your-rpc-url> \
+    --operator-private-key <your-operator-private-key> 
+```
+
+where:
+
+- `<your-rpc-url>` is the URL of the Ethereum RPC node you are using
+- `<your-operator-private-key>` is the private key of the operator account you are using
+
 ## Symbiotic Operators
 > [!NOTE]
 > You need to be a registered Symbiotic operator in order to proceed.
@@ -238,7 +252,6 @@ bolt operators symbiotic status \
 
 ### Step 4: Post Deposit Actions
 Depending on the type of vault, there are some actions needed before your operator shares are visible in bolt.
-
 #### OperatorSpecific and OperatorNetworkSpecific Vaults
 - **Us**: whitelist vault
 - **Vault manager**: set network limit on the vault delegator ([guide](https://docs.symbiotic.fi/handbooks/vaults-handbook#network-onboarding))
@@ -247,3 +260,17 @@ Depending on the type of vault, there are some actions needed before your operat
 - **Us**: whitelist vault
 - **Vault manager**: set network limit on the vault delegator ([guide](https://docs.symbiotic.fi/handbooks/vaults-handbook#network-onboarding))
 - **Vault manager**: set operator network limit on the vault delegator ([guide](https://docs.symbiotic.fi/handbooks/vaults-handbook#operator-onboarding))
+
+### Deregistration
+Use the following command to deregister from bolt:
+
+```bash
+bolt operators symbiotic deregister \
+    --rpc-url <your-rpc-url> \
+    --operator-private-key <your-operator-private-key> 
+```
+
+where:
+
+- `<your-rpc-url>` is the URL of the Ethereum RPC node you are using
+- `<your-operator-private-key>` is the private key of the operator account you are using
