@@ -1,10 +1,7 @@
 use alloy::{
     contract::Error as ContractError,
     network::EthereumWallet,
-    primitives::{
-        utils::{format_ether, Unit},
-        Bytes, Uint, B256, U256,
-    },
+    primitives::{utils::format_ether, Bytes, B256, U256},
     providers::ProviderBuilder,
     signers::{local::PrivateKeySigner, SignerSync},
     sol_types::SolInterface,
@@ -33,7 +30,6 @@ use crate::{
             AVSDirectory, IStrategy::IStrategyInstance, IStrategyManager::IStrategyManagerInstance,
         },
         erc20::IERC20::IERC20Instance,
-        strategy_to_address,
     },
 };
 
@@ -55,10 +51,8 @@ impl EigenLayerSubcommand {
 
                 let deployments = deployments_for_chain(chain);
 
-                let strategy_address =
-                    strategy_to_address(strategy, deployments.eigen_layer.supported_strategies);
-                let strategy_contract = IStrategyInstance::new(strategy_address, provider.clone());
-                let strategy_manager_address = deployments.eigen_layer.strategy_manager;
+                let strategy_contract = IStrategyInstance::new(strategy, provider.clone());
+                let strategy_manager_address = deployments.eigenlayer.strategy_manager;
                 let strategy_manager =
                     IStrategyManagerInstance::new(strategy_manager_address, provider.clone());
 
@@ -88,10 +82,8 @@ impl EigenLayerSubcommand {
                 let result = result.watch().await?;
                 info!("Approval transaction included. Transaction hash: {:?}", result);
 
-                let result = strategy_manager
-                    .depositIntoStrategy(strategy_address, token, amount)
-                    .send()
-                    .await?;
+                let result =
+                    strategy_manager.depositIntoStrategy(strategy, token, amount).send().await?;
 
                 info!(hash = ?result.tx_hash(), "Submitted deposit transaction, awaiting receipt...");
                 let receipt = result.get_receipt().await?;
@@ -133,7 +125,7 @@ impl EigenLayerSubcommand {
                 let salt = salt.unwrap_or_else(|| B256::from_slice(&rand::random::<[u8; 32]>()));
 
                 let avs_directory =
-                    AVSDirectory::new(deployments.eigen_layer.avs_directory, &provider);
+                    AVSDirectory::new(deployments.eigenlayer.avs_directory, &provider);
 
                 let signature_digest = avs_directory
                     .calculateOperatorAVSRegistrationDigestHash(
@@ -439,6 +431,11 @@ impl EigenLayerSubcommand {
                         return Ok(())
                     }
 
+                    let middleware = BoltEigenLayerMiddlewareHolesky::new(
+                        deployments.bolt.eigenlayer_middleware,
+                        provider.clone(),
+                    );
+
                     match bolt_manager.getOperatorData(address).call().await {
                         Ok(operator_data) => {
                             info!(?address, operator_data = ?operator_data._0, "Operator data");
@@ -456,40 +453,23 @@ impl EigenLayerSubcommand {
                         },
                     }
 
-                    // Check if operator has collateral
-                    let mut total_collateral = Uint::from(0);
-                    for (name, collateral) in deployments.collateral {
-                        let stake =
-                            match bolt_manager.getOperatorStake(address, collateral).call().await {
-                                Ok(stake) => stake._0,
-                                Err(e) => {
-                                    match try_parse_contract_error::<
-                                        BoltEigenLayerMiddlewareHoleskyErrors,
-                                    >(e)?
-                                    {
-                                        BoltEigenLayerMiddlewareHoleskyErrors::KeyNotFound(_) => {
-                                            Uint::from(0)
-                                        }
-                                        other => unreachable!(
-                                            "Unexpected error with selector {:?}",
-                                            other.selector()
-                                        ),
-                                    }
+                    match middleware.getOperatorCollaterals(address).call().await {
+                        Ok(collaterals) => {
+                            for (token, amount) in collaterals._0.iter().zip(collaterals._1.iter())
+                            {
+                                if !amount.is_zero() {
+                                    info!(?address, token = %token, amount = format_ether(*amount), "Operator has collateral");
                                 }
-                            };
+                            }
 
-                        if stake > Uint::from(0) {
-                            total_collateral += stake;
-                            info!(?address, token = %name, amount = ?stake, "Operator has collateral");
+                            let total_collateral = collaterals._1.iter().sum::<U256>();
+                            info!(
+                                ?address,
+                                "Total operator collateral: {}",
+                                format_ether(total_collateral)
+                            );
                         }
-                    }
-
-                    if total_collateral >= Unit::ETHER.wei() {
-                        info!(?address, total_collateral=?total_collateral, "Operator is active");
-                    } else if total_collateral > Uint::from(0) {
-                        info!(?address, total_collateral=?total_collateral, "Total operator collateral");
-                    } else {
-                        warn!(?address, "Operator has no collateral");
+                        Err(e) => parse_eigenlayer_middleware_mainnet_errors(e)?,
                     }
                 }
 
@@ -547,14 +527,13 @@ mod tests {
         contracts::{
             deployments_for_chain,
             eigenlayer::{DelegationManager, IStrategy},
-            strategy_to_address, EigenLayerStrategy,
         },
     };
 
     use alloy::{
         network::EthereumWallet,
         node_bindings::Anvil,
-        primitives::{keccak256, utils::parse_units, Address, U256},
+        primitives::{address, keccak256, utils::parse_units, Address, U256},
         providers::{ext::AnvilApi, Provider, ProviderBuilder, WalletProvider},
         signers::local::PrivateKeySigner,
         sol_types::SolValue,
@@ -587,10 +566,7 @@ mod tests {
 
         let deployments = deployments_for_chain(Chain::Holesky);
 
-        let weth_strategy_address = strategy_to_address(
-            EigenLayerStrategy::WEth,
-            deployments.eigen_layer.supported_strategies,
-        );
+        let weth_strategy_address = address!("80528D6e9A2BAbFc766965E0E26d5aB08D9CFaF9");
         let strategy = IStrategy::new(weth_strategy_address, provider.clone());
         let weth_address = strategy.underlyingToken().call().await.expect("underlying token").token;
 
@@ -606,7 +582,7 @@ mod tests {
         //    EigenLayer CLI, but we do it here for testing purposes.
 
         let delegation_manager =
-            DelegationManager::new(deployments.eigen_layer.delegation_manager, provider.clone());
+            DelegationManager::new(deployments.eigenlayer.delegation_manager, provider.clone());
 
         let receipt = delegation_manager
             .registerAsOperator(Address::ZERO, 0, "https://bolt.chainbound.io/rpc".to_string())
@@ -635,7 +611,7 @@ mod tests {
                 subcommand: EigenLayerSubcommand::Deposit {
                     rpc_url: anvil_url.clone(),
                     operator_private_key: secret_key,
-                    strategy: EigenLayerStrategy::WEth,
+                    strategy: weth_strategy_address,
                     amount: U256::from(1),
                 },
             },

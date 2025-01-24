@@ -65,6 +65,13 @@ sol! {
         /// EigenLayer internally contains a mapping from `msg.sender` (our AVS contract) to the operator.
         function deregisterOperator() public;
 
+        /// @notice Get the collaterals and amounts staked by an operator across the supported strategies.
+        ///
+        /// @param operator The operator address to get the collaterals and amounts staked for.
+        /// @return collaterals The collaterals staked by the operator.
+        /// @dev Assumes that the operator is registered and enabled.
+        function getOperatorCollaterals(address operator) public view returns (address[] memory, uint256[] memory);
+
         error AlreadyRegistered();
         error NotOperator();
         error NotRegistered();

@@ -2,8 +2,8 @@ use alloy::{
     contract::Error as ContractError,
     network::EthereumWallet,
     primitives::{
-        utils::{format_ether, Unit},
-        Uint, U256,
+        utils::format_ether,
+        U256,
     },
     providers::ProviderBuilder,
     signers::local::PrivateKeySigner,
@@ -326,6 +326,8 @@ impl SymbioticSubcommand {
                         return Ok(())
                     }
 
+                    let middleware = BoltSymbioticMiddlewareHolesky::new(deployments.bolt.symbiotic_middleware, provider.clone());
+
                     match bolt_manager.getOperatorData(address).call().await {
                         Ok(operator_data) => {
                             info!(?address, operator_data = ?operator_data._0, "Operator data");
@@ -343,38 +345,23 @@ impl SymbioticSubcommand {
                         },
                     }
 
-                    // Check if operator has collateral
-                    let mut total_collateral = Uint::from(0);
-                    for (name, collateral) in deployments.collateral {
-                        let stake =
-                            match bolt_manager.getOperatorStake(address, collateral).call().await {
-                                Ok(stake) => stake._0,
-                                Err(e) => {
-                                    match try_parse_contract_error::<
-                                        BoltSymbioticMiddlewareHoleskyErrors,
-                                    >(e)?
-                                    {
-                                        BoltSymbioticMiddlewareHoleskyErrors::KeyNotFound(_) => {
-                                            Uint::from(0)
-                                        }
-                                        other => unreachable!(
-                                            "Unexpected error with selector {:?}",
-                                            other.selector()
-                                        ),
-                                    }
+                    match middleware.getOperatorCollaterals(address).call().await {
+                        Ok(collaterals) => {
+                            for (token, amount) in collaterals._0.iter().zip(collaterals._1.iter())
+                            {
+                                if !amount.is_zero() {
+                                    info!(?address, token = %token, amount = format_ether(*amount), "Operator has collateral");
                                 }
-                            };
-                        if stake > Uint::from(0) {
-                            total_collateral += stake;
-                            info!(?address, token = %name, amount = ?stake, "Operator has collateral");
+                            }
+
+                            let total_collateral = collaterals._1.iter().sum::<U256>();
+                            info!(
+                                ?address,
+                                "Total operator collateral: {}",
+                                format_ether(total_collateral)
+                            );
                         }
-                    }
-                    if total_collateral >= Unit::ETHER.wei() {
-                        info!(?address, total_collateral=?total_collateral, "Operator is active");
-                    } else if total_collateral > Uint::from(0) {
-                        info!(?address, total_collateral=?total_collateral, "Total operator collateral");
-                    } else {
-                        warn!(?address, "Operator has no collateral");
+                        Err(e) => parse_symbiotic_middleware_mainnet_errors(e)?,
                     }
                 }
 
@@ -519,7 +506,7 @@ mod tests {
 
         print_output(opt_in_network);
 
-        let vault = deployments.symbiotic.supported_vaults[3]; // WETH vault
+        let vault = address!("C56Ba584929c6f381744fA2d7a028fA927817f2b");
 
         let opt_in_vault = Command::new("python3")
             .arg("symbiotic-cli/symb.py")
