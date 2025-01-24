@@ -162,6 +162,8 @@ where:
 - `<your-rpc-url>` is the URL of the Ethereum RPC node you are using
 - `<your-operator-private-key>` is the private key of the operator account you are using
 
+This will unlink your Symbiotic operator from the bolt middleware. 
+
 ## Symbiotic Operators
 > [!NOTE]
 > You need to be a registered Symbiotic operator in order to proceed.
@@ -274,3 +276,5 @@ where:
 
 - `<your-rpc-url>` is the URL of the Ethereum RPC node you are using
 - `<your-operator-private-key>` is the private key of the operator account you are using
+
+This will unlink your Symbiotic operator from the bolt middleware. Note that you will still have to deregister in the Symbiotic contracts too.
