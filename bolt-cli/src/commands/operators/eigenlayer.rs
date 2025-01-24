@@ -418,13 +418,12 @@ impl EigenLayerSubcommand {
                                 info!(?address, token = %token, amount = format_ether(*amount), "Operator has collateral");
                             }
 
-                            if collaterals._1.iter().sum::<U256>() >= Unit::ETHER.wei() {
-                                info!(?address, "Operator is active");
-                            } else if collaterals._1.iter().sum::<U256>() > U256::from(0) {
-                                info!(?address, "Total operator collateral");
-                            } else {
-                                warn!(?address, "Operator has no collateral");
-                            }
+                            let total_collateral = collaterals._1.iter().sum::<U256>();
+                            info!(
+                                ?address,
+                                "Total operator collateral: {}",
+                                format_ether(total_collateral)
+                            );
                         }
                         Err(e) => parse_eigenlayer_middleware_mainnet_errors(e)?,
                     }
