@@ -142,7 +142,7 @@ and allocate slashable magnitudes to the AVS as you see fit.
 As an operator, you need to opt in to our network. This is the `opt-in-network` command in the CLI ([docs](https://docs.symbiotic.fi/handbooks/operators-handbook#through-cli)).
 
 > [!IMPORTANT]
-> Our network address is **`0xA42ec46F2c9DC671a72218E145CC13dc119fB722`**.
+> Our network address is **`0xA42ec46F2c9DC671a72218E145CC13dc119fB722`** ([boltprotocol.eth](https://etherscan.io/address/boltprotocol.eth)).
 
 Example:
 ```bash
