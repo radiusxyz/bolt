@@ -135,13 +135,11 @@ whitelisted EigenLayer strategies. Here is a list of the strategies you can use:
 
 <!-- TODO: add strategies -->
 
-If you wish to use a different strategy, please reach out to us (at `dev@chainbound.io`
-or through [Discord](https://discord.gg/G5BJjCD9ss)/[X](https://x.com/boltprotocol_))
-and we will consider adding it to the whitelist. Please note that we only accept
-ETH-derivative strategies currently.
+Please reach out to us through the **Bolt Node Operator Working Group: Cohort 1** Telegram channel (for Bolt NOs), 
+or at [dev@chainbound.io](mailto:dev@chainbound.io) if you want to request a new strategy to be whitelisted. 
 
 > [!NOTE]
-> The vault activation process takes 24 hours. You can deposit collateral immediately, but it won't show up until
+> The strategy activation process takes 24 hours. You can deposit collateral immediately, but it won't show up until
 > the activation period has passed.
 
 Depositing as a staker is done through the [StrategyManager](https://github.com/Layr-Labs/eigenlayer-contracts/blob/ecaff6304de6cb0f43b42024ad55d0e8a0430790/src/contracts/core/StrategyManager.sol#L94-L100)
@@ -242,8 +240,8 @@ where:
 As a staker, you can deposit collateral in a vault. **Please note that this is not mandatory for mainnet genesis**.
 
 Regardless of the type of vault, we have to activate & whitelist the vault on our network.
-Please reach out to us through the **Bolt Node Operator Working Group: Cohort 1** Telegram channel, 
-or at [dev@chainbound.io](mailto:dev@chainbound.io). 
+Please reach out to us through the **Bolt Node Operator Working Group: Cohort 1** Telegram channel (for NOs), 
+or at [dev@chainbound.io](mailto:dev@chainbound.io) if you want to request a new vault to be whitelisted. 
 
 We'll need the following information about your vault:
 - Collateral
