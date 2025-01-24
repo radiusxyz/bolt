@@ -95,11 +95,9 @@ lazy_static! {
             parameters: address!("0000000000000000000000000000000000000000"),
             manager: address!("0000000000000000000000000000000000000000"),
 
-            // TODO(nico): change these to mainnet actual addresses
-            // these point to our Anvil fork for now
-            operators_registry: address!("Ed8D7d3A98CB4ea6C91a80dcd2220719c264531f"),
-            eigenlayer_middleware: address!("2ca60d89144D4cdf85dA87af4FE12aBF9265F28C"),
-            symbiotic_middleware: address!("fD3e0cEe740271f070607aEddd0Bf4Cf99C92204"),
+            operators_registry: address!("630869F51C012C797FEb3D9006F4280587C78b3f"),
+            eigenlayer_middleware: address!("35DebC00531Ac8771be5dbEf015feFD084efA958"),
+            symbiotic_middleware: address!("74c4eF33fce5bbfDb786c65efca513C68C7d19C3"),
         },
         symbiotic: Symbiotic {
             network: address!("A42ec46F2c9DC671a72218E145CC13dc119fB722"),

@@ -23,9 +23,7 @@ use crate::{
             BoltSymbioticMiddlewareHolesky::{self, BoltSymbioticMiddlewareHoleskyErrors}, 
             BoltSymbioticMiddlewareMainnet::{self, BoltSymbioticMiddlewareMainnetErrors}, 
             OperatorsRegistryV1::{self, OperatorsRegistryV1Errors}
-        },
-        deployments_for_chain,
-        symbiotic::IOptInService,
+        }, deployments_for_chain, erc20::IERC20, symbiotic::{IOptInService, IVault}
     },
 };
 
@@ -361,6 +359,46 @@ impl SymbioticSubcommand {
                         }
                         Err(e) => parse_symbiotic_middleware_mainnet_errors(e)?,
                     }
+                }
+
+                Ok(())
+            }
+
+            Self::ListVaults { rpc_url } => {
+                let provider = ProviderBuilder::new().on_http(rpc_url.clone());
+
+                let chain = Chain::try_from_provider(&provider).await?;
+
+                let deployments = deployments_for_chain(chain);
+
+                info!("Listing all Symbiotic whitelisted vaults:");
+
+                // TODO(nico): consolidate holesky & mainnet smart contracts
+                let vaults = if chain == Chain::Mainnet {
+                    let symb_middleware = BoltSymbioticMiddlewareMainnet::new(
+                        deployments.bolt.symbiotic_middleware,
+                        &provider,
+                    );
+
+                    symb_middleware.getActiveWhitelistedVaults().call().await?._0
+                } else if chain == Chain::Holesky {
+                    let symb_middleware = BoltSymbioticMiddlewareHolesky::new(
+                        deployments.bolt.symbiotic_middleware,
+                        &provider,
+                    );
+
+                    symb_middleware.getWhitelistedVaults().call().await?._0
+                } else {
+                    unreachable!("Invalid chain");
+                };
+
+                for vault_address in vaults {
+                    let vault = IVault::new(vault_address, &provider);
+                    let token_address = vault.collateral().call().await?._0;
+                    let token = IERC20::new(token_address, &provider);
+                    let token_symbol = token.symbol().call().await?._0;
+
+                    info!("- Token: {} - Vault: {}", token_symbol, vault_address);
                 }
 
                 Ok(())

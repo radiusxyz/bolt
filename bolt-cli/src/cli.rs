@@ -291,12 +291,19 @@ pub enum EigenLayerSubcommand {
 
     /// Check the status of an operator in the bolt AVS.
     Status {
-        /// The URL of the RPC to broadcast the transaction.
+        /// The URL of the RPC to read data from
         #[clap(long, env = "RPC_URL")]
         rpc_url: Url,
         /// The address of the operator to check.
         #[clap(long, env = "OPERATOR_ADDRESS")]
         address: Address,
+    },
+
+    /// List all whitelisted EigenLayer strategies
+    ListStrategies {
+        /// The URL of the RPC to read data from
+        #[clap(long, env = "RPC_URL")]
+        rpc_url: Url,
     },
 }
 
@@ -351,6 +358,13 @@ pub enum SymbioticSubcommand {
         /// The address of the operator to check.
         #[clap(long, env = "OPERATOR_ADDRESS")]
         address: Address,
+    },
+
+    /// List all whitelisted Symbiotic vaults
+    ListVaults {
+        /// The URL of the RPC to read data from
+        #[clap(long, env = "RPC_URL")]
+        rpc_url: Url,
     },
 }
 

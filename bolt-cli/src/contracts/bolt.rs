@@ -114,6 +114,9 @@ sol! {
         /// @dev Assumes that the operator is registered and enabled.
         function getOperatorCollaterals(address operator) public view returns (address[] memory, uint256[] memory);
 
+        /// @notice Get the list of currently restakeable strategies
+        function getRestakeableStrategies() external view returns (address[] memory);
+
         error AlreadyRegistered();
         error NotOperator();
         error NotRegistered();
@@ -145,6 +148,9 @@ sol! {
         /// @dev Assumes that the operator is registered and enabled.
         function getOperatorCollaterals(address operator) public view returns (address[] memory, uint256[] memory);
 
+        /// @notice Get the whitelisted vaults.
+        function getWhitelistedVaults() public view returns (address[] memory);
+
         error AlreadyRegistered();
         error NotOperator();
         error NotRegistered();
@@ -172,6 +178,8 @@ sol! {
 
         function updateOperatorsRegistryAddress(address newOperatorsRegistry) public;
 
+        function getActiveWhitelistedStrategies() public view returns (address[] memory);
+
         error InvalidRpc();
         error InvalidSigner();
         error Unauthorized();
@@ -192,6 +200,10 @@ sol! {
         function registerOperator(string calldata rpcEndpoint, string calldata extraData) public;
 
         function deregisterOperator() public;
+
+        /// @notice Gets all _active_ whitelisted vaults.
+        /// @return An array of active whitelisted vaults.
+        function getActiveWhitelistedVaults() public view returns (address[] memory);
 
         error NotOperator();
         error OperatorNotOptedIn();
