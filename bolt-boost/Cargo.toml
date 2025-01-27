@@ -42,8 +42,8 @@ alloy = { version = "0.8.3", features = ["signer-local", "provider-trace-api", "
 alloy-rlp = "0.3.11"
 
 # commit-boost
-cb-common = { git = "https://github.com/commit-boost/commit-boost-client", rev = "v0.5.0" }
-cb-pbs = { git = "https://github.com/commit-boost/commit-boost-client", rev = "v0.5.0" }
+cb-common = { git = "https://github.com/commit-boost/commit-boost-client", tag = "v0.5.0" }
+cb-pbs = { git = "https://github.com/commit-boost/commit-boost-client", tag = "v0.5.0" }
 
 # other
 rand = "0.8.5"
