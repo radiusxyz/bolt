@@ -10,7 +10,7 @@ set -eo pipefail
 # Target tuples for cross compilation.
 # each tuple is in the format of "target-triple", "short-name".
 TARGETS=(
-    "aarch64-apple-darwin" "arm64-darwin" # ARM apple chips (M1)
+    "aarch64-apple-darwin" "arm64-darwin" # ARM apple chips (M-series)
     # Intel Mac builds are currently broken
     # "x86_64-apple-darwin" "amd64-darwin"      # Intel apple chips
     "aarch64-unknown-linux-gnu" "arm64-linux" # ARM linux chips
