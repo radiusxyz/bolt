@@ -9,14 +9,16 @@ use thiserror::Error;
 use tracing::{debug, error, trace, warn};
 
 use crate::{
-    builder::BlockTemplate,
+    builder::template::BlockTemplate,
     common::{
         score_cache::ScoreCache,
         transactions::{calculate_max_basefee, max_transaction_cost, validate_transaction},
     },
     config::limits::LimitsOpts,
     primitives::{
-        signature::SignatureError, AccountState, InclusionRequest, SignedConstraints, Slot,
+        diffs::{AccountDiff, BalanceDiff, BalanceDiffApplier},
+        signature::SignatureError,
+        AccountState, InclusionRequest, SignedConstraints, Slot,
     },
     state::pricing,
     telemetry::ApiMetrics,
@@ -354,7 +356,7 @@ impl<C: StateFetcher> ExecutionState<C> {
         for tx in &req.txs {
             let sender = tx.sender().expect("Recovered sender");
 
-            let (nonce_diff, balance_diff, highest_slot_for_account) =
+            let (account_diff, highest_slot_for_account) =
                 compute_diffs(&self.block_templates, sender);
 
             if target_slot < highest_slot_for_account {
@@ -366,7 +368,7 @@ impl<C: StateFetcher> ExecutionState<C> {
                 ValidationError::Internal(format!("Error fetching account state: {:?}", e))
             })?;
 
-            debug!(?account_state, ?nonce_diff, ?balance_diff, "Validating transaction");
+            debug!(?account_state, ?account_diff, "Validating transaction");
 
             let sender_nonce_diff = bundle_nonce_diff_map.entry(sender).or_insert(0);
             let sender_balance_diff = bundle_balance_diff_map.entry(sender).or_insert(U256::ZERO);
@@ -376,14 +378,13 @@ impl<C: StateFetcher> ExecutionState<C> {
             let account_state_with_diffs = AccountState {
                 transaction_count: account_state
                     .transaction_count
-                    .saturating_add(nonce_diff)
+                    .saturating_add(account_diff.nonce())
                     .saturating_add(*sender_nonce_diff),
 
-                balance: account_state
-                    .balance
-                    .saturating_sub(balance_diff)
+                balance: account_diff
+                    .balance()
+                    .apply(account_state.balance)
                     .saturating_sub(*sender_balance_diff),
-
                 has_code: account_state.has_code,
             };
 
@@ -524,11 +525,12 @@ impl<C: StateFetcher> ExecutionState<C> {
                 template.retain(address, expected_account_state);
 
                 // Update the account state with the remaining state diff for the next iteration.
-                if let Some((nonce_diff, balance_diff)) = template.get_diff(&address) {
+                if let Some(account_diff) = template.get_diff(&address) {
                     // Nonce will always be increased
-                    expected_account_state.transaction_count += nonce_diff;
-                    // Balance will always be decreased
-                    expected_account_state.balance -= balance_diff;
+                    expected_account_state.transaction_count += account_diff.nonce();
+                    // Re-apply balance diffs
+                    expected_account_state.balance =
+                        expected_account_state.balance.apply_diff(account_diff.balance())
                 }
             }
         }
@@ -583,21 +585,26 @@ pub struct StateUpdate {
 fn compute_diffs(
     block_templates: &HashMap<u64, BlockTemplate>,
     sender: &Address,
-) -> (u64, U256, u64) {
+) -> (AccountDiff, u64) {
     block_templates.iter().fold(
-        (0, U256::ZERO, 0),
-        |(nonce_diff_acc, balance_diff_acc, highest_slot), (slot, block_template)| {
-            let (nonce_diff, balance_diff, current_slot) = block_template
+        (AccountDiff::default(), 0),
+        |(diff_acc, highest_slot), (slot, block_template)| {
+            let (diff, current_slot) = block_template
                 .get_diff(sender)
-                .map(|(nonce, balance)| (nonce, balance, *slot))
-                .unwrap_or((0, U256::ZERO, 0));
+                .map(|diff| (diff, *slot))
+                .unwrap_or((AccountDiff::default(), 0));
             // This might be noisy but it is a critical part in validation logic and
             // hard to debug.
-            trace!(?nonce_diff, ?balance_diff, ?slot, ?sender, "found diffs");
+            trace!(account_diff = ?diff, ?slot, ?sender, "found diffs");
 
             (
-                nonce_diff_acc + nonce_diff,
-                balance_diff_acc.saturating_add(balance_diff),
+                AccountDiff::new(
+                    diff_acc.nonce() + diff.nonce(),
+                    BalanceDiff::new(
+                        diff_acc.balance().increase().saturating_add(diff.balance().increase()),
+                        diff_acc.balance().decrease().saturating_add(diff.balance().decrease()),
+                    ),
+                ),
                 u64::max(highest_slot, current_slot),
             )
         },
@@ -608,7 +615,7 @@ fn compute_diffs(
 mod tests {
     use super::*;
     use crate::{
-        builder::template::StateDiff, config::limits::DEFAULT_MAX_COMMITTED_GAS,
+        config::limits::DEFAULT_MAX_COMMITTED_GAS, primitives::diffs::StateDiff,
         signer::local::LocalSigner,
     };
     use std::{num::NonZero, str::FromStr, time::Duration};
@@ -636,10 +643,10 @@ mod tests {
         let block_templates = HashMap::new();
         let sender = Address::random();
 
-        let (nonce_diff, balance_diff, highest_slot) = compute_diffs(&block_templates, &sender);
+        let (account_diff, highest_slot) = compute_diffs(&block_templates, &sender);
 
-        assert_eq!(nonce_diff, 0);
-        assert_eq!(balance_diff, U256::ZERO);
+        assert_eq!(account_diff.nonce(), 0);
+        assert_eq!(account_diff.balance().decrease(), U256::ZERO);
         assert_eq!(highest_slot, 0);
     }
 
@@ -650,7 +657,8 @@ mod tests {
         let nonce = 1;
         let balance_diff = U256::from(2);
         let mut diffs = HashMap::new();
-        diffs.insert(sender, (nonce, balance_diff));
+        let account_diff = AccountDiff::new(nonce, BalanceDiff::new(U256::ZERO, balance_diff));
+        diffs.insert(sender, account_diff);
 
         // Insert StateDiff entry
         let state_diff = StateDiff { diffs };
@@ -660,10 +668,10 @@ mod tests {
         let block_template = BlockTemplate { state_diff, signed_constraints_list: vec![] };
         block_templates.insert(10, block_template);
 
-        let (nonce_diff, balance_diff, highest_slot) = compute_diffs(&block_templates, &sender);
+        let (computed_account_diff, highest_slot) = compute_diffs(&block_templates, &sender);
 
-        assert_eq!(nonce_diff, 1);
-        assert_eq!(balance_diff, U256::from(2));
+        assert_eq!(computed_account_diff.nonce(), 1);
+        assert_eq!(computed_account_diff.balance().decrease(), U256::from(2));
         assert_eq!(highest_slot, 10);
     }
 
@@ -715,7 +723,7 @@ mod tests {
 
         // Insert a constraint diff for slot 11
         let mut diffs = HashMap::new();
-        diffs.insert(*sender, (1, U256::ZERO));
+        diffs.insert(*sender, AccountDiff::new(1, BalanceDiff::default()));
         state.block_templates.insert(
             11,
             BlockTemplate { state_diff: StateDiff { diffs }, signed_constraints_list: vec![] },
@@ -748,7 +756,7 @@ mod tests {
 
         // Insert a constraint diff for slot 9 to simulate nonce increment
         let mut diffs = HashMap::new();
-        diffs.insert(*sender, (1, U256::ZERO));
+        diffs.insert(*sender, AccountDiff::new(1, BalanceDiff::default()));
         state.block_templates.insert(
             9,
             BlockTemplate { state_diff: StateDiff { diffs }, signed_constraints_list: vec![] },
