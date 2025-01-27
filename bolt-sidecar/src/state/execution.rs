@@ -894,6 +894,8 @@ mod tests {
         Ok(())
     }
 
+    /// Tests that a balance increase allows the recipient to send a transaction using preconfirmed
+    /// state.
     #[tokio::test]
     async fn test_balance_increase() -> eyre::Result<()> {
         let _ = tracing_subscriber::fmt::try_init();
@@ -949,6 +951,142 @@ mod tests {
             matches!(validation_result, Err(ValidationError::InsufficientBalance)),
             "Expected InsufficientBalance error, got {:?}",
             validation_result
+        );
+
+        Ok(())
+    }
+
+    /// Tests that a balance increase is dropped if the preconfirmation is cancelled.
+    #[tokio::test]
+    async fn test_balance_increase_dropped() -> eyre::Result<()> {
+        let _ = tracing_subscriber::fmt::try_init();
+
+        let anvil = launch_anvil();
+        let client = StateClient::new(anvil.endpoint_url());
+
+        let mut state = ExecutionState::new(client.clone(), LimitsOpts::default()).await?;
+
+        let sender = anvil.addresses().first().unwrap();
+        let sender_pk = anvil.keys().first().unwrap();
+        let signer = LocalSigner::random();
+
+        // initialize the state by updating the head once
+        let slot = client.get_head().await?;
+        state.update_head(None, slot).await?;
+        let target_slot = slot;
+
+        let recipient_sk = PrivateKeySigner::random();
+        let recipient_pk = recipient_sk.address();
+
+        // Create a transfer of 1 ETH to the recipient
+        let tx = default_test_transaction(*sender, Some(0))
+            .with_to(recipient_pk)
+            .with_value(WEI_IN_ETHER);
+        let mut request =
+            create_signed_inclusion_request(&[tx.clone()], &sender_pk.to_bytes(), 10).await?;
+
+        let validation = state.validate_request(&mut request).await;
+        assert!(validation.is_ok(), "Validation failed: {validation:?}");
+
+        add_constraint(request.clone(), &mut state, &signer, target_slot)?;
+
+        // Send a cancel tx
+        let tx = default_test_transaction(*sender, Some(0))
+            .with_to(*sender)
+            .with_max_priority_fee_per_gas(tx.max_priority_fee_per_gas.unwrap() + 1);
+
+        let _ = client.inner().send_transaction(tx).await?;
+
+        // Wait 1s, update the head to include the cancel tx; the constraint should be dropped
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        state.update_head(None, slot + 1).await?;
+
+        // Now the recipient should not have balance
+        let tx = default_test_transaction(recipient_pk, Some(0)).with_value(U256::from(1));
+        let mut request = create_signed_inclusion_request(
+            &[tx],
+            recipient_sk.to_bytes().as_slice(),
+            target_slot + 1,
+        )
+        .await?;
+
+        let validation_result = state.validate_request(&mut request).await;
+
+        assert!(
+            matches!(validation_result, Err(ValidationError::InsufficientBalance)),
+            "Expected InsufficientBalance error, got {:?}",
+            validation_result
+        );
+
+        Ok(())
+    }
+
+    /// Tests that a chained preconfirmation is dropped if the previous one is cancelled.
+    #[tokio::test]
+    async fn test_chained_preconfs_dropped() -> eyre::Result<()> {
+        let _ = tracing_subscriber::fmt::try_init();
+
+        let anvil = launch_anvil();
+        let client = StateClient::new(anvil.endpoint_url());
+
+        let mut state = ExecutionState::new(client.clone(), LimitsOpts::default()).await?;
+
+        let sender = anvil.addresses().first().unwrap();
+        let sender_pk = anvil.keys().first().unwrap();
+        let signer = LocalSigner::random();
+
+        // initialize the state by updating the head once
+        let slot = client.get_head().await?;
+        state.update_head(None, slot).await?;
+        let target_slot = slot + 2;
+
+        let recipient_sk = PrivateKeySigner::random();
+        let recipient_pk = recipient_sk.address();
+
+        // Create a transfer of 1 ETH to the recipient
+        let tx_1 = default_test_transaction(*sender, Some(0))
+            .with_to(recipient_pk)
+            .with_value(WEI_IN_ETHER);
+        let mut request =
+            create_signed_inclusion_request(&[tx_1.clone()], &sender_pk.to_bytes(), 10).await?;
+
+        let validation = state.validate_request(&mut request).await;
+        assert!(validation.is_ok(), "Validation failed: {validation:?}");
+
+        add_constraint(request.clone(), &mut state, &signer, target_slot)?;
+
+        // Now the sender should have enough balance to send a transaction
+        let tx_2 = default_test_transaction(recipient_pk, Some(0))
+            .with_value(WEI_IN_ETHER.div_ceil(U256::from(2)));
+        let mut request =
+            create_signed_inclusion_request(&[tx_2], recipient_sk.to_bytes().as_slice(), 10)
+                .await?;
+
+        let validation_result = state.validate_request(&mut request).await;
+
+        add_constraint(request, &mut state, &signer, target_slot)?;
+
+        assert!(validation_result.is_ok(), "validation failed: {validation_result:?}");
+
+        // Cancel the first preconfirmation request so that both preconfs are dropped.
+
+        // Send a cancel tx
+        let tx_3 = default_test_transaction(*sender, Some(0))
+            .with_to(*sender)
+            .with_max_priority_fee_per_gas(tx_1.max_priority_fee_per_gas.unwrap() + 1);
+
+        let _ = client.inner().send_transaction(tx_3).await?;
+
+        // Wait 1s, update the head to include the cancel tx; the constraint should be dropped
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        state.update_head(None, slot + 1).await?;
+
+        // Check that both preconfs have been dropped
+
+        let template = state.block_templates.get(&target_slot).unwrap();
+        assert!(
+            template.signed_constraints_list.is_empty(),
+            "block template should be empty, but got: {template:?}"
         );
 
         Ok(())
