@@ -237,14 +237,17 @@ where:
 
 ### Step 3: Deposit Collateral (Optional)
 
-As a staker, you can deposit collateral in a vault. **Please note that this is not mandatory for mainnet genesis**. Supported Vaults:
-| Collateral | Type | Address | Curator |
+As a staker, you can deposit collateral in a vault. **Please note that this is not mandatory for mainnet genesis**. Supported shared Vaults:
+
+| Collateral | Type | Address | Manager |
 | ---------- | ---- | ------- | ------- |
 | `wstETH`   | Network Restake | [`0xc10A7f0AC6E3944F4860eE97a937C51572e3a1Da`](https://etherscan.io/address/0xc10A7f0AC6E3944F4860eE97a937C51572e3a1Da) | Gauntlet |
 | `cbETH`    | Network Restake | [`0xB8Fd82169a574eB97251bF43e443310D33FF056C`](https://etherscan.io/address/0xB8Fd82169a574eB97251bF43e443310D33FF056C) | Gauntlet |
 | `rETH`     | Network Restake | [`0xaF07131C497E06361dc2F75de63dc1d3e113f7cb`](https://etherscan.io/address/0xaF07131C497E06361dc2F75de63dc1d3e113f7cb) | Gauntlet |
+| `swETH`     | Network Restake | [`0x65B560d887c010c4993C8F8B36E595C171d69D63`](https://etherscan.io/address/0x65B560d887c010c4993C8F8B36E595C171d69D63) | Gauntlet |
 | `wstETH`   | Network Restake | [`0x7b276aAD6D2ebfD7e270C5a2697ac79182D9550E`](https://etherscan.io/address/0x7b276aAD6D2ebfD7e270C5a2697ac79182D9550E) | P2P.org |
 | `wstETH`     | Network Restake | [`0x446970400e1787814CA050A4b45AE9d21B3f7EA7`](https://etherscan.io/address/0x446970400e1787814CA050A4b45AE9d21B3f7EA7) | MEV Capital |
+| `wstETH`     | Network Restake | [`0xf582E66bEFBDE57A1fFaC6D8Bf73017637803EF9`](https://etherscan.io/address/0xf582E66bEFBDE57A1fFaC6D8Bf73017637803EF9) | Renzo |
 
 Regardless of the type of vault, we have to activate & whitelist the vault on our network.
 Please reach out to us through the **Bolt Node Operator Working Group: Cohort 1** Telegram channel (for NOs), 
