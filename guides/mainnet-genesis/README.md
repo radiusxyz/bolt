@@ -246,6 +246,7 @@ As a staker, you can deposit collateral in a vault. **Please note that this is n
 | `rETH`     | Network Restake | [`0xaF07131C497E06361dc2F75de63dc1d3e113f7cb`](https://etherscan.io/address/0xaF07131C497E06361dc2F75de63dc1d3e113f7cb) | Gauntlet |
 | `swETH`     | Network Restake | [`0x65B560d887c010c4993C8F8B36E595C171d69D63`](https://etherscan.io/address/0x65B560d887c010c4993C8F8B36E595C171d69D63) | Gauntlet |
 | `wstETH`   | Network Restake | [`0x7b276aAD6D2ebfD7e270C5a2697ac79182D9550E`](https://etherscan.io/address/0x7b276aAD6D2ebfD7e270C5a2697ac79182D9550E) | P2P.org |
+| `wstETH`     | Network Restake | [`0x4e0554959A631B3D3938ffC158e0a7b2124aF9c5`](https://etherscan.io/address/0x4e0554959A631B3D3938ffC158e0a7b2124aF9c5) | MEV Capital |
 | `wstETH`     | Network Restake | [`0x446970400e1787814CA050A4b45AE9d21B3f7EA7`](https://etherscan.io/address/0x446970400e1787814CA050A4b45AE9d21B3f7EA7) | MEV Capital |
 | `wstETH`     | Network Restake | [`0xf582E66bEFBDE57A1fFaC6D8Bf73017637803EF9`](https://etherscan.io/address/0xf582E66bEFBDE57A1fFaC6D8Bf73017637803EF9) | Renzo |
 
