@@ -270,7 +270,6 @@ mod tests {
         headers::{authorization::Bearer, Authorization, UserAgent},
         TypedHeader,
     };
-    // use bytes::Bytes;
     use futures::{FutureExt, SinkExt, StreamExt};
     use reqwest::StatusCode;
     use serde::Serialize;
