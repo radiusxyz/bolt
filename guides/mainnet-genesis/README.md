@@ -100,7 +100,8 @@ where:
 - `<your-rpc-url>` is the URL of the Ethereum RPC node you are using
 - `<your-operator-private-key>` is the private key of the operator account you are using
 - `<your-extra-data-string>` is any extra string you want to include in the registration,
-  such as your operator name, website or a custom identifier
+  such as your operator name, website or a custom identifier. If you use a single word, please
+  avoid using quotes (e.g. `my-operator` instead of `"my-operator"`).
 - `<your-operator-rpc-url>` is the URL of the bolt-sidecar RPC server you will be receiving
   preconfirmation requests on. By default, this is set to Chainbound's "bolt RPC" that acts
   as proxy for all operators. You can also change this setting at any time later on.
@@ -127,16 +128,16 @@ where:
 You can already start depositing collateral for the AVS through one of the
 whitelisted EigenLayer strategies. Here is a list of the strategies you can use:
 
-| Collateral | Strategy Address                                                                                                         |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `stETH`    | [`0x93c4b944D05dfe6df7645A86cd2206016c51564D`](https://etherscan.io/address/0x93c4b944D05dfe6df7645A86cd2206016c51564D)  |
-| `rETH`     | [`0x1bee69b7dfffa4e2d53c2a2df135c388ad25dcd2`](https://etherscan.io/address/0x1bee69b7dfffa4e2d53c2a2df135c388ad25dcd2)  |
-| `mETH`     | [`0x298afb19a105d59e74658c4c334ff360bade6dd2`](https://etherscan.io/address/0x298afb19a105d59e74658c4c334ff360bade6dd2)  |
+| Collateral | Strategy Address                                                                                                        |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `stETH`    | [`0x93c4b944D05dfe6df7645A86cd2206016c51564D`](https://etherscan.io/address/0x93c4b944D05dfe6df7645A86cd2206016c51564D) |
+| `rETH`     | [`0x1bee69b7dfffa4e2d53c2a2df135c388ad25dcd2`](https://etherscan.io/address/0x1bee69b7dfffa4e2d53c2a2df135c388ad25dcd2) |
+| `mETH`     | [`0x298afb19a105d59e74658c4c334ff360bade6dd2`](https://etherscan.io/address/0x298afb19a105d59e74658c4c334ff360bade6dd2) |
 
 <!-- TODO: add strategies -->
 
-Please reach out to us through the **Bolt Node Operator Working Group: Cohort 1** Telegram channel (for Bolt NOs), 
-or at [dev@chainbound.io](mailto:dev@chainbound.io) if you want to request a new strategy to be whitelisted. 
+Please reach out to us through the **Bolt Node Operator Working Group: Cohort 1** Telegram channel (for Bolt NOs),
+or at [dev@chainbound.io](mailto:dev@chainbound.io) if you want to request a new strategy to be whitelisted.
 
 > [!NOTE]
 > The strategy activation process takes 24 hours. You can deposit collateral immediately, but it won't show up until
@@ -162,12 +163,13 @@ bolt operators eigenlayer status \
 ```
 
 ### Deregistration
+
 Use the following command to deregister from bolt:
 
 ```bash
 bolt operators eigenlayer deregister \
     --rpc-url <your-rpc-url> \
-    --operator-private-key <your-operator-private-key> 
+    --operator-private-key <your-operator-private-key>
 ```
 
 where:
@@ -175,26 +177,30 @@ where:
 - `<your-rpc-url>` is the URL of the Ethereum RPC node you are using
 - `<your-operator-private-key>` is the private key of the operator account you are using
 
-This will unlink your EigenLayer operator from the bolt middleware. 
+This will unlink your EigenLayer operator from the bolt middleware.
 
 ## Symbiotic Operators
+
 > [!NOTE]
 > You need to be a registered Symbiotic operator in order to proceed.
 > If you're not registered yet, follow [this guide](https://docs.symbiotic.fi/handbooks/operators-handbook#actions-in-symbiotic-core) in the
 > Symbiotic docs.
 
 ### Step 1: Opt in to the Bolt Symbiotic Network
+
 As an operator, you need to opt in to our network. This is the `opt-in-network` command in the CLI ([docs](https://docs.symbiotic.fi/handbooks/operators-handbook#through-cli)).
 
 > [!IMPORTANT]
 > Our network address is **`0xA42ec46F2c9DC671a72218E145CC13dc119fB722`** ([boltprotocol.eth](https://etherscan.io/address/boltprotocol.eth)).
 
 Example:
+
 ```bash
 python symb.py --chain mainnet opt-in-network 0xA42ec46F2c9DC671a72218E145CC13dc119fB722 --private-key $YOUR_OPERATOR_PRIVATE_KEY
 ```
 
 ### Step 2: Register your operator with Bolt
+
 To register in the bolt Symbiotic Network middleware contract, use the following bolt CLI command:
 
 ```bash
@@ -239,21 +245,22 @@ where:
 
 As a staker, you can deposit collateral in a vault. **Please note that this is not mandatory for mainnet genesis**. Supported shared Vaults:
 
-| Collateral | Type | Address | Manager |
-| ---------- | ---- | ------- | ------- |
-| `wstETH`   | Network Restake | [`0xc10A7f0AC6E3944F4860eE97a937C51572e3a1Da`](https://etherscan.io/address/0xc10A7f0AC6E3944F4860eE97a937C51572e3a1Da) | Gauntlet |
-| `cbETH`    | Network Restake | [`0xB8Fd82169a574eB97251bF43e443310D33FF056C`](https://etherscan.io/address/0xB8Fd82169a574eB97251bF43e443310D33FF056C) | Gauntlet |
-| `rETH`     | Network Restake | [`0xaF07131C497E06361dc2F75de63dc1d3e113f7cb`](https://etherscan.io/address/0xaF07131C497E06361dc2F75de63dc1d3e113f7cb) | Gauntlet |
-| `swETH`     | Network Restake | [`0x65B560d887c010c4993C8F8B36E595C171d69D63`](https://etherscan.io/address/0x65B560d887c010c4993C8F8B36E595C171d69D63) | Gauntlet |
-| `wstETH`   | Network Restake | [`0x7b276aAD6D2ebfD7e270C5a2697ac79182D9550E`](https://etherscan.io/address/0x7b276aAD6D2ebfD7e270C5a2697ac79182D9550E) | P2P.org |
-| `wstETH`     | Network Restake | [`0x446970400e1787814CA050A4b45AE9d21B3f7EA7`](https://etherscan.io/address/0x446970400e1787814CA050A4b45AE9d21B3f7EA7) | MEV Capital |
-| `wstETH`     | Network Restake | [`0xf582E66bEFBDE57A1fFaC6D8Bf73017637803EF9`](https://etherscan.io/address/0xf582E66bEFBDE57A1fFaC6D8Bf73017637803EF9) | Renzo |
+| Collateral | Type            | Address                                                                                                                 | Manager     |
+| ---------- | --------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `wstETH`   | Network Restake | [`0xc10A7f0AC6E3944F4860eE97a937C51572e3a1Da`](https://etherscan.io/address/0xc10A7f0AC6E3944F4860eE97a937C51572e3a1Da) | Gauntlet    |
+| `cbETH`    | Network Restake | [`0xB8Fd82169a574eB97251bF43e443310D33FF056C`](https://etherscan.io/address/0xB8Fd82169a574eB97251bF43e443310D33FF056C) | Gauntlet    |
+| `rETH`     | Network Restake | [`0xaF07131C497E06361dc2F75de63dc1d3e113f7cb`](https://etherscan.io/address/0xaF07131C497E06361dc2F75de63dc1d3e113f7cb) | Gauntlet    |
+| `swETH`    | Network Restake | [`0x65B560d887c010c4993C8F8B36E595C171d69D63`](https://etherscan.io/address/0x65B560d887c010c4993C8F8B36E595C171d69D63) | Gauntlet    |
+| `wstETH`   | Network Restake | [`0x7b276aAD6D2ebfD7e270C5a2697ac79182D9550E`](https://etherscan.io/address/0x7b276aAD6D2ebfD7e270C5a2697ac79182D9550E) | P2P.org     |
+| `wstETH`   | Network Restake | [`0x446970400e1787814CA050A4b45AE9d21B3f7EA7`](https://etherscan.io/address/0x446970400e1787814CA050A4b45AE9d21B3f7EA7) | MEV Capital |
+| `wstETH`   | Network Restake | [`0xf582E66bEFBDE57A1fFaC6D8Bf73017637803EF9`](https://etherscan.io/address/0xf582E66bEFBDE57A1fFaC6D8Bf73017637803EF9) | Renzo       |
 
 Regardless of the type of vault, we have to activate & whitelist the vault on our network.
-Please reach out to us through the **Bolt Node Operator Working Group: Cohort 1** Telegram channel (for NOs), 
-or at [dev@chainbound.io](mailto:dev@chainbound.io) if you want to request a new vault to be whitelisted. 
+Please reach out to us through the **Bolt Node Operator Working Group: Cohort 1** Telegram channel (for NOs),
+or at [dev@chainbound.io](mailto:dev@chainbound.io) if you want to request a new vault to be whitelisted.
 
 We'll need the following information about your vault:
+
 - Collateral
 - Type
 - Manager
@@ -277,23 +284,28 @@ bolt operators symbiotic status \
 > the activation period has passed.
 
 ### Step 4: Post Deposit Actions
+
 Depending on the type of vault, there are some actions needed before your operator shares are visible in bolt.
+
 #### OperatorSpecific and OperatorNetworkSpecific Vaults
+
 - **Us**: whitelist vault
 - **Vault manager**: set network limit on the vault delegator ([guide](https://docs.symbiotic.fi/handbooks/vaults-handbook#network-onboarding))
 
 #### FullRestake and NetworkRestake Vaults
+
 - **Us**: whitelist vault
 - **Vault manager**: set network limit on the vault delegator ([guide](https://docs.symbiotic.fi/handbooks/vaults-handbook#network-onboarding))
 - **Vault manager**: set operator network limit on the vault delegator ([guide](https://docs.symbiotic.fi/handbooks/vaults-handbook#operator-onboarding))
 
 ### Deregistration
+
 Use the following command to deregister from bolt:
 
 ```bash
 bolt operators symbiotic deregister \
     --rpc-url <your-rpc-url> \
-    --operator-private-key <your-operator-private-key> 
+    --operator-private-key <your-operator-private-key>
 ```
 
 where:
