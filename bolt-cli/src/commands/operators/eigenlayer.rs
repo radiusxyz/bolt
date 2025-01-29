@@ -145,8 +145,8 @@ impl EigenLayerSubcommand {
                 let signature = Bytes::from(signer.sign_hash_sync(&signature_digest)?.as_bytes());
                 let signature = SignatureWithSaltAndExpiry { signature, expiry, salt };
 
-                // Sanitize extra data removing quotes
-                let extra_data = extra_data.trim_matches('"').to_string();
+                // Sanitize extra data removing quotes and trimming whitespace
+                let extra_data = extra_data.trim_matches('"').trim_start().trim_end().to_string();
 
                 // TODO(nico): consolidate holesky & mainnet smart contracts
                 if chain == Chain::Mainnet {
