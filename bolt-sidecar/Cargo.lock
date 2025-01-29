@@ -2108,7 +2108,6 @@ dependencies = [
  "bls 0.2.0 (git+https://github.com/sigp/lighthouse)",
  "blst",
  "built",
- "bytes",
  "cb-common",
  "clap",
  "criterion",
@@ -2116,7 +2115,6 @@ dependencies = [
  "dotenvy",
  "eth2_keystore 0.1.0 (git+https://github.com/sigp/lighthouse)",
  "ethereum-consensus",
- "ethereum_ssz 0.8.2",
  "eyre",
  "futures",
  "hex",
@@ -2130,16 +2128,13 @@ dependencies = [
  "regex",
  "reqwest 0.12.12",
  "reth-primitives",
- "reth-primitives-traits",
  "rustls 0.23.21",
  "secp256k1",
  "serde",
  "serde_json",
- "ssz_rs 0.9.0 (git+https://github.com/ralexstokes/ssz-rs?rev=ec3073e)",
  "thiserror 2.0.11",
  "tokio",
  "tokio-retry",
- "tokio-stream",
  "tokio-tungstenite 0.24.0",
  "tower",
  "tower-http",
@@ -3572,7 +3567,7 @@ dependencies = [
  "serde_json",
  "serde_yaml 0.8.26",
  "sha2 0.10.8",
- "ssz_rs 0.9.0 (git+https://github.com/ralexstokes/ssz-rs?rev=84ef2b71aa004f6767420badb42c902ad56b8b72)",
+ "ssz_rs",
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
@@ -7840,35 +7835,13 @@ dependencies = [
  "bitvec 1.0.1",
  "serde",
  "sha2 0.9.9",
- "ssz_rs_derive 0.9.0 (git+https://github.com/ralexstokes/ssz-rs?rev=84ef2b71aa004f6767420badb42c902ad56b8b72)",
-]
-
-[[package]]
-name = "ssz_rs"
-version = "0.9.0"
-source = "git+https://github.com/ralexstokes/ssz-rs?rev=ec3073e#ec3073e2273b4d0873fcb6df68ff4eff79588e92"
-dependencies = [
- "alloy-primitives 0.8.15",
- "bitvec 1.0.1",
- "serde",
- "sha2 0.9.9",
- "ssz_rs_derive 0.9.0 (git+https://github.com/ralexstokes/ssz-rs?rev=ec3073e)",
+ "ssz_rs_derive",
 ]
 
 [[package]]
 name = "ssz_rs_derive"
 version = "0.9.0"
 source = "git+https://github.com/ralexstokes/ssz-rs?rev=84ef2b71aa004f6767420badb42c902ad56b8b72#84ef2b71aa004f6767420badb42c902ad56b8b72"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "ssz_rs_derive"
-version = "0.9.0"
-source = "git+https://github.com/ralexstokes/ssz-rs?rev=ec3073e#ec3073e2273b4d0873fcb6df68ff4eff79588e92"
 dependencies = [
  "proc-macro2",
  "quote",

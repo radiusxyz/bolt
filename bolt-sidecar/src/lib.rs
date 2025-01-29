@@ -2,6 +2,11 @@
 #![warn(missing_debug_implementations, missing_docs, rustdoc::all)]
 #![deny(unused_must_use, rust_2018_idioms)]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
+#![cfg_attr(not(test), warn(unused_crate_dependencies))]
+
+// Manually silence "rustls" crate being unused
+#[allow(unused_extern_crates)]
+extern crate rustls;
 
 /// All APIs in use by the sidecar.
 pub mod api;
