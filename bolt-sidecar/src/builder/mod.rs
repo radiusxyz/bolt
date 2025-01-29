@@ -1,14 +1,10 @@
-use alloy::{
-    consensus::{transaction::PooledTransaction, BlockBody, Header},
-    primitives::U256,
-};
+use alloy::primitives::U256;
 use alloy_rpc_types_engine::{ClientCode, PayloadStatusEnum};
 use ethereum_consensus::{
     crypto::{KzgCommitment, PublicKey},
     deneb::mainnet::ExecutionPayloadHeader,
     ssz::prelude::{List, MerkleizationError},
 };
-use reth_primitives::SealedBlock;
 
 use crate::{
     common::secrets::BlsSecretKeyWrapper,
@@ -43,9 +39,6 @@ pub use payload_fetcher::{LocalPayloadFetcher, PayloadFetcher};
 /// Ethereum-consensus and other crates.
 #[doc(hidden)]
 mod compat;
-
-/// Type alias for the sealed block.
-type SealedAlloyBlock = SealedBlock<Header, BlockBody<PooledTransaction>>;
 
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]

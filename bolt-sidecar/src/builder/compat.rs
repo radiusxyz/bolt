@@ -1,5 +1,5 @@
 use alloy::{
-    consensus::{transaction::PooledTransaction, BlockHeader},
+    consensus::{transaction::PooledTransaction, Block, BlockHeader},
     eips::{eip2718::Encodable2718, eip4895::Withdrawal},
     primitives::{Address, Bloom, B256, U256},
     rpc::types::Withdrawals,
@@ -20,12 +20,10 @@ use ethereum_consensus::{
     types::mainnet::ExecutionPayload as ConsensusExecutionPayload,
 };
 
-use super::SealedAlloyBlock;
-
 /// Compatibility: convert a sealed header into an ethereum-consensus execution payload header.
 /// This requires recalculating the withdrals and transactions roots as SSZ instead of MPT roots.
 pub(crate) fn to_execution_payload_header(
-    sealed_block: &SealedAlloyBlock,
+    sealed_block: &Block<PooledTransaction>,
     transactions: Vec<PooledTransaction>,
 ) -> ConsensusExecutionPayloadHeader {
     // Transactions and withdrawals are treated as opaque byte arrays in consensus types
@@ -42,7 +40,7 @@ pub(crate) fn to_execution_payload_header(
     let mut withdrawals_ssz: List<ConsensusWithdrawal, MAX_WITHDRAWALS_PER_PAYLOAD> =
         List::default();
 
-    if let Some(withdrawals) = sealed_block.body().withdrawals.as_ref() {
+    if let Some(withdrawals) = sealed_block.body.withdrawals.as_ref() {
         for w in withdrawals {
             withdrawals_ssz.push(to_consensus_withdrawal(w));
         }
@@ -50,7 +48,7 @@ pub(crate) fn to_execution_payload_header(
 
     let withdrawals_root = withdrawals_ssz.hash_tree_root().expect("valid withdrawals root");
 
-    let header = sealed_block.header();
+    let header = &sealed_block.header;
 
     ConsensusExecutionPayloadHeader {
         parent_hash: to_bytes32(header.parent_hash),
@@ -75,14 +73,14 @@ pub(crate) fn to_execution_payload_header(
 
 /// Compatibility: convert a sealed block into an Alloy execution payload
 pub(crate) fn to_alloy_execution_payload(
-    block: &SealedAlloyBlock,
+    block: &Block<PooledTransaction>,
     block_hash: B256,
 ) -> ExecutionPayloadV3 {
     let alloy_withdrawals =
-        block.body().withdrawals.clone().map(|w| w.into_inner()).unwrap_or_default();
+        block.body.withdrawals.clone().map(|w| w.into_inner()).unwrap_or_default();
 
     let transactions = block
-        .body()
+        .body
         .transactions
         .iter()
         .map(|tx| tx.encoded_2718())
@@ -99,7 +97,7 @@ pub(crate) fn to_alloy_execution_payload(
                 base_fee_per_gas: U256::from(block.base_fee_per_gas.unwrap_or_default()),
                 block_number: block.number,
                 extra_data: block.extra_data.clone(),
-                fee_recipient: block.header().beneficiary,
+                fee_recipient: block.header.beneficiary,
                 gas_limit: block.gas_limit,
                 gas_used: block.gas_used,
                 logs_bloom: block.logs_bloom,
@@ -116,12 +114,12 @@ pub(crate) fn to_alloy_execution_payload(
 
 /// Compatibility: convert a sealed block into an ethereum-consensus execution payload
 pub(crate) fn to_consensus_execution_payload(
-    value: &SealedAlloyBlock,
+    value: &Block<PooledTransaction>,
 ) -> ConsensusExecutionPayload {
-    let hash = value.hash();
-    let header = value.header();
-    let transactions = &value.body().transactions;
-    let withdrawals = &value.body().withdrawals;
+    let hash = value.hash_slow();
+    let header = &value.header;
+    let transactions = &value.body.transactions;
+    let withdrawals = &value.body.withdrawals;
     let transactions = transactions
         .iter()
         .map(|t| spec::Transaction::try_from(t.encoded_2718().as_ref()).unwrap())

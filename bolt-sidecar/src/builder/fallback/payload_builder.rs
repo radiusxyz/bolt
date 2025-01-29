@@ -1,5 +1,5 @@
 use alloy::{
-    consensus::{proofs, transaction::PooledTransaction, Transaction},
+    consensus::{proofs, transaction::PooledTransaction, Block, Transaction},
     eips::{calc_excess_blob_gas, calc_next_block_base_fee, eip1559::BaseFeeParams},
     primitives::{Address, Bytes},
 };
@@ -10,7 +10,7 @@ use super::{
     DEFAULT_EXTRA_DATA,
 };
 use crate::{
-    builder::{BuilderError, SealedAlloyBlock},
+    builder::BuilderError,
     client::{BeaconClient, ExecutionClient},
     config::Opts,
 };
@@ -62,7 +62,7 @@ impl FallbackPayloadBuilder {
         &self,
         target_slot: u64,
         transactions: &[PooledTransaction],
-    ) -> Result<SealedAlloyBlock, BuilderError> {
+    ) -> Result<Block<PooledTransaction>, BuilderError> {
         // Fetch the latest block to get the necessary parent values for the new block.
         // For the timestamp, we must use the one expected by the beacon chain instead, to
         // prevent edge cases where the proposer before us has missed their slot and therefore
@@ -198,7 +198,7 @@ mod tests {
 
         let block = builder.build_fallback_payload(slot, &[tx_signed_reth]).await?;
 
-        assert_eq!(block.body().transactions.len(), 1);
+        assert_eq!(block.body.transactions.len(), 1);
 
         Ok(())
     }
