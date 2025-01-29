@@ -69,6 +69,9 @@ impl SymbioticSubcommand {
                     );
                 }
 
+                // Sanitize extra data removing quotes
+                let extra_data = extra_data.trim_matches('"').to_string();
+
                 if chain == Chain::Mainnet {
                     let middleware = BoltSymbioticMiddlewareMainnet::new(
                         deployments.bolt.symbiotic_middleware,
