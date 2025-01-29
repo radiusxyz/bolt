@@ -1,18 +1,18 @@
 use std::ops::Deref;
 
 use alloy::{
-    consensus::{Header, EMPTY_OMMER_ROOT_HASH},
+    consensus::{transaction::PooledTransaction, Header, EMPTY_OMMER_ROOT_HASH},
     primitives::{Address, Bloom, Bytes, B256, B64, U256},
     rpc::types::{Block, Withdrawal, Withdrawals},
 };
 use alloy_provider::ext::EngineApi;
 use alloy_rpc_types_engine::{ClientCode, ExecutionPayloadV3, JwtSecret, PayloadStatusEnum};
 use reqwest::Url;
-use reth_primitives::{BlockBody, SealedBlock, SealedHeader, TransactionSigned};
+use reth_primitives::{BlockBody, SealedBlock, SealedHeader};
 use tracing::{debug, error};
 
 use crate::{
-    builder::{compat::to_alloy_execution_payload, BuilderError},
+    builder::{compat::to_alloy_execution_payload, BuilderError, SealedAlloyBlock},
     client::EngineClient,
 };
 
@@ -52,7 +52,7 @@ impl EngineHinter {
     pub async fn fetch_payload_from_hints(
         &self,
         mut ctx: EngineHinterContext,
-    ) -> Result<SealedBlock, BuilderError> {
+    ) -> Result<SealedAlloyBlock, BuilderError> {
         // The block body can be the same for all iterations, since it only contains
         // the transactions and withdrawals from the context.
         let body = ctx.build_block_body();
@@ -206,7 +206,7 @@ pub struct EngineHinterContext {
     pub parent_beacon_block_root: B256,
     pub blob_versioned_hashes: Vec<B256>,
     pub block_timestamp: u64,
-    pub transactions: Vec<TransactionSigned>,
+    pub transactions: Vec<PooledTransaction>,
     pub withdrawals: Vec<Withdrawal>,
     pub head_block: Block,
     pub hints: Hints,
@@ -215,8 +215,8 @@ pub struct EngineHinterContext {
 
 impl EngineHinterContext {
     /// Build a block body using the transactions and withdrawals from the context.
-    pub fn build_block_body(&self) -> BlockBody {
-        BlockBody {
+    pub fn build_block_body(&self) -> BlockBody<PooledTransaction> {
+        BlockBody::<PooledTransaction> {
             ommers: Vec::new(),
             transactions: self.transactions.clone(),
             withdrawals: Some(Withdrawals::new(self.withdrawals.clone())),

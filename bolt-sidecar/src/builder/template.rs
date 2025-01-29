@@ -1,12 +1,11 @@
 use alloy::{
-    consensus::Transaction,
+    consensus::{transaction::PooledTransaction, Transaction},
     primitives::{Address, TxHash, U256},
 };
 use ethereum_consensus::{
     crypto::{KzgCommitment, KzgProof},
     deneb::mainnet::{Blob, BlobsBundle},
 };
-use reth_primitives::TransactionSigned;
 use std::collections::HashMap;
 use tracing::warn;
 
@@ -47,10 +46,10 @@ impl BlockTemplate {
     /// Converts the list of signed constraints into a list of signed transactions. Use this when
     /// building a local execution payload.
     #[inline]
-    pub fn as_signed_transactions(&self) -> Vec<TransactionSigned> {
+    pub fn as_signed_transactions(&self) -> Vec<PooledTransaction> {
         self.signed_constraints_list
             .iter()
-            .flat_map(|sc| sc.message.transactions.iter().map(|c| c.clone().into_signed()))
+            .flat_map(|sc| sc.message.transactions.iter().map(|c| c.clone().into_inner()))
             .collect()
     }
 
