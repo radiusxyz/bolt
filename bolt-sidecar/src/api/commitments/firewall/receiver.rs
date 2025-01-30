@@ -257,6 +257,7 @@ mod tests {
     use std::{net::SocketAddr, ops::ControlFlow, time::Duration};
 
     use axum::{
+        body::Bytes,
         extract::{
             ws::{CloseFrame, Message, Utf8Bytes, WebSocket},
             ConnectInfo, WebSocketUpgrade,
@@ -269,7 +270,6 @@ mod tests {
         headers::{authorization::Bearer, Authorization, UserAgent},
         TypedHeader,
     };
-    use bytes::Bytes;
     use futures::{FutureExt, SinkExt, StreamExt};
     use reqwest::StatusCode;
     use serde::Serialize;
