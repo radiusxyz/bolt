@@ -1,9 +1,8 @@
 use alloy::{
-    consensus::{proofs, Transaction},
+    consensus::{proofs, transaction::PooledTransaction, Block, Transaction},
     eips::{calc_excess_blob_gas, calc_next_block_base_fee, eip1559::BaseFeeParams},
     primitives::{Address, Bytes},
 };
-use reth_primitives::{SealedBlock, TransactionSigned};
 use tracing::debug;
 
 use super::{
@@ -62,8 +61,8 @@ impl FallbackPayloadBuilder {
     pub async fn build_fallback_payload(
         &self,
         target_slot: u64,
-        transactions: &[TransactionSigned],
-    ) -> Result<SealedBlock, BuilderError> {
+        transactions: &[PooledTransaction],
+    ) -> Result<Block<PooledTransaction>, BuilderError> {
         // Fetch the latest block to get the necessary parent values for the new block.
         // For the timestamp, we must use the one expected by the beacon chain instead, to
         // prevent edge cases where the proposer before us has missed their slot and therefore
@@ -145,7 +144,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use alloy::{
-        consensus::{constants, proofs},
+        consensus::{constants, proofs, transaction::PooledTransaction},
         eips::eip2718::{Decodable2718, Encodable2718},
         network::{EthereumWallet, TransactionBuilder},
         primitives::{hex, Address},
@@ -153,7 +152,6 @@ mod tests {
         signers::{k256::ecdsa::SigningKey, local::PrivateKeySigner},
     };
     use beacon_api_client::mainnet::Client as BeaconClient;
-    use reth_primitives::TransactionSigned;
     use tracing::warn;
 
     use crate::{
@@ -192,7 +190,7 @@ mod tests {
         let tx = default_test_transaction(addy, Some(nonce)).with_chain_id(17000);
         let tx_signed = tx.build(&wallet).await?;
         let raw_encoded = tx_signed.encoded_2718();
-        let tx_signed_reth = TransactionSigned::decode_2718(&mut raw_encoded.as_slice())?;
+        let tx_signed_reth = PooledTransaction::decode_2718(&mut raw_encoded.as_slice())?;
 
         let slot = genesis_time +
             (SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() / cfg.chain.slot_time()) +
@@ -200,7 +198,7 @@ mod tests {
 
         let block = builder.build_fallback_payload(slot, &[tx_signed_reth]).await?;
 
-        assert_eq!(block.body().transactions.len(), 1);
+        assert_eq!(block.body.transactions.len(), 1);
 
         Ok(())
     }

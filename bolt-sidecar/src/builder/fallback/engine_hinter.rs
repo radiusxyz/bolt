@@ -1,14 +1,13 @@
 use std::ops::Deref;
 
 use alloy::{
-    consensus::{Header, EMPTY_OMMER_ROOT_HASH},
+    consensus::{transaction::PooledTransaction, Block, BlockBody, Header, EMPTY_OMMER_ROOT_HASH},
     primitives::{Address, Bloom, Bytes, B256, B64, U256},
-    rpc::types::{Block, Withdrawal, Withdrawals},
+    rpc::types::{Block as RpcBlock, Withdrawal, Withdrawals},
 };
 use alloy_provider::ext::EngineApi;
 use alloy_rpc_types_engine::{ClientCode, ExecutionPayloadV3, JwtSecret, PayloadStatusEnum};
 use reqwest::Url;
-use reth_primitives::{BlockBody, SealedBlock, SealedHeader, TransactionSigned};
 use tracing::{debug, error};
 
 use crate::{
@@ -52,7 +51,7 @@ impl EngineHinter {
     pub async fn fetch_payload_from_hints(
         &self,
         mut ctx: EngineHinterContext,
-    ) -> Result<SealedBlock, BuilderError> {
+    ) -> Result<Block<PooledTransaction>, BuilderError> {
         // The block body can be the same for all iterations, since it only contains
         // the transactions and withdrawals from the context.
         let body = ctx.build_block_body();
@@ -66,20 +65,18 @@ impl EngineHinter {
             // Build a new block header using the hints from the context
             let header = ctx.build_block_header_with_hints();
 
-            let sealed_hash = header.hash_slow();
-            let sealed_header = SealedHeader::new(header, sealed_hash);
-            let sealed_block = SealedBlock::new(sealed_header, body.clone());
-            let block_hash = ctx.hints.block_hash.unwrap_or(sealed_block.hash());
+            let block = Block { header, body: body.clone() };
+            let block_hash = ctx.hints.block_hash.unwrap_or(block.hash_slow());
 
             // build the new execution payload from the block header
-            let exec_payload = to_alloy_execution_payload(&sealed_block, block_hash);
+            let exec_payload = to_alloy_execution_payload(&block, block_hash);
 
             // attempt to fetch the next hint from the engine API payload response
             let hint = self.next_hint(exec_payload, &ctx).await?;
             debug!(?hint, "Received hint from engine API");
 
             if matches!(hint, EngineApiHint::ValidPayload) {
-                return Ok(sealed_block);
+                return Ok(block);
             }
 
             // Populate the new hint in the context and continue the loop
@@ -206,17 +203,17 @@ pub struct EngineHinterContext {
     pub parent_beacon_block_root: B256,
     pub blob_versioned_hashes: Vec<B256>,
     pub block_timestamp: u64,
-    pub transactions: Vec<TransactionSigned>,
+    pub transactions: Vec<PooledTransaction>,
     pub withdrawals: Vec<Withdrawal>,
-    pub head_block: Block,
+    pub head_block: RpcBlock,
     pub hints: Hints,
     pub el_client_code: ClientCode,
 }
 
 impl EngineHinterContext {
     /// Build a block body using the transactions and withdrawals from the context.
-    pub fn build_block_body(&self) -> BlockBody {
-        BlockBody {
+    pub fn build_block_body(&self) -> BlockBody<PooledTransaction> {
+        BlockBody::<PooledTransaction> {
             ommers: Vec::new(),
             transactions: self.transactions.clone(),
             withdrawals: Some(Withdrawals::new(self.withdrawals.clone())),
