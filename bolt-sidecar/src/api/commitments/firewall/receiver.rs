@@ -176,8 +176,7 @@ async fn handle_connection(
     api_events_tx: mpsc::Sender<CommitmentEvent>,
     shutdown_rx: watch::Receiver<()>,
 ) -> Result<(), ConnectionHandlerError> {
-    let ws_config =
-        WebSocketConfig { max_message_size: Some(MAX_MESSAGE_SIZE), ..Default::default() };
+    let ws_config = WebSocketConfig::default().max_message_size(Some(MAX_MESSAGE_SIZE));
 
     let mut request = url.clone().into_client_request()?;
     request

@@ -6,8 +6,14 @@ use futures::{
 };
 use serde::Serialize;
 use serde_json::{json, Value};
-use std::{collections::HashSet, sync::Arc, time::Duration};
-use std::{collections::VecDeque, future::Future, pin::Pin, task::Poll};
+use std::{
+    collections::{HashSet, VecDeque},
+    future::Future,
+    pin::Pin,
+    sync::Arc,
+    task::Poll,
+    time::Duration,
+};
 use tokio::{
     net::TcpStream,
     sync::{
@@ -18,7 +24,7 @@ use tokio::{
     time::Interval,
 };
 use tokio_tungstenite::{
-    tungstenite::{self, Message},
+    tungstenite::{self, Message, Utf8Bytes},
     MaybeTlsStream, WebSocketStream,
 };
 use tracing::{debug, error, info, instrument, trace, warn};
@@ -235,7 +241,7 @@ impl Future for CommitmentRequestProcessor {
 
                 match res_message {
                     Ok(Message::Text(text)) => {
-                        this.handle_text_message(text);
+                        this.handle_text_message(text.to_string());
                     }
                     Ok(Message::Close(_)) => {
                         warn!("websocket connection closed by server");
@@ -265,7 +271,7 @@ impl Future for CommitmentRequestProcessor {
                     progress = true;
 
                     trace!("sending ping message to websocket connection");
-                    this.outgoing_messages.push_back(Message::Ping(vec![8, 0, 1, 7]));
+                    this.outgoing_messages.push_back(Message::Ping(vec![8, 0, 1, 7].into()));
                 }
                 Poll::Pending => { /* fallthrough */ }
             }
@@ -295,8 +301,9 @@ impl CommitmentRequestProcessor {
             }
         };
 
-        let message =
-            Message::Text(serde_json::to_string(&response).expect("to stringify response"));
+        let message = Message::Text(Utf8Bytes::from(
+            serde_json::to_string(&response).expect("to stringify response"),
+        ));
 
         // Add the message to the outgoing messages queue
         self.outgoing_messages.push_back(message);
