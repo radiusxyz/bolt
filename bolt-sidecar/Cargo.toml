@@ -37,13 +37,13 @@ tree_hash_derive = "0.9"
 secp256k1 = { version = "0.30.0", features = ["rand"] }
 
 # alloy
-alloy = { version = "0.9.2", features = ["full", "provider-trace-api", "rpc-types-beacon"] }
-alloy-rpc-types-engine = { version = "0.9.2", default-features = false, features = ["jwt"] }
-alloy-transport-http = { version = "0.9.2", default-features = false, features = ["jwt-auth"] }
-alloy-provider = { version = "0.9.2", default-features = false, features = ["engine-api"] }
+alloy = { version = "0.11.0", features = ["full", "provider-trace-api", "rpc-types-beacon"] }
+alloy-rpc-types-engine = { version = "0.11.0", default-features = false, features = ["jwt"] }
+alloy-transport-http = { version = "0.11.0", default-features = false, features = ["jwt-auth"] }
+alloy-provider = { version = "0.11.0", default-features = false, features = ["engine-api"] }
 
 # commit-boost
-cb-common = { git = "https://github.com/Commit-Boost/commit-boost-client", tag = "v0.5.0" }
+cb-common = { git = "https://github.com/Commit-Boost/commit-boost-client", tag = "v0.6.0" }
 
 # ethereum-consensus
 ethereum-consensus = { git = "https://github.com/ralexstokes/ethereum-consensus", rev = "8fbd8a5" } # Last release in 2022

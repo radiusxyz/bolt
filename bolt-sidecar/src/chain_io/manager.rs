@@ -2,14 +2,16 @@ use std::time::Duration;
 
 use alloy::{
     contract::Error,
+    network::Ethereum,
     primitives::Address,
     providers::{ProviderBuilder, RootProvider},
     sol,
-    transports::{http::Http, RpcError},
+    transports::RpcError,
 };
+use alloy_provider::{fillers::FillProvider, utils::JoinedRecommendedFillers};
 use ethereum_consensus::primitives::BlsPublicKey;
 use eyre::{bail, Context};
-use reqwest::{Client, Url};
+use reqwest::Url;
 use serde::Serialize;
 use tracing::{debug, warn};
 
@@ -27,7 +29,9 @@ const MAX_RETRIES: usize = 20;
 
 /// A wrapper over a BoltManagerContract that exposes various utility methods.
 #[derive(Debug, Clone)]
-pub struct BoltManager(BoltManagerContractInstance<Http<Client>, RootProvider<Http<Client>>>);
+pub struct BoltManager(
+    BoltManagerContractInstance<(), FillProvider<JoinedRecommendedFillers, RootProvider, Ethereum>>,
+);
 
 impl BoltManager {
     /// Creates a new BoltRegistry instance. Returns `None` if a canonical BoltManager contract is
@@ -259,8 +263,8 @@ mod tests {
                     .as_ref()).expect("valid bls public key")];
         let res = manager.verify_validator_pubkeys(&keys, commitment_signer_pubkey).await;
         assert!(
-            res.unwrap_err().to_string()
-                == generate_operator_keys_mismatch_error(
+            res.unwrap_err().to_string() ==
+                generate_operator_keys_mismatch_error(
                     pubkey_hash(&keys[0]),
                     commitment_signer_pubkey,
                     operator
@@ -311,8 +315,8 @@ mod tests {
         let result = manager.verify_validator_pubkeys(&keys, commitment_signer_pubkey).await;
 
         assert!(
-            result.unwrap_err().to_string()
-                == generate_operator_keys_mismatch_error(
+            result.unwrap_err().to_string() ==
+                generate_operator_keys_mismatch_error(
                     pubkey_hash(&keys[0]),
                     commitment_signer_pubkey,
                     operator

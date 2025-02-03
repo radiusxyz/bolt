@@ -1,17 +1,18 @@
-use std::ops::{Deref, DerefMut};
-
 use alloy::{
     eips::BlockNumberOrTag,
+    network::Ethereum,
     primitives::{Address, Bytes, TxHash, B256, U256, U64},
     providers::{ProviderBuilder, RootProvider},
     rpc::{
         client::{BatchRequest, ClientBuilder, RpcClient},
         types::{Block, FeeHistory, TransactionReceipt},
     },
-    transports::{http::Http, TransportErrorKind, TransportResult},
+    transports::{TransportErrorKind, TransportResult},
 };
+use alloy_provider::{fillers::FillProvider, utils::JoinedRecommendedFillers};
+use derive_more::derive::{Deref, DerefMut};
 use futures::{stream::FuturesUnordered, StreamExt};
-use reqwest::{Client, Url};
+use reqwest::Url;
 
 use crate::primitives::AccountState;
 
@@ -19,27 +20,15 @@ use crate::primitives::AccountState;
 ///
 /// This struct is a wrapper over an inner [`RootProvider`] and extends it with
 /// methods that are relevant to the Bolt state.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deref, DerefMut)]
 pub struct ExecutionClient {
     /// The custom RPC client that allows us to add custom batching and extend the provider.
-    rpc: RpcClient<Http<Client>>,
+    rpc: RpcClient,
     /// The inner provider that implements all the JSON-RPC methods, that can be
     /// easily used via dereferencing this struct.
-    inner: RootProvider<Http<Client>>,
-}
-
-impl Deref for ExecutionClient {
-    type Target = RootProvider<Http<Client>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl DerefMut for ExecutionClient {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
-    }
+    #[deref]
+    #[deref_mut]
+    inner: FillProvider<JoinedRecommendedFillers, RootProvider, Ethereum>,
 }
 
 impl ExecutionClient {
@@ -53,7 +42,7 @@ impl ExecutionClient {
     }
 
     /// Create a new batch request.
-    pub fn new_batch(&self) -> BatchRequest<'_, Http<Client>> {
+    pub fn new_batch(&self) -> BatchRequest<'_> {
         self.rpc.new_batch()
     }
 
