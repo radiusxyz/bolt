@@ -15,10 +15,10 @@ futures = "0.3.31"
 # cli
 clap = { version = "4.5.27", features = ["derive", "env"] }
 serde = { version = "1.0.217", features = ["derive"] }
-serde_json = "1.0.137"
+serde_json = "1.0.138"
 
 # grpc
-rustls = { version = "0.23.21", features = ["ring"] }
+rustls = { version = "0.23.22", features = ["ring"] }
 tonic = { version = "0.12.3", features = ["tls"] }
 prost = "0.13.4"
 
