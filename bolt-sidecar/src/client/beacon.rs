@@ -1,10 +1,11 @@
-use std::{fmt::Debug, ops::Deref};
+use std::fmt::Debug;
 
 use alloy::{
     primitives::{Address, B256},
     rpc::types::Withdrawal,
 };
 use beacon_api_client::{BlockId, StateId};
+use derive_more::derive::Deref;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 
@@ -28,6 +29,7 @@ pub enum BeaconClientError {
     Url,
 }
 
+/// A type alias for the result of a beacon client operation.
 pub type BeaconClientResult<T> = Result<T, BeaconClientError>;
 
 /// The [BeaconApi] is responsible for fetching information from the beacon node.
@@ -38,7 +40,7 @@ pub type BeaconClientResult<T> = Result<T, BeaconClientError>;
 ///
 /// For this reason, this struct is essentially a wrapper around [beacon_api_client::Client]
 /// with added custom error handling and methods.
-#[derive(Clone)]
+#[derive(Clone, Deref)]
 pub struct BeaconClient {
     client: reqwest::Client,
     beacon_rpc_url: Url,
@@ -46,15 +48,8 @@ pub struct BeaconClient {
     // Inner client re-exported from the beacon_api_client crate.
     // By wrapping this, we can automatically use its existing methods
     // by dereferencing it. This allows us to extend its API.
+    #[deref]
     inner: beacon_api_client::mainnet::Client,
-}
-
-impl Deref for BeaconClient {
-    type Target = beacon_api_client::mainnet::Client;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
 }
 
 impl BeaconClient {

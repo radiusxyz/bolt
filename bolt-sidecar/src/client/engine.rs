@@ -1,7 +1,4 @@
-use std::ops::Deref;
-
 use alloy::{
-    network::AnyNetwork,
     primitives::Bytes,
     providers::RootProvider,
     rpc::client::RpcClient,
@@ -10,12 +7,10 @@ use alloy::{
 use alloy_provider::ext::EngineApi;
 use alloy_rpc_types_engine::{ClientCode, ClientVersionV1, JwtSecret};
 use alloy_transport_http::{
-    hyper_util::{
-        client::legacy::{connect::HttpConnector, Client},
-        rt::TokioExecutor,
-    },
-    AuthLayer, AuthService, HyperClient,
+    hyper_util::{client::legacy::Client, rt::TokioExecutor},
+    AuthLayer, HyperClient,
 };
+use derive_more::derive::Deref;
 use http_body_util::Full;
 use lazy_static::lazy_static;
 use reqwest::Url;
@@ -23,22 +18,12 @@ use tower::ServiceBuilder;
 
 use crate::common::BOLT_SIDECAR_VERSION;
 
-/// A Hyper HTTP client with a JWT authentication layer.
-type HyperAuthClient<B = Full<Bytes>> = HyperClient<B, AuthService<Client<HttpConnector, B>>>;
-
 /// The [`EngineClient`] is responsible for interacting with the engine API via HTTP.
 /// The inner transport uses a JWT [AuthLayer] to authenticate requests.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deref)]
 pub struct EngineClient {
-    inner: RootProvider<Http<HyperAuthClient>, AnyNetwork>,
-}
-
-impl Deref for EngineClient {
-    type Target = RootProvider<Http<HyperAuthClient>, AnyNetwork>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
+    #[deref]
+    inner: RootProvider,
 }
 
 impl EngineClient {
@@ -52,7 +37,7 @@ impl EngineClient {
         let layer_transport = HyperClient::with_service(service);
         let http_hyper = Http::with_client(layer_transport, url);
         let rpc_client = RpcClient::new(http_hyper, true);
-        let inner = RootProvider::<_, AnyNetwork>::new(rpc_client);
+        let inner = RootProvider::new(rpc_client);
 
         Self { inner }
     }
