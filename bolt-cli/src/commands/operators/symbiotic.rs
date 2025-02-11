@@ -388,10 +388,8 @@ impl SymbioticSubcommand {
                 Ok(())
             }
 
-            Self::ListVaults { rpc_url, dry_run } => {
-                let (rpc, anvil) = handle_rpc_dry_run(rpc_url, dry_run)?;
-
-                let provider = ProviderBuilder::new().on_http(rpc);
+            Self::ListVaults { rpc_url } => {
+                let provider = ProviderBuilder::new().on_http(rpc_url.clone());
 
                 let chain = Chain::try_from_provider(&provider).await?;
 
@@ -426,8 +424,6 @@ impl SymbioticSubcommand {
 
                     info!("- Token: {} - Vault: {}", token_symbol, vault_address);
                 }
-
-                shutdown_anvil(anvil);
 
                 Ok(())
             }
