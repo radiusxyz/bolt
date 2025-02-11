@@ -325,10 +325,6 @@ pub enum EigenLayerSubcommand {
         /// The URL of the RPC to read data from
         #[clap(long, env = "RPC_URL")]
         rpc_url: Url,
-        /// Run the command in "dry run" mode, run all steps without broadcast.
-        /// Useful for testing and debugging purposes.
-        #[clap(short, long, env = "DRY_RUN", default_value = "false")]
-        dry_run: bool,
     },
 }
 
@@ -402,10 +398,6 @@ pub enum SymbioticSubcommand {
         /// The URL of the RPC to read data from
         #[clap(long, env = "RPC_URL")]
         rpc_url: Url,
-        /// Run the command in "dry run" mode, run all steps without broadcast.
-        /// Useful for testing and debugging purposes.
-        #[clap(short, long, env = "DRY_RUN", default_value = "false")]
-        dry_run: bool,
     },
 }
 
