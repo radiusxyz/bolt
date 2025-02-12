@@ -1,10 +1,7 @@
 use alloy::{
     contract::Error as ContractError,
     network::EthereumWallet,
-    primitives::{
-        utils::format_ether,
-        U256,
-    },
+    primitives::{utils::format_ether, U256},
     providers::ProviderBuilder,
     signers::local::PrivateKeySigner,
     sol_types::SolInterface,
@@ -14,16 +11,17 @@ use tracing::{info, warn};
 
 use crate::{
     cli::{Chain, SymbioticSubcommand},
-    common::{
-        request_confirmation, try_parse_contract_error,
-    },
+    common::{handle_rpc_dry_run, request_confirmation, shutdown_anvil, try_parse_contract_error},
     contracts::{
         bolt::{
-            BoltManager::{self, BoltManagerErrors}, 
-            BoltSymbioticMiddlewareHolesky::{self, BoltSymbioticMiddlewareHoleskyErrors}, 
-            BoltSymbioticMiddlewareMainnet::{self, BoltSymbioticMiddlewareMainnetErrors}, 
-            OperatorsRegistryV1::{self, OperatorsRegistryV1Errors}
-        }, deployments_for_chain, erc20::IERC20, symbiotic::{IOptInService, IVault}
+            BoltManager::{self, BoltManagerErrors},
+            BoltSymbioticMiddlewareHolesky::{self, BoltSymbioticMiddlewareHoleskyErrors},
+            BoltSymbioticMiddlewareMainnet::{self, BoltSymbioticMiddlewareMainnetErrors},
+            OperatorsRegistryV1::{self, OperatorsRegistryV1Errors},
+        },
+        deployments_for_chain,
+        erc20::IERC20,
+        symbiotic::{IOptInService, IVault},
     },
 };
 
@@ -31,22 +29,26 @@ impl SymbioticSubcommand {
     /// Run the symbiotic subcommand.
     pub async fn run(self) -> eyre::Result<()> {
         match self {
-            Self::Register { operator_rpc, operator_private_key, rpc_url, extra_data } => {
+            Self::Register { operator_rpc, operator_private_key, rpc_url, extra_data, dry_run } => {
                 let signer = PrivateKeySigner::from_bytes(&operator_private_key)
                     .wrap_err("valid private key")?;
+
+                let (rpc, anvil) = handle_rpc_dry_run(rpc_url, dry_run)?;
 
                 let provider = ProviderBuilder::new()
                     .with_recommended_fillers()
                     .wallet(EthereumWallet::from(signer.clone()))
-                    .on_http(rpc_url);
+                    .on_http(rpc);
 
                 let chain = Chain::try_from_provider(&provider).await?;
 
                 let deployments = deployments_for_chain(chain);
 
-                let operator_rpc = operator_rpc.unwrap_or_else(|| chain.bolt_rpc().unwrap_or_else(|| 
-                    panic!("The bolt RPC is not deployed on {:?}. Please use the `--operator-rpc` flag to specify one manually.", chain))
-                );
+                let operator_rpc = operator_rpc.unwrap_or_else(|| {
+                    chain.bolt_rpc().unwrap_or_else(|| {
+                        panic!( "The bolt RPC is not deployed on {:?}. Please use the `--operator-rpc` flag to specify one manually.", chain)
+                    })
+                });
 
                 info!(operator = %signer.address(), rpc = %operator_rpc, ?chain, "Registering Symbiotic operator");
 
@@ -94,7 +96,7 @@ impl SymbioticSubcommand {
                                 eyre::bail!("Transaction failed: {:?}", receipt)
                             }
 
-                            info!("Succesfully registered Symbiotic operator");
+                            info!("Successfully registered Symbiotic operator");
                         }
                         Err(e) => parse_symbiotic_middleware_mainnet_errors(e)?,
                     }
@@ -116,25 +118,29 @@ impl SymbioticSubcommand {
                                 eyre::bail!("Transaction failed: {:?}", receipt)
                             }
 
-                            info!("Succesfully registered Symbiotic operator");
+                            info!("Successfully registered Symbiotic operator");
                         }
                         Err(e) => parse_symbiotic_middleware_holesky_errors(e)?,
                     }
                 }
 
+                shutdown_anvil(anvil);
+
                 Ok(())
             }
 
-            Self::Deregister { rpc_url, operator_private_key } => {
+            Self::Deregister { rpc_url, operator_private_key, dry_run } => {
                 let signer = PrivateKeySigner::from_bytes(&operator_private_key)
                     .wrap_err("valid private key")?;
 
                 let address = signer.address();
 
+                let (rpc, anvil) = handle_rpc_dry_run(rpc_url, dry_run)?;
+
                 let provider = ProviderBuilder::new()
                     .with_recommended_fillers()
                     .wallet(EthereumWallet::from(signer))
-                    .on_http(rpc_url);
+                    .on_http(rpc);
 
                 let chain = Chain::try_from_provider(&provider).await?;
 
@@ -163,7 +169,7 @@ impl SymbioticSubcommand {
                                 eyre::bail!("Transaction failed: {:?}", receipt)
                             }
 
-                            info!("Succesfully deregistered Symbiotic operator");
+                            info!("Successfully deregistered Symbiotic operator");
                         }
                         Err(e) => parse_symbiotic_middleware_mainnet_errors(e)?,
                     }
@@ -185,24 +191,28 @@ impl SymbioticSubcommand {
                                 eyre::bail!("Transaction failed: {:?}", receipt)
                             }
 
-                            info!("Succesfully deregistered Symbiotic operator");
+                            info!("Successfully deregistered Symbiotic operator");
                         }
                         Err(e) => parse_symbiotic_middleware_holesky_errors(e)?,
                     }
                 }
 
+                shutdown_anvil(anvil);
+
                 Ok(())
             }
 
-            Self::UpdateRpc { rpc_url, operator_private_key, operator_rpc } => {
+            Self::UpdateRpc { rpc_url, operator_private_key, operator_rpc, dry_run } => {
                 let signer = PrivateKeySigner::from_bytes(&operator_private_key)
                     .wrap_err("valid private key")?;
                 let address = signer.address();
 
+                let (rpc, anvil) = handle_rpc_dry_run(rpc_url, dry_run)?;
+
                 let provider = ProviderBuilder::new()
                     .with_recommended_fillers()
                     .wallet(EthereumWallet::from(signer))
-                    .on_http(rpc_url);
+                    .on_http(rpc);
 
                 let chain = Chain::try_from_provider(&provider).await?;
 
@@ -217,10 +227,14 @@ impl SymbioticSubcommand {
                     info!(?address, "Symbiotic operator is registered");
                 } else {
                     warn!(?address, "Operator not registered");
-                    return Ok(())
+                    return Ok(());
                 }
 
-                match bolt_manager.updateOperatorRPC(operator_rpc.to_string()).send().await {
+                let result = match bolt_manager
+                    .updateOperatorRPC(operator_rpc.to_string())
+                    .send()
+                    .await
+                {
                     Ok(pending) => {
                         info!(
                             hash = ?pending.tx_hash(),
@@ -232,7 +246,8 @@ impl SymbioticSubcommand {
                             eyre::bail!("Transaction failed: {:?}", receipt)
                         }
 
-                        info!("Succesfully updated Symbiotic operator RPC");
+                        info!("Successfully updated Symbiotic operator RPC");
+                        Ok(())
                     }
                     Err(e) => match try_parse_contract_error::<BoltManagerErrors>(e)? {
                         BoltManagerErrors::OperatorNotRegistered(_) => {
@@ -242,8 +257,11 @@ impl SymbioticSubcommand {
                             unreachable!("Unexpected error with selector {:?}", other.selector())
                         }
                     },
-                }
-                Ok(())
+                };
+
+                shutdown_anvil(anvil);
+
+                result
             }
 
             Self::Status { rpc_url, address } => {
@@ -274,13 +292,13 @@ impl SymbioticSubcommand {
                                 info!(?address, "Symbiotic operator is registered");
                             } else {
                                 warn!(?address, "Operator not registered");
-                                return Ok(())
+                                return Ok(());
                             }
                         }
                         Err(e) => {
                             let other = try_parse_contract_error::<OperatorsRegistryV1Errors>(e)?;
                             bail!("Unexpected error with selector {:?}", other.selector())
-                        },
+                        }
                     }
 
                     match registry.isActiveOperator(address).call().await {
@@ -294,7 +312,7 @@ impl SymbioticSubcommand {
                         Err(e) => {
                             let other = try_parse_contract_error::<OperatorsRegistryV1Errors>(e)?;
                             bail!("Unexpected error with selector {:?}", other.selector())
-                        },
+                        }
                     }
 
                     match middleware.getOperatorCollaterals(address).call().await {
@@ -322,10 +340,13 @@ impl SymbioticSubcommand {
                         info!(?address, "Symbiotic operator is registered");
                     } else {
                         warn!(?address, "Operator not registered");
-                        return Ok(())
+                        return Ok(());
                     }
 
-                    let middleware = BoltSymbioticMiddlewareHolesky::new(deployments.bolt.symbiotic_middleware, provider.clone());
+                    let middleware = BoltSymbioticMiddlewareHolesky::new(
+                        deployments.bolt.symbiotic_middleware,
+                        provider.clone(),
+                    );
 
                     match bolt_manager.getOperatorData(address).call().await {
                         Ok(operator_data) => {
@@ -585,6 +606,7 @@ mod tests {
                     operator_private_key: secret_key,
                     extra_data: "sudo rm -rf / --no-preserve-root".to_string(),
                     operator_rpc: None,
+                    dry_run: false,
                 },
             },
         };
@@ -610,6 +632,7 @@ mod tests {
                     operator_rpc: "https://boooooooooooooooolt.chainbound.io"
                         .parse()
                         .expect("valid url"),
+                    dry_run: false,
                 },
             },
         };
@@ -632,6 +655,7 @@ mod tests {
                 subcommand: SymbioticSubcommand::Deregister {
                     rpc_url: anvil_url.clone(),
                     operator_private_key: secret_key,
+                    dry_run: false,
                 },
             },
         };

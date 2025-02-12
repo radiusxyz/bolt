@@ -187,6 +187,11 @@ pub enum ValidatorsSubcommand {
         /// The private key to sign the transactions with.
         #[clap(long, env = "ADMIN_PRIVATE_KEY")]
         admin_private_key: B256,
+
+        /// Run the command in "dry run" mode, run all steps without broadcast.
+        /// Useful for testing and debugging purposes.
+        #[clap(short, long, env = "DRY_RUN", default_value = "false")]
+        dry_run: bool,
     },
     /// Check the status of a validator (batch).
     Status {
@@ -242,6 +247,10 @@ pub enum EigenLayerSubcommand {
         /// The amount to deposit into the strategy, in units (e.g. '1ether', '10gwei').
         #[clap(long, env = "EIGENLAYER_STRATEGY_DEPOSIT_AMOUNT", value_parser = parse_ether_value)]
         amount: U256,
+        /// Run the command in "dry run" mode, run all steps without broadcast.
+        /// Useful for testing and debugging purposes.
+        #[clap(short, long, env = "DRY_RUN", default_value = "false")]
+        dry_run: bool,
     },
 
     /// Register an operator into the bolt AVS.
@@ -264,6 +273,10 @@ pub enum EigenLayerSubcommand {
         /// If not provided, a random value is used.
         #[clap(long, env = "OPERATOR_SIGNATURE_SALT")]
         salt: Option<B256>,
+        /// Run the command in "dry run" mode, run all steps without broadcast.
+        /// Useful for testing and debugging purposes.
+        #[clap(short, long, env = "DRY_RUN", default_value = "false")]
+        dry_run: bool,
     },
 
     /// Deregister an EigenLayer operator from the bolt AVS.
@@ -274,6 +287,10 @@ pub enum EigenLayerSubcommand {
         /// The private key of the operator.
         #[clap(long, env = "OPERATOR_PRIVATE_KEY")]
         operator_private_key: B256,
+        /// Run the command in "dry run" mode, run all steps without broadcast.
+        /// Useful for testing and debugging purposes.
+        #[clap(short, long, env = "DRY_RUN", default_value = "false")]
+        dry_run: bool,
     },
 
     /// Update the operator RPC.
@@ -287,6 +304,10 @@ pub enum EigenLayerSubcommand {
         /// The URL of the operator RPC.
         #[clap(long, env = "OPERATOR_RPC")]
         operator_rpc: Url,
+        /// Run the command in "dry run" mode, run all steps without broadcast.
+        /// Useful for testing and debugging purposes.
+        #[clap(short, long, env = "DRY_RUN", default_value = "false")]
+        dry_run: bool,
     },
 
     /// Check the status of an operator in the bolt AVS.
@@ -325,6 +346,10 @@ pub enum SymbioticSubcommand {
         /// The operator's extra data string to be stored in the registry.
         #[clap(long, env = "OPERATOR_EXTRA_DATA")]
         extra_data: String,
+        /// Run the command in "dry run" mode, run all steps without broadcast.
+        /// Useful for testing and debugging purposes.
+        #[clap(short, long, env = "DRY_RUN", default_value = "false")]
+        dry_run: bool,
     },
 
     /// Deregister a Symbiotic operator from bolt.
@@ -335,6 +360,10 @@ pub enum SymbioticSubcommand {
         /// The private key of the operator.
         #[clap(long, env = "OPERATOR_PRIVATE_KEY")]
         operator_private_key: B256,
+        /// Run the command in "dry run" mode, run all steps without broadcast.
+        /// Useful for testing and debugging purposes.
+        #[clap(short, long, env = "DRY_RUN", default_value = "false")]
+        dry_run: bool,
     },
 
     /// Update the operator RPC.
@@ -348,6 +377,10 @@ pub enum SymbioticSubcommand {
         /// The URL of the operator RPC.
         #[clap(long, env = "OPERATOR_RPC")]
         operator_rpc: Url,
+        /// Run the command in "dry run" mode, run all steps without broadcast.
+        /// Useful for testing and debugging purposes.
+        #[clap(short, long, env = "DRY_RUN", default_value = "false")]
+        dry_run: bool,
     },
 
     /// Check the status of a Symbiotic operator.
