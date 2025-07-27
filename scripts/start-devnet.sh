@@ -3,7 +3,7 @@
 echo "Starting the devnet..."
 
 # spin up the kurtosis devnet
-kurtosis run --enclave bolt-devnet github.com/chainbound/ethereum-package@bolt --args-file ./scripts/kurtosis_config.yaml
+kurtosis run --enclave bolt-devnet github.com/radiusxyz/ethereum-package@bolt --args-file ./scripts/kurtosis_config.yaml
 sleep 3
 
 RPC=$(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc)
