@@ -31,7 +31,11 @@ git checkout dev
    just build-local-images
    ```
 
-2. Spin up the kurtosis devnet on your machine:
+2. Pull the smart-contract-verifier image with linux/amd64 platform compatibility:
+  docker pull --platform=linux/amd64 ghcr.io/blockscout/smart-contract-verifier:v1.6.0
+
+
+3. Spin up the kurtosis devnet on your machine:
    ```shell
    just up
    ```
