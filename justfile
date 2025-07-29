@@ -190,6 +190,7 @@ send-blob-preconf-rpc count='1' rpc='http://127.0.0.1:8015/rpc':
 build-local-images:
 	@just build-local-sidecar
 	@just build-local-bolt-boost
+    @just build-local-helix
 
 # build the docker image for the bolt sidecar
 [private]
@@ -201,6 +202,12 @@ build-local-sidecar:
 build-local-bolt-boost:
 	cd bolt-boost && docker build -t ghcr.io/chainbound/bolt-boost:0.1.0 . --load
 
+# build the docker image for helix locally
+[private]
+build-local-helix:
+	git clone https://github.com/chainbound/helix.git helix-temp && \
+	cd helix-temp && docker build -t ghcr.io/chainbound/helix:0.1.0 . && \
+	cd .. && rm -rf helix-temp
 
 # Cross platform compilation with cargo cross.
 # Install cross with: `cargo install cross --git https://github.com/cross-rs/cross`.
