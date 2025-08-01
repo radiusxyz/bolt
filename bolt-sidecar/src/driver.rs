@@ -1,4 +1,4 @@
-use std::{fmt, sync::Arc, time::Instant};
+use std::{collections::HashMap, fmt, sync::Arc, time::Instant};
 
 use alloy::{
     consensus::{TxType, Typed2718},
@@ -74,6 +74,24 @@ pub struct SidecarDriver<C, ECDSA> {
     slot_stream: SlotStream<SystemTimeProvider>,
     /// Whether to skip consensus checks (should only be used for testing)
     unsafe_skip_consensus_checks: bool,
+    /// Pending first inclusion requests awaiting processing 500ms after commitment deadline (slot -> (request, response_sender, start_time))
+    pending_first_inclusion_requests: HashMap<
+        u64,
+        Vec<(
+            crate::primitives::FirstInclusionRequest,
+            tokio::sync::oneshot::Sender<
+                Result<
+                    crate::primitives::commitment::SignedCommitment,
+                    crate::api::commitments::spec::CommitmentError,
+                >,
+            >,
+            Instant,
+        )>,
+    >,
+    /// Track when commitment deadlines occurred for each slot to schedule first inclusion processing
+    commitment_deadline_timestamps: HashMap<u64, Instant>,
+    /// Timer interval for checking pending first inclusion requests
+    first_inclusion_timer_interval: std::time::Duration,
 }
 
 impl SidecarDriver<StateClient, PrivateKeySigner> {
@@ -261,6 +279,9 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             api_events_rx,
             payload_requests_rx,
             slot_stream,
+            pending_first_inclusion_requests: HashMap::new(),
+            commitment_deadline_timestamps: HashMap::new(),
+            first_inclusion_timer_interval: opts.chain.first_inclusion_timer_interval(),
         })
     }
 
@@ -269,6 +290,11 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
     /// Any errors encountered are contained to the specific `handler` in which
     /// they occurred, and the driver will continue to run as long as possible.
     pub async fn run_forever(mut self) -> ! {
+        // Timer for processing pending first inclusion requests (500ms after commitment deadline)
+        let mut first_inclusion_timer =
+            tokio::time::interval(self.first_inclusion_timer_interval);
+        first_inclusion_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
         loop {
             tokio::select! {
                 Some(api_event) = self.api_events_rx.recv() => {
@@ -287,6 +313,9 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                     if let Err(e) = self.consensus.update_slot(slot).await {
                         error!(err = ?e, "Failed to update consensus state slot");
                     }
+                }
+                _ = first_inclusion_timer.tick() => {
+                    self.process_pending_first_inclusion_requests().await;
                 }
             }
         }
@@ -426,7 +455,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
     /// Handle an exclusion request
     async fn handle_exclusion_request(
         &mut self,
-        exclusion_request: crate::primitives::ExclusionRequest,
+        mut exclusion_request: crate::primitives::ExclusionRequest,
         response: tokio::sync::oneshot::Sender<
             Result<
                 crate::primitives::commitment::SignedCommitment,
@@ -437,6 +466,58 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
     ) {
         let target_slot = exclusion_request.slot;
         info!("Processing exclusion request for slot {}", target_slot);
+
+        // If no access list is provided, try to fetch one from the execution client
+        if exclusion_request.access_list.is_none() && !exclusion_request.txs.is_empty() {
+            debug!("No access list provided, fetching from execution client");
+
+            match self
+                .execution
+                .state_client()
+                .create_access_lists_for_txs(&exclusion_request.txs, None)
+                .await
+            {
+                Ok(access_lists) => {
+                    // Merge all access lists into one
+                    let mut merged_access_list: Vec<alloy::rpc::types::AccessListItem> = Vec::new();
+                    for access_list_result in access_lists {
+                        match access_list_result {
+                            Ok(access_list) => {
+                                for item in access_list.0 {
+                                    // Check if address already exists
+                                    if let Some(existing) = merged_access_list
+                                        .iter_mut()
+                                        .find(|x| x.address == item.address)
+                                    {
+                                        // Merge storage keys
+                                        for key in item.storage_keys {
+                                            if !existing.storage_keys.contains(&key) {
+                                                existing.storage_keys.push(key);
+                                            }
+                                        }
+                                    } else {
+                                        merged_access_list.push(item);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                warn!(?e, "Failed to fetch access list for transaction, continuing without it");
+                            }
+                        }
+                    }
+                    exclusion_request.access_list =
+                        Some(alloy::rpc::types::AccessList(merged_access_list));
+                    debug!(
+                        access_list_size =
+                            exclusion_request.access_list.as_ref().map_or(0, |al| al.0.len()),
+                        "Fetched and merged access lists"
+                    );
+                }
+                Err(e) => {
+                    warn!(?e, "Failed to fetch access lists from execution client, proceeding with empty access list");
+                }
+            }
+        }
 
         match exclusion_request.commit_and_sign(&self.commitment_signer).await {
             Ok(commitment) => {
@@ -450,7 +531,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         };
     }
 
-    /// Handle a first access request
+    /// Handle a first inclusion request by adding it to the pending auction queue
     async fn handle_first_inclusion_request(
         &mut self,
         first_inclusion_request: crate::primitives::FirstInclusionRequest,
@@ -463,18 +544,151 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         start: Instant,
     ) {
         let target_slot = first_inclusion_request.slot;
-        info!("Processing first access request for slot {}", target_slot);
+        info!(
+            "Received first inclusion request for slot {}, adding to pending queue for processing after commitment deadline + 500ms",
+            target_slot
+        );
 
-        match first_inclusion_request.commit_and_sign(&self.commitment_signer).await {
-            Ok(commitment) => {
-                debug!(slot = target_slot, elapsed = ?start.elapsed(), "First access commitment signed and sent");
-                response.send(Ok(SignedCommitment::FirstInclusion(commitment))).ok()
+        // Add the request to the pending queue for processing after commitment deadline + 500ms
+        self.pending_first_inclusion_requests.entry(target_slot).or_insert_with(Vec::new).push((
+            first_inclusion_request,
+            response,
+            start,
+        ));
+
+        debug!(slot = target_slot, "Added first inclusion request to pending queue");
+    }
+
+    /// Process pending first inclusion requests 500ms after their commitment deadline
+    async fn process_pending_first_inclusion_requests(&mut self) {
+        let current_slot = self.consensus.latest_slot();
+        let mut slots_to_remove = Vec::new();
+        let mut deadline_slots_to_remove = Vec::new();
+
+        // Define delay after commitment deadline (500ms)
+        const FIRST_INCLUSION_DELAY_MS: u64 = 500;
+        let delay_duration = tokio::time::Duration::from_millis(FIRST_INCLUSION_DELAY_MS);
+
+        for (&slot, requests) in self.pending_first_inclusion_requests.iter_mut() {
+            // Clean up requests for past slots that are too old
+            if slot < current_slot.saturating_sub(1) {
+                debug!(slot, "First inclusion request expired (slot too old)");
+                for (_, response, _) in requests.drain(..) {
+                    let _ = response.send(Err(CommitmentError::Consensus(
+                        crate::state::consensus::ConsensusError::DeadlineExceeded,
+                    )));
+                }
+                slots_to_remove.push(slot);
+                continue;
             }
-            Err(err) => {
-                error!(?err, "Failed to sign first access commitment");
-                response.send(Err(CommitmentError::Internal)).ok()
+
+            // Check if commitment deadline has passed and 500ms delay has elapsed
+            if let Some(deadline_timestamp) = self.commitment_deadline_timestamps.get(&slot) {
+                let time_since_deadline = deadline_timestamp.elapsed();
+                
+                if time_since_deadline >= delay_duration && !requests.is_empty() {
+                    debug!(
+                        slot,
+                        num_requests = requests.len(),
+                        elapsed_since_deadline = ?time_since_deadline,
+                        "Processing first inclusion requests 500ms after commitment deadline"
+                    );
+
+                    // Remove all requests for this slot and process them directly
+                    let all_requests = std::mem::take(requests);
+
+                    for (mut request, response, start) in all_requests {
+                        // Fetch access list if needed
+                        if request.access_list.is_none() && !request.txs.is_empty() {
+                            debug!("No access list provided, fetching from execution client");
+
+                            let mut all_txs = request.txs.clone();
+                            all_txs.extend(request.bid_transaction.clone());
+
+                            match self
+                                .execution
+                                .state_client()
+                                .create_access_lists_for_txs(&all_txs, None)
+                                .await
+                            {
+                                Ok(access_lists) => {
+                                    let mut merged_access_list: Vec<
+                                        alloy::rpc::types::AccessListItem,
+                                    > = Vec::new();
+                                    for access_list_result in access_lists {
+                                        match access_list_result {
+                                            Ok(access_list) => {
+                                                for item in access_list.0 {
+                                                    if let Some(existing) = merged_access_list
+                                                        .iter_mut()
+                                                        .find(|x| x.address == item.address)
+                                                    {
+                                                        for key in item.storage_keys {
+                                                            if !existing.storage_keys.contains(&key)
+                                                            {
+                                                                existing.storage_keys.push(key);
+                                                            }
+                                                        }
+                                                    } else {
+                                                        merged_access_list.push(item);
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => {
+                                                warn!(?e, "Failed to fetch access list for transaction, continuing without it");
+                                            }
+                                        }
+                                    }
+                                    request.access_list =
+                                        Some(alloy::rpc::types::AccessList(merged_access_list));
+                                    debug!(
+                                        access_list_size =
+                                            request.access_list.as_ref().map_or(0, |al| al.0.len()),
+                                        "Fetched and merged access lists"
+                                    );
+                                }
+                                Err(e) => {
+                                    warn!(?e, "Failed to fetch access lists from execution client, proceeding with empty access list");
+                                }
+                            }
+                        }
+
+                        // Sign and commit the request directly (no auction)
+                        match request.commit_and_sign(&self.commitment_signer).await {
+                            Ok(commitment) => {
+                                debug!(slot, elapsed = ?start.elapsed(), "First inclusion commitment signed and sent");
+                                let _ = response.send(Ok(SignedCommitment::FirstInclusion(commitment)));
+                            }
+                            Err(err) => {
+                                error!(?err, "Failed to sign first inclusion commitment");
+                                let _ = response.send(Err(CommitmentError::Internal));
+                            }
+                        }
+                    }
+
+                    // Mark slot for removal
+                    slots_to_remove.push(slot);
+                    deadline_slots_to_remove.push(slot);
+                }
             }
-        };
+        }
+
+        // Clean up old commitment deadline timestamps
+        for (&slot, _) in self.commitment_deadline_timestamps.iter() {
+            if slot < current_slot.saturating_sub(2) {
+                deadline_slots_to_remove.push(slot);
+            }
+        }
+
+        // Remove processed slots
+        for slot in slots_to_remove {
+            self.pending_first_inclusion_requests.remove(&slot);
+        }
+        
+        // Remove old deadline timestamps
+        for slot in deadline_slots_to_remove {
+            self.commitment_deadline_timestamps.remove(&slot);
+        }
     }
 
     /// Handle a new head event, updating the execution state.
@@ -491,6 +705,8 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
     /// Handle a commitment deadline event, submitting constraints to the Constraints client service
     /// and starting to build a local payload for the given target slot.
     async fn handle_commitment_deadline(&mut self, slot: u64) {
+        // Record the commitment deadline timestamp for first inclusion processing
+        self.commitment_deadline_timestamps.insert(slot, Instant::now());
         let Some(template) = self.execution.get_block_template(slot) else {
             // Nothing to do then. Block templates are created only when constraints are added,
             // which means we haven't issued any commitment for this slot because we are
@@ -551,6 +767,15 @@ impl fmt::Debug for SidecarDriver<StateClient, PrivateKeySigner> {
             .field("constraints_client", &self.constraints_client)
             .field("api_events_rx", &self.api_events_rx)
             .field("payload_requests_rx", &self.payload_requests_rx)
+            .field(
+                "pending_first_inclusion_requests",
+                &format!("{} slots", self.pending_first_inclusion_requests.len()),
+            )
+            .field(
+                "commitment_deadline_timestamps",
+                &format!("{} slots", self.commitment_deadline_timestamps.len()),
+            )
+            .field("first_inclusion_timer_interval", &self.first_inclusion_timer_interval)
             .finish()
     }
 }

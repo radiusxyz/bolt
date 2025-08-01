@@ -3,14 +3,14 @@ use std::{collections::HashMap, time::Duration};
 use alloy::{
     eips::BlockNumberOrTag,
     primitives::{Address, Bytes, TxHash, U256, U64},
-    rpc::types::TransactionReceipt,
+    rpc::types::{AccessList, TransactionReceipt},
     transports::TransportError,
 };
 use futures::{stream::FuturesOrdered, StreamExt};
 use reqwest::Url;
 use tracing::error;
 
-use crate::{client::ExecutionClient, primitives::AccountState};
+use crate::{client::ExecutionClient, primitives::{AccountState, FullTransaction}};
 
 use super::execution::StateUpdate;
 
@@ -55,6 +55,20 @@ pub trait StateFetcher {
         &self,
         hashes: &[TxHash],
     ) -> Result<Vec<Option<TransactionReceipt>>, TransportError>;
+
+    /// Create an access list for a transaction.
+    async fn create_access_list_for_tx(
+        &self,
+        tx: &FullTransaction,
+        block_number: Option<u64>,
+    ) -> Result<AccessList, TransportError>;
+
+    /// Create access lists for multiple transactions.
+    async fn create_access_lists_for_txs(
+        &self,
+        txs: &[FullTransaction],
+        block_number: Option<u64>,
+    ) -> Result<Vec<Result<AccessList, TransportError>>, TransportError>;
 }
 
 /// A basic state fetcher that uses an RPC client to fetch state updates.
@@ -222,6 +236,23 @@ impl StateFetcher for StateClient {
         hashes: &[TxHash],
     ) -> Result<Vec<Option<TransactionReceipt>>, TransportError> {
         self.client.get_receipts(hashes).await
+    }
+
+    async fn create_access_list_for_tx(
+        &self,
+        tx: &FullTransaction,
+        block_number: Option<u64>,
+    ) -> Result<AccessList, TransportError> {
+        self.client.create_access_list_for_tx(tx, block_number).await
+    }
+
+    async fn create_access_lists_for_txs(
+        &self,
+        txs: &[FullTransaction],
+        block_number: Option<u64>,
+    ) -> Result<Vec<Result<AccessList, TransportError>>, TransportError> {
+        let results = self.client.create_access_lists_for_txs(txs, block_number).await?;
+        Ok(results)
     }
 }
 

@@ -137,6 +137,21 @@ impl ConsensusState {
         self.commitment_deadline.wait().await
     }
 
+    /// Get the latest slot number.
+    pub fn latest_slot(&self) -> u64 {
+        self.latest_slot
+    }
+
+    /// Get the commitment deadline duration.
+    pub fn commitment_deadline_duration(&self) -> Duration {
+        self.commitment_deadline_duration
+    }
+
+    /// Get the timestamp when the latest slot was received.
+    pub fn latest_slot_timestamp(&self) -> Instant {
+        self.latest_slot_timestamp
+    }
+
     /// Update the latest head and fetch the relevant data from the beacon chain.
     pub async fn update_slot(&mut self, slot: u64) -> Result<(), ConsensusError> {
         debug!("Updating slot to {slot}");

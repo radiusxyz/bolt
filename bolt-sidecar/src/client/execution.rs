@@ -1,19 +1,21 @@
 use std::ops::{Deref, DerefMut};
 
 use alloy::{
+    consensus::Transaction,
     eips::BlockNumberOrTag,
+    network::TransactionBuilder,
     primitives::{Address, Bytes, TxHash, B256, U256, U64},
     providers::{ProviderBuilder, RootProvider},
     rpc::{
         client::{BatchRequest, ClientBuilder, RpcClient},
-        types::{Block, FeeHistory, TransactionReceipt},
+        types::{AccessList, Block, FeeHistory, TransactionReceipt, TransactionRequest},
     },
     transports::{http::Http, TransportErrorKind, TransportResult},
 };
 use futures::{stream::FuturesUnordered, StreamExt};
 use reqwest::{Client, Url};
 
-use crate::primitives::AccountState;
+use crate::primitives::{AccountState, FullTransaction};
 
 /// An HTTP-based JSON-RPC execution client provider that supports batching.
 ///
@@ -173,6 +175,136 @@ impl ExecutionClient {
             .into_iter()
             .map(|r| r.ok())
             .collect())
+    }
+
+    /// Create an access list for a transaction using eth_createAccessList.
+    /// This determines which accounts and storage slots the transaction would access.
+    pub async fn create_access_list(
+        &self,
+        tx_request: &TransactionRequest,
+        block_number: Option<u64>,
+    ) -> TransportResult<AccessList> {
+        let tag = block_number.map_or(BlockNumberOrTag::Latest, BlockNumberOrTag::Number);
+        
+        // eth_createAccessList returns an object with accessList and gasUsed
+        let response: serde_json::Value = self
+            .rpc
+            .request("eth_createAccessList", (tx_request, tag))
+            .await?;
+
+        // Extract the accessList field from the response
+        let access_list_value = response
+            .get("accessList")
+            .ok_or_else(|| TransportErrorKind::Custom("accessList field not found in response".into()))?;
+
+        let access_list: AccessList = serde_json::from_value(access_list_value.clone())
+            .map_err(|e| TransportErrorKind::Custom(format!("Failed to parse access list: {}", e).into()))?;
+
+        Ok(access_list)
+    }
+
+    /// Create access lists for multiple transactions in a batch.
+    pub async fn create_access_lists(
+        &self,
+        tx_requests: &[TransactionRequest],
+        block_number: Option<u64>,
+    ) -> TransportResult<Vec<TransportResult<AccessList>>> {
+        let mut batch = self.rpc.new_batch();
+        let tag = block_number.map_or(BlockNumberOrTag::Latest, BlockNumberOrTag::Number);
+
+        let mut futures = Vec::new();
+        for tx_request in tx_requests {
+            let future = batch
+                .add_call("eth_createAccessList", &(tx_request, tag))
+                .expect("Correct parameters");
+            futures.push(future);
+        }
+
+        batch.send().await?;
+
+        let mut results = Vec::new();
+        for future in futures {
+            let result = match future.await {
+                Ok(response) => {
+                    let response: serde_json::Value = response;
+                    match response.get("accessList") {
+                        Some(access_list_value) => {
+                            match serde_json::from_value::<AccessList>(access_list_value.clone()) {
+                                Ok(access_list) => Ok(access_list),
+                                Err(e) => Err(TransportErrorKind::Custom(
+                                    format!("Failed to parse access list: {}", e).into()
+                                ).into()),
+                            }
+                        }
+                        None => Err(TransportErrorKind::Custom(
+                            "accessList field not found in response".into()
+                        ).into()),
+                    }
+                }
+                Err(e) => Err(e),
+            };
+            results.push(result);
+        }
+
+        Ok(results)
+    }
+
+    /// Convert a FullTransaction to a TransactionRequest for use with eth_createAccessList.
+    fn full_transaction_to_request(tx: &FullTransaction) -> TransactionRequest {
+        let mut request = TransactionRequest::default();
+        
+        // Set basic fields
+        if let Some(to) = tx.to() {
+            request = request.with_to(to);
+        }
+        request = request
+            .with_value(tx.value())
+            .with_gas_limit(tx.gas_limit())
+            .with_input(tx.input().clone());
+
+        // Set from if we have the sender
+        if let Some(sender) = tx.sender() {
+            request = request.with_from(*sender);
+        }
+
+        // Set gas price fields based on transaction type
+        let max_fee = tx.max_fee_per_gas();
+        request = request.with_max_fee_per_gas(max_fee);
+        
+        if let Some(priority_fee) = tx.max_priority_fee_per_gas() {
+            request = request.with_max_priority_fee_per_gas(priority_fee);
+        }
+
+        // Set access list if present
+        if let Some(access_list) = tx.access_list() {
+            request = request.with_access_list(access_list.clone());
+        }
+
+        request
+    }
+
+    /// Create an access list for a FullTransaction.
+    pub async fn create_access_list_for_tx(
+        &self,
+        tx: &FullTransaction,
+        block_number: Option<u64>,
+    ) -> TransportResult<AccessList> {
+        let tx_request = Self::full_transaction_to_request(tx);
+        self.create_access_list(&tx_request, block_number).await
+    }
+
+    /// Create access lists for multiple FullTransactions.
+    pub async fn create_access_lists_for_txs(
+        &self,
+        txs: &[FullTransaction],
+        block_number: Option<u64>,
+    ) -> TransportResult<Vec<TransportResult<AccessList>>> {
+        let tx_requests: Vec<TransactionRequest> = txs
+            .iter()
+            .map(Self::full_transaction_to_request)
+            .collect();
+        
+        self.create_access_lists(&tx_requests, block_number).await
     }
 }
 

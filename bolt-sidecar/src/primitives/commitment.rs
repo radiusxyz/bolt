@@ -343,7 +343,7 @@ pub struct ExclusionRequest {
     #[serde(deserialize_with = "deserialize_txs", serialize_with = "serialize_txs")]
     pub txs: Vec<FullTransaction>,
     /// The access list of states that these transactions touch.
-    pub access_list: AccessList,
+    pub access_list: Option<AccessList>,
     /// The signature over the request fields by the user.
     #[serde(skip)]
     pub signature: Option<AlloySignatureWrapper>,
@@ -362,7 +362,7 @@ pub struct FirstInclusionRequest {
     #[serde(deserialize_with = "deserialize_txs", serialize_with = "serialize_txs")]
     pub txs: Vec<FullTransaction>,
     /// The access list of states for which first access is requested.
-    pub access_list: AccessList,
+    pub access_list: Option<AccessList>,
     /// The transaction representing the auction winner's bid. May be a one element vector.
     #[serde(deserialize_with = "deserialize_txs", serialize_with = "serialize_txs")]
     pub bid_transaction: Vec<FullTransaction>,

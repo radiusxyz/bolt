@@ -238,6 +238,11 @@ impl<C: StateFetcher> ExecutionState<C> {
         self.basefee
     }
 
+    /// Returns a reference to the state client for accessing execution layer functionality
+    pub fn state_client(&self) -> &C {
+        &self.client
+    }
+
     /// Validates the commitment request against state (historical + intermediate).
     ///
     /// NOTE: This function only simulates against execution state, it does not consider

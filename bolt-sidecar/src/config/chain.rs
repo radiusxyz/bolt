@@ -17,6 +17,12 @@ use serde::Deserialize;
 /// relays have enough time to build valid payloads.
 pub const DEFAULT_COMMITMENT_DEADLINE_IN_MILLIS: u64 = 8_000;
 
+/// Default first inclusion timer interval in milliseconds.
+///
+/// The sidecar will check for pending first inclusion requests at this interval.
+/// These requests are processed 500ms after the commitment deadline expires.
+pub const DEFAULT_FIRST_INCLUSION_TIMER_INTERVAL_IN_MILLIS: u64 = 100;
+
 /// Default slot time duration in seconds.
 pub const DEFAULT_SLOT_TIME_IN_SECONDS: u64 = 12;
 
@@ -33,6 +39,7 @@ pub const COMMIT_BOOST_DOMAIN_MASK: [u8; 4] = [109, 109, 111, 67];
 pub const DEFAULT_CHAIN_CONFIG: ChainConfig = ChainConfig {
     chain: Chain::Mainnet,
     commitment_deadline: DEFAULT_COMMITMENT_DEADLINE_IN_MILLIS,
+    first_inclusion_timer_interval: DEFAULT_FIRST_INCLUSION_TIMER_INTERVAL_IN_MILLIS,
     slot_time: DEFAULT_SLOT_TIME_IN_SECONDS,
     gas_limit: DEFAULT_GAS_LIMIT,
     enable_unsafe_lookahead: false,
@@ -57,6 +64,14 @@ pub struct ChainConfig {
         default_value_t = DEFAULT_CHAIN_CONFIG.commitment_deadline
     )]
     pub(crate) commitment_deadline: u64,
+    /// The timer interval for checking pending first inclusion requests (parsed as milliseconds).
+    /// First inclusion requests are processed 500ms after the commitment deadline expires.
+    #[clap(
+        long,
+        env = "BOLT_SIDECAR_FIRST_INCLUSION_TIMER_INTERVAL",
+        default_value_t = DEFAULT_CHAIN_CONFIG.first_inclusion_timer_interval
+    )]
+    pub(crate) first_inclusion_timer_interval: u64,
     /// The slot time duration in seconds. If provided,
     /// it overrides the default for the selected [Chain].
     #[clap(
@@ -181,6 +196,11 @@ impl ChainConfig {
         Duration::from_millis(self.commitment_deadline)
     }
 
+    /// Get the first inclusion timer interval duration for the given chain.
+    pub fn first_inclusion_timer_interval(&self) -> Duration {
+        Duration::from_millis(self.first_inclusion_timer_interval)
+    }
+
     /// Compute the domain for signing messages on the given chain.
     fn compute_domain_from_mask(&self, mask: [u8; 4]) -> [u8; 32] {
         let mut domain = [0; 32];
@@ -222,6 +242,7 @@ impl ChainConfig {
             chain: Chain::Kurtosis,
             slot_time: slot_time_in_seconds,
             commitment_deadline,
+            first_inclusion_timer_interval: DEFAULT_FIRST_INCLUSION_TIMER_INTERVAL_IN_MILLIS,
             ..Default::default()
         }
     }
