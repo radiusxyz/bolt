@@ -68,6 +68,22 @@ impl SignedCommitment {
             _ => None,
         }
     }
+
+    /// Returns the inner commitment if this is an exclusion commitment, otherwise `None`.
+    pub fn into_exclusion_commitment(self) -> Option<ExclusionCommitment> {
+        match self {
+            Self::Exclusion(exclusion) => Some(exclusion),
+            _ => None,
+        }
+    }
+
+    /// Returns the inner commitment if this is a first access commitment, otherwise `None`.
+    pub fn into_first_access_commitment(self) -> Option<FirstAccessCommitment> {
+        match self {
+            Self::FirstAccess(first_access) => Some(first_access),
+            _ => None,
+        }
+    }
 }
 
 impl CommitmentRequest {
@@ -75,6 +91,22 @@ impl CommitmentRequest {
     pub fn as_inclusion_request(&self) -> Option<&InclusionRequest> {
         match self {
             Self::Inclusion(req) => Some(req),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the inner request if this is an exclusion request, otherwise `None`.
+    pub fn as_exclusion_request(&self) -> Option<&ExclusionRequest> {
+        match self {
+            Self::Exclusion(req) => Some(req),
+            _ => None,
+        }
+    }
+
+    /// Returns a reference to the inner request if this is a first access request, otherwise `None`.
+    pub fn as_first_access_request(&self) -> Option<&FirstAccessRequest> {
+        match self {
+            Self::FirstAccess(req) => Some(req),
             _ => None,
         }
     }
@@ -88,13 +120,11 @@ impl CommitmentRequest {
             Self::Inclusion(req) => {
                 req.commit_and_sign(signer).await.map(SignedCommitment::Inclusion)
             }
-            Self::Exclusion(_) => {
-                // TODO: Implement exclusion commitment signing in a future commit
-                Err(eyre::eyre!("Exclusion commitment signing not yet implemented"))
+            Self::Exclusion(req) => {
+                req.commit_and_sign(signer).await.map(SignedCommitment::Exclusion)
             }
-            Self::FirstAccess(_) => {
-                // TODO: Implement first access commitment signing in a future commit
-                Err(eyre::eyre!("First access commitment signing not yet implemented"))
+            Self::FirstAccess(req) => {
+                req.commit_and_sign(signer).await.map(SignedCommitment::FirstAccess)
             }
         }
     }
@@ -103,14 +133,8 @@ impl CommitmentRequest {
     pub fn signature(&self) -> Option<&AlloySignatureWrapper> {
         match self {
             Self::Inclusion(req) => req.signature.as_ref(),
-            Self::Exclusion(_) => {
-                // TODO: Implement exclusion signature access in a future commit
-                None
-            }
-            Self::FirstAccess(_) => {
-                // TODO: Implement first access signature access in a future commit
-                None
-            }
+            Self::Exclusion(req) => req.signature.as_ref(),
+            Self::FirstAccess(req) => req.signature.as_ref(),
         }
     }
 }
@@ -345,6 +369,88 @@ pub struct FirstAccessRequest {
     /// The signer of the request (if recovered).
     #[serde(skip)]
     pub signer: Option<Address>,
+}
+
+impl ExclusionRequest {
+    /// Commits and signs the request with the provided signer. Returns an [ExclusionCommitment].
+    pub async fn commit_and_sign<S: SignerECDSA>(
+        self,
+        signer: &S,
+    ) -> eyre::Result<ExclusionCommitment> {
+        let digest = self.digest();
+        let signature = signer.sign_hash(&digest).await?;
+        let signature = PrimitiveSignature::try_from(signature.as_bytes().as_ref())?;
+        let ec = self.into_signed(signature.into());
+        Ok(ec)
+    }
+
+    /// Returns the digest of the request.
+    pub fn digest(&self) -> B256 {
+        let mut data = Vec::new();
+        data.extend_from_slice(
+            &self.txs.iter().map(|tx| tx.hash().as_slice()).collect::<Vec<_>>().concat(),
+        );
+        data.extend_from_slice(&self.slot.to_le_bytes());
+        let access_list_bytes = serde_json::to_vec(&self.access_list).unwrap_or_default();
+        data.extend_from_slice(&keccak256(&access_list_bytes).as_slice());
+        keccak256(&data)
+    }
+
+    /// Sets the signature.
+    pub fn set_signature(&mut self, signature: AlloySignatureWrapper) {
+        self.signature = Some(signature);
+    }
+
+    /// Sets the signer.
+    pub fn set_signer(&mut self, signer: Address) {
+        self.signer = Some(signer);
+    }
+
+    /// Returns the transaction signer.
+    pub fn signer(&self) -> Option<Address> {
+        self.signer
+    }
+}
+
+impl FirstAccessRequest {
+    /// Commits and signs the request with the provided signer. Returns a [FirstAccessCommitment].
+    pub async fn commit_and_sign<S: SignerECDSA>(
+        self,
+        signer: &S,
+    ) -> eyre::Result<FirstAccessCommitment> {
+        let digest = self.digest();
+        let signature = signer.sign_hash(&digest).await?;
+        let signature = PrimitiveSignature::try_from(signature.as_bytes().as_ref())?;
+        let fac = self.into_signed(signature.into());
+        Ok(fac)
+    }
+
+    /// Returns the digest of the request.
+    pub fn digest(&self) -> B256 {
+        let mut data = Vec::new();
+        data.extend_from_slice(
+            &self.txs.iter().map(|tx| tx.hash().as_slice()).collect::<Vec<_>>().concat(),
+        );
+        data.extend_from_slice(&self.slot.to_le_bytes());
+        let access_list_bytes = serde_json::to_vec(&self.access_list).unwrap_or_default();
+        data.extend_from_slice(&keccak256(&access_list_bytes).as_slice());
+        keccak256(&data)
+    }
+
+    /// Sets the signature.
+    pub fn set_signature(&mut self, signature: AlloySignatureWrapper) {
+        self.signature = Some(signature);
+    }
+
+    /// Sets the signer.
+    pub fn set_signer(&mut self, signer: Address) {
+        self.signer = Some(signer);
+    }
+
+    /// Returns the transaction signer.
+    pub fn signer(&self) -> Option<Address> {
+        self.signer
+    }
 }
 
 #[cfg(test)]
