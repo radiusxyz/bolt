@@ -35,7 +35,7 @@ use crate::{
         ConstraintsMessage, FetchPayloadRequest, SignedConstraints,
     },
     signer::{keystore::KeystoreSigner, local::LocalSigner, CommitBoostSigner, SignerBLS},
-    state::{fetcher::StateFetcher, ConsensusState, ExecutionState, HeadTracker, StateClient},
+    state::{fetcher::StateFetcher, CommitmentDeadline, ConsensusState, ExecutionState, HeadTracker, StateClient},
     telemetry::ApiMetrics,
     LocalBuilder,
 };
@@ -92,6 +92,8 @@ pub struct SidecarDriver<C, ECDSA> {
     commitment_deadline_timestamps: HashMap<u64, Instant>,
     /// Timer interval for checking pending first inclusion requests
     first_inclusion_timer_interval: std::time::Duration,
+    /// First inclusion deadline for the current slot
+    first_inclusion_deadline: Option<crate::state::CommitmentDeadline>,
 }
 
 impl SidecarDriver<StateClient, PrivateKeySigner> {
@@ -282,6 +284,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             pending_first_inclusion_requests: HashMap::new(),
             commitment_deadline_timestamps: HashMap::new(),
             first_inclusion_timer_interval: opts.chain.first_inclusion_timer_interval(),
+            first_inclusion_deadline: None,
         })
     }
 
@@ -290,11 +293,6 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
     /// Any errors encountered are contained to the specific `handler` in which
     /// they occurred, and the driver will continue to run as long as possible.
     pub async fn run_forever(mut self) -> ! {
-        // Timer for processing pending first inclusion requests (500ms after commitment deadline)
-        let mut first_inclusion_timer =
-            tokio::time::interval(self.first_inclusion_timer_interval);
-        first_inclusion_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-
         loop {
             tokio::select! {
                 Some(api_event) = self.api_events_rx.recv() => {
@@ -306,6 +304,14 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                 Some(slot) = self.consensus.wait_commitment_deadline() => {
                     self.handle_commitment_deadline(slot).await;
                 }
+                Some(slot) = async {
+                    match &mut self.first_inclusion_deadline {
+                        Some(deadline) => deadline.wait().await,
+                        None => std::future::pending().await,
+                    }
+                } => {
+                    self.handle_first_inclusion_deadline(slot).await;
+                }
                 Some(payload_request) = self.payload_requests_rx.recv() => {
                     self.handle_fetch_payload_request(payload_request);
                 }
@@ -313,9 +319,6 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                     if let Err(e) = self.consensus.update_slot(slot).await {
                         error!(err = ?e, "Failed to update consensus state slot");
                     }
-                }
-                _ = first_inclusion_timer.tick() => {
-                    self.process_pending_first_inclusion_requests().await;
                 }
             }
         }
@@ -559,136 +562,94 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         debug!(slot = target_slot, "Added first inclusion request to pending queue");
     }
 
-    /// Process pending first inclusion requests 500ms after their commitment deadline
-    async fn process_pending_first_inclusion_requests(&mut self) {
-        let current_slot = self.consensus.latest_slot();
-        let mut slots_to_remove = Vec::new();
-        let mut deadline_slots_to_remove = Vec::new();
+    /// Schedule first inclusion processing after commitment deadline + first inclusion timer interval
+    async fn schedule_first_inclusion_processing(&mut self, slot: u64) {
+        // Create a new deadline for first inclusion processing
+        self.first_inclusion_deadline = Some(CommitmentDeadline::new(slot, self.first_inclusion_timer_interval));
+        debug!(slot, interval = ?self.first_inclusion_timer_interval, "Scheduled first inclusion processing");
+    }
 
-        // Define delay after commitment deadline (500ms)
-        const FIRST_INCLUSION_DELAY_MS: u64 = 500;
-        let delay_duration = tokio::time::Duration::from_millis(FIRST_INCLUSION_DELAY_MS);
+    /// Handle pending first inclusion requests after the commitment deadline + interval
+    async fn handle_first_inclusion_deadline(&mut self, slot: u64) {
+        // Clear the deadline as it has been reached
+        self.first_inclusion_deadline = None;
+        
+        info!(slot, "First inclusion deadline reached, processing pending requests");
 
-        for (&slot, requests) in self.pending_first_inclusion_requests.iter_mut() {
-            // Clean up requests for past slots that are too old
-            if slot < current_slot.saturating_sub(1) {
-                debug!(slot, "First inclusion request expired (slot too old)");
-                for (_, response, _) in requests.drain(..) {
-                    let _ = response.send(Err(CommitmentError::Consensus(
-                        crate::state::consensus::ConsensusError::DeadlineExceeded,
-                    )));
-                }
-                slots_to_remove.push(slot);
-                continue;
-            }
+        // Process all pending first inclusion requests for this slot
+        if let Some(requests) = self.pending_first_inclusion_requests.remove(&slot) {
+            debug!(slot, num_requests = requests.len(), "Processing first inclusion requests");
 
-            // Check if commitment deadline has passed and 500ms delay has elapsed
-            if let Some(deadline_timestamp) = self.commitment_deadline_timestamps.get(&slot) {
-                let time_since_deadline = deadline_timestamp.elapsed();
-                
-                if time_since_deadline >= delay_duration && !requests.is_empty() {
-                    debug!(
-                        slot,
-                        num_requests = requests.len(),
-                        elapsed_since_deadline = ?time_since_deadline,
-                        "Processing first inclusion requests 500ms after commitment deadline"
-                    );
+            for (mut request, response, start) in requests {
+                // Fetch access list if needed
+                if request.access_list.is_none() && !request.txs.is_empty() {
+                    debug!("No access list provided, fetching from execution client");
 
-                    // Remove all requests for this slot and process them directly
-                    let all_requests = std::mem::take(requests);
+                    let mut all_txs = request.txs.clone();
+                    all_txs.extend(request.bid_transaction.clone());
 
-                    for (mut request, response, start) in all_requests {
-                        // Fetch access list if needed
-                        if request.access_list.is_none() && !request.txs.is_empty() {
-                            debug!("No access list provided, fetching from execution client");
-
-                            let mut all_txs = request.txs.clone();
-                            all_txs.extend(request.bid_transaction.clone());
-
-                            match self
-                                .execution
-                                .state_client()
-                                .create_access_lists_for_txs(&all_txs, None)
-                                .await
-                            {
-                                Ok(access_lists) => {
-                                    let mut merged_access_list: Vec<
-                                        alloy::rpc::types::AccessListItem,
-                                    > = Vec::new();
-                                    for access_list_result in access_lists {
-                                        match access_list_result {
-                                            Ok(access_list) => {
-                                                for item in access_list.0 {
-                                                    if let Some(existing) = merged_access_list
-                                                        .iter_mut()
-                                                        .find(|x| x.address == item.address)
-                                                    {
-                                                        for key in item.storage_keys {
-                                                            if !existing.storage_keys.contains(&key)
-                                                            {
-                                                                existing.storage_keys.push(key);
-                                                            }
-                                                        }
-                                                    } else {
-                                                        merged_access_list.push(item);
+                    match self
+                        .execution
+                        .state_client()
+                        .create_access_lists_for_txs(&all_txs, None)
+                        .await
+                    {
+                        Ok(access_lists) => {
+                            let mut merged_access_list: Vec<alloy::rpc::types::AccessListItem> = Vec::new();
+                            for access_list_result in access_lists {
+                                match access_list_result {
+                                    Ok(access_list) => {
+                                        for item in access_list.0 {
+                                            if let Some(existing) = merged_access_list
+                                                .iter_mut()
+                                                .find(|x| x.address == item.address)
+                                            {
+                                                for key in item.storage_keys {
+                                                    if !existing.storage_keys.contains(&key) {
+                                                        existing.storage_keys.push(key);
                                                     }
                                                 }
-                                            }
-                                            Err(e) => {
-                                                warn!(?e, "Failed to fetch access list for transaction, continuing without it");
+                                            } else {
+                                                merged_access_list.push(item);
                                             }
                                         }
                                     }
-                                    request.access_list =
-                                        Some(alloy::rpc::types::AccessList(merged_access_list));
-                                    debug!(
-                                        access_list_size =
-                                            request.access_list.as_ref().map_or(0, |al| al.0.len()),
-                                        "Fetched and merged access lists"
-                                    );
-                                }
-                                Err(e) => {
-                                    warn!(?e, "Failed to fetch access lists from execution client, proceeding with empty access list");
+                                    Err(e) => {
+                                        warn!(?e, "Failed to fetch access list for transaction, continuing without it");
+                                    }
                                 }
                             }
+                            request.access_list = Some(alloy::rpc::types::AccessList(merged_access_list));
+                            debug!(
+                                access_list_size = request.access_list.as_ref().map_or(0, |al| al.0.len()),
+                                "Fetched and merged access lists"
+                            );
                         }
-
-                        // Sign and commit the request directly (no auction)
-                        match request.commit_and_sign(&self.commitment_signer).await {
-                            Ok(commitment) => {
-                                debug!(slot, elapsed = ?start.elapsed(), "First inclusion commitment signed and sent");
-                                let _ = response.send(Ok(SignedCommitment::FirstInclusion(commitment)));
-                            }
-                            Err(err) => {
-                                error!(?err, "Failed to sign first inclusion commitment");
-                                let _ = response.send(Err(CommitmentError::Internal));
-                            }
+                        Err(e) => {
+                            warn!(?e, "Failed to fetch access lists from execution client, proceeding with empty access list");
                         }
                     }
+                }
 
-                    // Mark slot for removal
-                    slots_to_remove.push(slot);
-                    deadline_slots_to_remove.push(slot);
+                // Sign and commit the request directly (no auction)
+                match request.commit_and_sign(&self.commitment_signer).await {
+                    Ok(commitment) => {
+                        debug!(slot, elapsed = ?start.elapsed(), "First inclusion commitment signed and sent");
+                        let _ = response.send(Ok(SignedCommitment::FirstInclusion(commitment)));
+                    }
+                    Err(err) => {
+                        error!(?err, "Failed to sign first inclusion commitment");
+                        let _ = response.send(Err(CommitmentError::Internal));
+                    }
                 }
             }
+        } else {
+            debug!(slot, "No pending first inclusion requests for this slot");
         }
 
-        // Clean up old commitment deadline timestamps
-        for (&slot, _) in self.commitment_deadline_timestamps.iter() {
-            if slot < current_slot.saturating_sub(2) {
-                deadline_slots_to_remove.push(slot);
-            }
-        }
-
-        // Remove processed slots
-        for slot in slots_to_remove {
-            self.pending_first_inclusion_requests.remove(&slot);
-        }
-        
-        // Remove old deadline timestamps
-        for slot in deadline_slots_to_remove {
-            self.commitment_deadline_timestamps.remove(&slot);
-        }
+        // Clean up old deadline timestamps
+        let current_slot = self.consensus.latest_slot();
+        self.commitment_deadline_timestamps.retain(|&s, _| s >= current_slot.saturating_sub(2));
     }
 
     /// Handle a new head event, updating the execution state.
@@ -707,10 +668,14 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
     async fn handle_commitment_deadline(&mut self, slot: u64) {
         // Record the commitment deadline timestamp for first inclusion processing
         self.commitment_deadline_timestamps.insert(slot, Instant::now());
+        
         let Some(template) = self.execution.get_block_template(slot) else {
             // Nothing to do then. Block templates are created only when constraints are added,
             // which means we haven't issued any commitment for this slot because we are
             // (probably) not the proposer for this block.
+            
+            // Still schedule first inclusion processing even if we don't have constraints
+            self.schedule_first_inclusion_processing(slot).await;
             return;
         };
 
@@ -737,6 +702,9 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                 }
             }
         }));
+        
+        // Schedule first inclusion processing after the additional interval
+        self.schedule_first_inclusion_processing(slot).await;
     }
 
     /// Handle a fetch payload request, responding with the local payload if available.
@@ -776,6 +744,7 @@ impl fmt::Debug for SidecarDriver<StateClient, PrivateKeySigner> {
                 &format!("{} slots", self.commitment_deadline_timestamps.len()),
             )
             .field("first_inclusion_timer_interval", &self.first_inclusion_timer_interval)
+            .field("first_inclusion_deadline", &self.first_inclusion_deadline.is_some())
             .finish()
     }
 }
