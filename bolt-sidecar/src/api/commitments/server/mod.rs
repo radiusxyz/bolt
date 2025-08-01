@@ -31,8 +31,8 @@ use tracing::{error, info};
 use crate::{
     config::limits::LimitsOpts,
     primitives::{
-        commitment::{InclusionCommitment, SignedCommitment},
-        CommitmentRequest, InclusionRequest,
+        commitment::{InclusionCommitment, ExclusionCommitment, FirstAccessCommitment, SignedCommitment},
+        CommitmentRequest, InclusionRequest, ExclusionRequest, FirstAccessRequest,
     },
 };
 
@@ -85,6 +85,38 @@ impl CommitmentsApi for CommitmentsApiInner {
         self.events.send(event).await.unwrap();
 
         response_rx.await.map_err(|_| CommitmentError::Internal)?.map(|c| c.into())
+    }
+
+    async fn request_exclusion(
+        &self,
+        exclusion_request: ExclusionRequest,
+    ) -> Result<ExclusionCommitment, CommitmentError> {
+        let (response_tx, response_rx) = oneshot::channel();
+
+        let event = CommitmentEvent {
+            request: CommitmentRequest::Exclusion(exclusion_request),
+            response: response_tx,
+        };
+
+        self.events.send(event).await.unwrap();
+
+        response_rx.await.map_err(|_| CommitmentError::Internal)?.map(|c| c.into_exclusion_commitment().unwrap())
+    }
+
+    async fn request_first_access(
+        &self,
+        first_access_request: FirstAccessRequest,
+    ) -> Result<FirstAccessCommitment, CommitmentError> {
+        let (response_tx, response_rx) = oneshot::channel();
+
+        let event = CommitmentEvent {
+            request: CommitmentRequest::FirstAccess(first_access_request),
+            response: response_tx,
+        };
+
+        self.events.send(event).await.unwrap();
+
+        response_rx.await.map_err(|_| CommitmentError::Internal)?.map(|c| c.into_first_access_commitment().unwrap())
     }
 }
 
