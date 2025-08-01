@@ -10,10 +10,10 @@ use thiserror::Error;
 
 use crate::{
     primitives::{
-        commitment::InclusionCommitment,
+        commitment::{InclusionCommitment, ExclusionCommitment, FirstAccessCommitment},
         jsonrpc::{JsonRpcError, JsonRpcErrorResponse},
         signature::SignatureError,
-        InclusionRequest,
+        InclusionRequest, ExclusionRequest, FirstAccessRequest,
     },
     state::{consensus::ConsensusError, ValidationError},
 };
@@ -23,6 +23,10 @@ pub(super) const SIGNATURE_HEADER: &str = "x-bolt-signature";
 pub(super) const GET_VERSION_METHOD: &str = "bolt_getVersion";
 
 pub(super) const REQUEST_INCLUSION_METHOD: &str = "bolt_requestInclusion";
+
+pub(super) const REQUEST_EXCLUSION_METHOD: &str = "bolt_requestExclusion";
+
+pub(super) const REQUEST_FIRST_ACCESS_METHOD: &str = "bolt_requestFirstAccess";
 
 pub(super) const GET_METADATA_METHOD: &str = "bolt_metadata";
 
@@ -132,4 +136,16 @@ pub trait CommitmentsApi {
         &self,
         inclusion_request: InclusionRequest,
     ) -> Result<InclusionCommitment, CommitmentError>;
+
+    /// Implements: bolt_requestExclusion
+    async fn request_exclusion(
+        &self,
+        exclusion_request: ExclusionRequest,
+    ) -> Result<ExclusionCommitment, CommitmentError>;
+
+    /// Implements: bolt_requestFirstAccess  
+    async fn request_first_access(
+        &self,
+        first_access_request: FirstAccessRequest,
+    ) -> Result<FirstAccessCommitment, CommitmentError>;
 }
