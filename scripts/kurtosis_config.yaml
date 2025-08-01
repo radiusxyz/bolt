@@ -8,10 +8,10 @@ participants:
     vc_image: sigp/lighthouse:v6.0.0
 
 network_params:
-  seconds_per_slot: 2 # 2 seconds are the minimum for testing
+  seconds_per_slot: 4 # slot time in seconds
   genesis_delay: 0 # This is needed to avoid timestamp issues on Helix
 tx_spammer_params:
-  tx_spammer_extra_args: ["--slot-time=1", "--accounts=20", "--txcount=5"]
+  tx_spammer_extra_args: ["--slot-time=1", "--accounts=10", "--txcount=1"]
 
 additional_services:
   - broadcaster
@@ -31,18 +31,27 @@ additional_services:
 mev_type: full
 
 mev_params:
-  mev_builder_cl_image: sigp/lighthouse:v6.0.0
   # Bolt-specific images:
   # Adding the `bolt_boost_image` will start the devnet with Bolt-Boost
   # instead of MEV-Boost by Flashbots
-  # bolt_boost_image: ghcr.io/chainbound/bolt-boost:0.1.0 # Bolt-Boost based on Commit-Boost
-  bolt_sidecar_image: ghcr.io/chainbound/bolt-sidecar:0.1.0  
-  # bolt_sidecar_extra_params:
-  #   firewall_rpcs: "ws://host.docker.internal:8015/api/v1/firewall_stream"
+  bolt_boost_image: ghcr.io/chainbound/bolt-boost:0.1.0 # Bolt-Boost based on Commit-Boost
+  # mev_boost_image: ghcr.io/chainbound/bolt-mev-boost:0.1.0
+
+  # sidecar
+  bolt_sidecar_image: ghcr.io/chainbound/bolt-sidecar:0.1.0
+  bolt_sidecar_extra_params:
+    commitment_deadline: 2000  # time parameter within which constraints must be submitted
+    # firewall_rpcs: "ws://host.docker.internal:8015/api/v1/firewall_stream"
+
+  # relay
   helix_relay_image: ghcr.io/chainbound/helix:0.1.0
-  mev_relay_image: ghcr.io/chainbound/bolt-relay:0.1.0
+  # mev_relay_image: ghcr.io/chainbound/bolt-relay:0.1.0
+  
+
+  # builder
   mev_builder_image: ghcr.io/chainbound/bolt-builder:0.1.0
-  mev_boost_image: ghcr.io/chainbound/bolt-mev-boost:0.1.0 # MEV-Boost
+  mev_builder_cl_image: sigp/lighthouse:v6.0.0
+  
 
   mev_boost_args: []
   mev_relay_api_extra_args: []

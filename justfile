@@ -146,8 +146,8 @@ send-preconf count='1':
         --devnet.beacon_url $(kurtosis port print bolt-devnet cl-1-lighthouse-geth http) \
         --devnet.sidecar_url http://$(kurtosis port print bolt-devnet bolt-sidecar-1-lighthouse-geth api) \
         --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
-        --max-fee 4 \
-        --priority-fee 3 \
+        --max-fee 400000 \
+        --priority-fee 300000 \
         --count {{count}}
 
 send-preconf-rpc count='1' rpc='http://127.0.0.1:8015/rpc':
@@ -188,9 +188,10 @@ send-blob-preconf-rpc count='1' rpc='http://127.0.0.1:8015/rpc':
 
 # build all the docker images locally
 build-local-images:
-	@just build-local-sidecar
-	@just build-local-bolt-boost
+    @just build-local-sidecar
+    @just build-local-bolt-boost
     @just build-local-helix
+    @just build-local-builder
 
 # build the docker image for the bolt sidecar
 [private]
@@ -202,12 +203,26 @@ build-local-sidecar:
 build-local-bolt-boost:
 	cd bolt-boost && docker build -t ghcr.io/chainbound/bolt-boost:0.1.0 . --load
 
-# build the docker image for helix locally
+# build the docker image for radius helix locally
 [private]
 build-local-helix:
-	git clone https://github.com/chainbound/helix.git helix-temp && \
-	cd helix-temp && docker build -t ghcr.io/chainbound/helix:0.1.0 . && \
-	cd .. && rm -rf helix-temp
+    git clone https://github.com/chainbound/helix.git helix-temp && \
+    cd helix-temp && docker build -t ghcr.io/chainbound/helix:0.1.0 . && \
+    cd .. && rm -rf helix-temp
+
+# build the docker image for radius builder locally
+[private]
+build-local-builder:
+    git clone https://github.com/chainbound/bolt-builder.git helix-temp && \
+    cd helix-temp && docker build -t ghcr.io/chainbound/bolt-builder:0.1.0 . && \
+    cd .. && rm -rf helix-temp
+
+# # build the docker image for helix locally
+# [private]
+# build-local-helix:
+# 	git clone https://github.com/chainbound/helix.git helix-temp && \
+# 	cd helix-temp && docker build -t ghcr.io/chainbound/helix:0.1.0 . && \
+# 	cd .. && rm -rf helix-temp
 
 # Cross platform compilation with cargo cross.
 # Install cross with: `cargo install cross --git https://github.com/cross-rs/cross`.
