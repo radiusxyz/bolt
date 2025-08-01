@@ -17,7 +17,7 @@ use crate::{
         server::headers::auth_from_headers,
         spec::{
             CommitmentError, CommitmentsApi, GET_METADATA_METHOD, GET_VERSION_METHOD,
-            REQUEST_INCLUSION_METHOD, REQUEST_EXCLUSION_METHOD, REQUEST_FIRST_ACCESS_METHOD,
+            REQUEST_EXCLUSION_METHOD, REQUEST_FIRST_ACCESS_METHOD, REQUEST_INCLUSION_METHOD,
         },
     },
     common::BOLT_SIDECAR_VERSION,
@@ -25,7 +25,7 @@ use crate::{
     primitives::{
         jsonrpc::{JsonRpcRequest, JsonRpcResponse, JsonRpcSuccessResponse},
         signature::SignatureError,
-        InclusionRequest, ExclusionRequest, FirstAccessRequest,
+        ExclusionRequest, FirstInclusionRequest, InclusionRequest,
     },
 };
 
@@ -187,16 +187,17 @@ pub async fn rpc_entrypoint(
             };
 
             // Parse the first access request from the parameters
-            let mut first_access_request = serde_json::from_value::<FirstAccessRequest>(request_json)
-                .map_err(CommitmentError::InvalidJson)
-                .inspect_err(|err| error!(?err, "Failed to parse first access request"))?;
+            let mut first_inclusion_request =
+                serde_json::from_value::<FirstInclusionRequest>(request_json)
+                    .map_err(CommitmentError::InvalidJson)
+                    .inspect_err(|err| error!(?err, "Failed to parse first access request"))?;
 
-            debug!(?first_access_request, "New first access request");
+            debug!(?first_inclusion_request, "New first access request");
 
             // Set the signature here for later processing
-            first_access_request.set_signature(signature.into());
+            first_inclusion_request.set_signature(signature.into());
 
-            let digest = first_access_request.digest();
+            let digest = first_inclusion_request.digest();
             let recovered_signer = signature.recover_address_from_prehash(&digest)?;
 
             if recovered_signer != signer {
@@ -210,10 +211,10 @@ pub async fn rpc_entrypoint(
             }
 
             // Set the request signer
-            first_access_request.set_signer(recovered_signer);
+            first_inclusion_request.set_signer(recovered_signer);
 
             info!(signer = ?recovered_signer, %digest, "New valid first access request received");
-            let first_access_commitment = api.request_first_access(first_access_request).await?;
+            let first_access_commitment = api.request_first_access(first_inclusion_request).await?;
 
             // Create the JSON-RPC response
             let response = JsonRpcSuccessResponse {

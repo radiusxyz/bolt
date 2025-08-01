@@ -309,8 +309,8 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             CommitmentRequest::Exclusion(exclusion_request) => {
                 self.handle_exclusion_request(exclusion_request, response, start).await;
             }
-            CommitmentRequest::FirstAccess(first_access_request) => {
-                self.handle_first_access_request(first_access_request, response, start).await;
+            CommitmentRequest::FirstInclusion(first_inclusion_request) => {
+                self.handle_first_inclusion_request(first_inclusion_request, response, start).await;
             }
         }
     }
@@ -319,7 +319,12 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
     async fn handle_inclusion_request_legacy(
         &mut self,
         mut inclusion_request: crate::primitives::InclusionRequest,
-        response: tokio::sync::oneshot::Sender<Result<crate::primitives::commitment::SignedCommitment, crate::api::commitments::spec::CommitmentError>>,
+        response: tokio::sync::oneshot::Sender<
+            Result<
+                crate::primitives::commitment::SignedCommitment,
+                crate::api::commitments::spec::CommitmentError,
+            >,
+        >,
         start: Instant,
     ) {
         ApiMetrics::increment_inclusion_commitments_received();
@@ -422,12 +427,17 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
     async fn handle_exclusion_request(
         &mut self,
         exclusion_request: crate::primitives::ExclusionRequest,
-        response: tokio::sync::oneshot::Sender<Result<crate::primitives::commitment::SignedCommitment, crate::api::commitments::spec::CommitmentError>>,
+        response: tokio::sync::oneshot::Sender<
+            Result<
+                crate::primitives::commitment::SignedCommitment,
+                crate::api::commitments::spec::CommitmentError,
+            >,
+        >,
         start: Instant,
     ) {
         let target_slot = exclusion_request.slot;
         info!("Processing exclusion request for slot {}", target_slot);
-        
+
         match exclusion_request.commit_and_sign(&self.commitment_signer).await {
             Ok(commitment) => {
                 debug!(slot = target_slot, elapsed = ?start.elapsed(), "Exclusion commitment signed and sent");
@@ -441,19 +451,24 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
     }
 
     /// Handle a first access request
-    async fn handle_first_access_request(
+    async fn handle_first_inclusion_request(
         &mut self,
-        first_access_request: crate::primitives::FirstAccessRequest,
-        response: tokio::sync::oneshot::Sender<Result<crate::primitives::commitment::SignedCommitment, crate::api::commitments::spec::CommitmentError>>,
+        first_inclusion_request: crate::primitives::FirstInclusionRequest,
+        response: tokio::sync::oneshot::Sender<
+            Result<
+                crate::primitives::commitment::SignedCommitment,
+                crate::api::commitments::spec::CommitmentError,
+            >,
+        >,
         start: Instant,
     ) {
-        let target_slot = first_access_request.slot;
+        let target_slot = first_inclusion_request.slot;
         info!("Processing first access request for slot {}", target_slot);
-        
-        match first_access_request.commit_and_sign(&self.commitment_signer).await {
+
+        match first_inclusion_request.commit_and_sign(&self.commitment_signer).await {
             Ok(commitment) => {
                 debug!(slot = target_slot, elapsed = ?start.elapsed(), "First access commitment signed and sent");
-                response.send(Ok(SignedCommitment::FirstAccess(commitment))).ok()
+                response.send(Ok(SignedCommitment::FirstInclusion(commitment))).ok()
             }
             Err(err) => {
                 error!(?err, "Failed to sign first access commitment");

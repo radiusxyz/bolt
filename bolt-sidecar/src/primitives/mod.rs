@@ -19,8 +19,8 @@ pub use ethereum_consensus::crypto::{PublicKey as BlsPublicKey, Signature as Bls
 /// Commitment types, received by users wishing to receive preconfirmations.
 pub mod commitment;
 pub use commitment::{
-    CommitmentRequest, InclusionRequest, SignedCommitment, InclusionCommitment,
-    ExclusionRequest, ExclusionCommitment, FirstAccessRequest, FirstAccessCommitment,
+    CommitmentRequest, ExclusionCommitment, ExclusionRequest, FirstInclusionCommitment,
+    FirstInclusionRequest, InclusionCommitment, InclusionRequest, SignedCommitment,
 };
 
 /// Constraint types, signed by proposers and sent along the PBS pipeline

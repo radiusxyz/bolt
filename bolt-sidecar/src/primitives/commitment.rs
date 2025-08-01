@@ -27,7 +27,7 @@ pub enum CommitmentRequest {
     /// Request to exclude conflicting transactions from appearing above searcher's transaction.
     Exclusion(ExclusionRequest),
     /// Request for first access to previously registered states.
-    FirstAccess(FirstAccessRequest),
+    FirstInclusion(FirstInclusionRequest),
 }
 
 /// A signed commitment with a generic signature.
@@ -39,7 +39,7 @@ pub enum SignedCommitment {
     /// A signed exclusion commitment.
     Exclusion(ExclusionCommitment),
     /// A signed first access commitment.
-    FirstAccess(FirstAccessCommitment),
+    FirstInclusion(FirstInclusionCommitment),
 }
 
 /// An inclusion commitment with a generic signature.
@@ -49,7 +49,7 @@ pub type InclusionCommitment = Signed<InclusionRequest, AlloySignatureWrapper>;
 pub type ExclusionCommitment = Signed<ExclusionRequest, AlloySignatureWrapper>;
 
 /// A first access commitment with a generic signature.
-pub type FirstAccessCommitment = Signed<FirstAccessRequest, AlloySignatureWrapper>;
+pub type FirstInclusionCommitment = Signed<FirstInclusionRequest, AlloySignatureWrapper>;
 
 impl From<SignedCommitment> for InclusionCommitment {
     fn from(commitment: SignedCommitment) -> Self {
@@ -78,9 +78,9 @@ impl SignedCommitment {
     }
 
     /// Returns the inner commitment if this is a first access commitment, otherwise `None`.
-    pub fn into_first_access_commitment(self) -> Option<FirstAccessCommitment> {
+    pub fn into_first_access_commitment(self) -> Option<FirstInclusionCommitment> {
         match self {
-            Self::FirstAccess(first_access) => Some(first_access),
+            Self::FirstInclusion(first_access) => Some(first_access),
             _ => None,
         }
     }
@@ -104,9 +104,9 @@ impl CommitmentRequest {
     }
 
     /// Returns a reference to the inner request if this is a first access request, otherwise `None`.
-    pub fn as_first_access_request(&self) -> Option<&FirstAccessRequest> {
+    pub fn as_first_inclusion_request(&self) -> Option<&FirstInclusionRequest> {
         match self {
-            Self::FirstAccess(req) => Some(req),
+            Self::FirstInclusion(req) => Some(req),
             _ => None,
         }
     }
@@ -123,8 +123,8 @@ impl CommitmentRequest {
             Self::Exclusion(req) => {
                 req.commit_and_sign(signer).await.map(SignedCommitment::Exclusion)
             }
-            Self::FirstAccess(req) => {
-                req.commit_and_sign(signer).await.map(SignedCommitment::FirstAccess)
+            Self::FirstInclusion(req) => {
+                req.commit_and_sign(signer).await.map(SignedCommitment::FirstInclusion)
             }
         }
     }
@@ -134,7 +134,7 @@ impl CommitmentRequest {
         match self {
             Self::Inclusion(req) => req.signature.as_ref(),
             Self::Exclusion(req) => req.signature.as_ref(),
-            Self::FirstAccess(req) => req.signature.as_ref(),
+            Self::FirstInclusion(req) => req.signature.as_ref(),
         }
     }
 }
@@ -251,8 +251,8 @@ impl InclusionRequest {
         for tx in &self.txs {
             // Calculate minimum required priority fee for this transaction
             let min_priority_fee = pricing
-                .calculate_min_priority_fee(tx.gas_limit(), preconfirmed_gas)? +
-                min_inclusion_profit;
+                .calculate_min_priority_fee(tx.gas_limit(), preconfirmed_gas)?
+                + min_inclusion_profit;
 
             let tip = tx.effective_tip_per_gas(max_base_fee).unwrap_or_default();
             if tip < min_priority_fee as u128 {
@@ -327,9 +327,9 @@ impl From<ExclusionRequest> for CommitmentRequest {
     }
 }
 
-impl From<FirstAccessRequest> for CommitmentRequest {
-    fn from(req: FirstAccessRequest) -> Self {
-        Self::FirstAccess(req)
+impl From<FirstInclusionRequest> for CommitmentRequest {
+    fn from(req: FirstInclusionRequest) -> Self {
+        Self::FirstInclusion(req)
     }
 }
 
@@ -355,7 +355,7 @@ pub struct ExclusionRequest {
 /// Request for first access to previously registered states.
 #[cfg_attr(test, derive(Default))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct FirstAccessRequest {
+pub struct FirstInclusionRequest {
     /// The consensus slot number at which first access should be enforced.
     pub slot: u64,
     /// The transaction that should get first access.
@@ -363,6 +363,9 @@ pub struct FirstAccessRequest {
     pub txs: Vec<FullTransaction>,
     /// The access list of states for which first access is requested.
     pub access_list: AccessList,
+    /// The transaction representing the auction winner's bid. May be a one element vector.
+    #[serde(deserialize_with = "deserialize_txs", serialize_with = "serialize_txs")]
+    pub bid_transaction: Vec<FullTransaction>,
     /// The signature over the request fields by the user.
     #[serde(skip)]
     pub signature: Option<AlloySignatureWrapper>,
@@ -412,12 +415,12 @@ impl ExclusionRequest {
     }
 }
 
-impl FirstAccessRequest {
-    /// Commits and signs the request with the provided signer. Returns a [FirstAccessCommitment].
+impl FirstInclusionRequest {
+    /// Commits and signs the request with the provided signer. Returns a [FirstInclusionCommitment].
     pub async fn commit_and_sign<S: SignerECDSA>(
         self,
         signer: &S,
-    ) -> eyre::Result<FirstAccessCommitment> {
+    ) -> eyre::Result<FirstInclusionCommitment> {
         let digest = self.digest();
         let signature = signer.sign_hash(&digest).await?;
         let signature = PrimitiveSignature::try_from(signature.as_bytes().as_ref())?;
