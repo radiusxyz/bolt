@@ -1,6 +1,7 @@
 use alloy::{
     consensus::Transaction,
     primitives::{keccak256, Address, PrimitiveSignature, B256},
+    rpc::types::AccessList,
 };
 use serde::{Deserialize, Serialize};
 
@@ -23,6 +24,10 @@ use super::{
 pub enum CommitmentRequest {
     /// Request of inclusion of a transaction at a specific slot.
     Inclusion(InclusionRequest),
+    /// Request to exclude conflicting transactions from appearing above searcher's transaction.
+    Exclusion(ExclusionRequest),
+    /// Request for first access to previously registered states.
+    FirstAccess(FirstAccessRequest),
 }
 
 /// A signed commitment with a generic signature.
@@ -31,15 +36,26 @@ pub enum CommitmentRequest {
 pub enum SignedCommitment {
     /// A signed inclusion commitment.
     Inclusion(InclusionCommitment),
+    /// A signed exclusion commitment.
+    Exclusion(ExclusionCommitment),
+    /// A signed first access commitment.
+    FirstAccess(FirstAccessCommitment),
 }
 
 /// An inclusion commitment with a generic signature.
 pub type InclusionCommitment = Signed<InclusionRequest, AlloySignatureWrapper>;
 
+/// An exclusion commitment with a generic signature.
+pub type ExclusionCommitment = Signed<ExclusionRequest, AlloySignatureWrapper>;
+
+/// A first access commitment with a generic signature.
+pub type FirstAccessCommitment = Signed<FirstAccessRequest, AlloySignatureWrapper>;
+
 impl From<SignedCommitment> for InclusionCommitment {
     fn from(commitment: SignedCommitment) -> Self {
         match commitment {
             SignedCommitment::Inclusion(inclusion) => inclusion,
+            _ => panic!("Expected inclusion commitment"),
         }
     }
 }
@@ -49,6 +65,7 @@ impl SignedCommitment {
     pub fn into_inclusion_commitment(self) -> Option<InclusionCommitment> {
         match self {
             Self::Inclusion(inclusion) => Some(inclusion),
+            _ => None,
         }
     }
 }
@@ -58,6 +75,7 @@ impl CommitmentRequest {
     pub fn as_inclusion_request(&self) -> Option<&InclusionRequest> {
         match self {
             Self::Inclusion(req) => Some(req),
+            _ => None,
         }
     }
 
@@ -70,6 +88,14 @@ impl CommitmentRequest {
             Self::Inclusion(req) => {
                 req.commit_and_sign(signer).await.map(SignedCommitment::Inclusion)
             }
+            Self::Exclusion(_) => {
+                // TODO: Implement exclusion commitment signing in a future commit
+                Err(eyre::eyre!("Exclusion commitment signing not yet implemented"))
+            }
+            Self::FirstAccess(_) => {
+                // TODO: Implement first access commitment signing in a future commit
+                Err(eyre::eyre!("First access commitment signing not yet implemented"))
+            }
         }
     }
 
@@ -77,6 +103,14 @@ impl CommitmentRequest {
     pub fn signature(&self) -> Option<&AlloySignatureWrapper> {
         match self {
             Self::Inclusion(req) => req.signature.as_ref(),
+            Self::Exclusion(_) => {
+                // TODO: Implement exclusion signature access in a future commit
+                None
+            }
+            Self::FirstAccess(_) => {
+                // TODO: Implement first access signature access in a future commit
+                None
+            }
         }
     }
 }
@@ -261,6 +295,56 @@ impl From<InclusionRequest> for CommitmentRequest {
     fn from(req: InclusionRequest) -> Self {
         Self::Inclusion(req)
     }
+}
+
+impl From<ExclusionRequest> for CommitmentRequest {
+    fn from(req: ExclusionRequest) -> Self {
+        Self::Exclusion(req)
+    }
+}
+
+impl From<FirstAccessRequest> for CommitmentRequest {
+    fn from(req: FirstAccessRequest) -> Self {
+        Self::FirstAccess(req)
+    }
+}
+
+/// Request to exclude conflicting transactions from appearing above searcher's transaction.
+#[cfg_attr(test, derive(Default))]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ExclusionRequest {
+    /// The consensus slot number at which the exclusion should be enforced.
+    pub slot: u64,
+    /// The transactions that should be subject to exclusion constraints.
+    #[serde(deserialize_with = "deserialize_txs", serialize_with = "serialize_txs")]
+    pub txs: Vec<FullTransaction>,
+    /// The access list of states that these transactions touch.
+    pub access_list: AccessList,
+    /// The signature over the request fields by the user.
+    #[serde(skip)]
+    pub signature: Option<AlloySignatureWrapper>,
+    /// The signer of the request (if recovered).
+    #[serde(skip)]
+    pub signer: Option<Address>,
+}
+
+/// Request for first access to previously registered states.
+#[cfg_attr(test, derive(Default))]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FirstAccessRequest {
+    /// The consensus slot number at which first access should be enforced.
+    pub slot: u64,
+    /// The transaction that should get first access.
+    #[serde(deserialize_with = "deserialize_txs", serialize_with = "serialize_txs")]
+    pub txs: Vec<FullTransaction>,
+    /// The access list of states for which first access is requested.
+    pub access_list: AccessList,
+    /// The signature over the request fields by the user.
+    #[serde(skip)]
+    pub signature: Option<AlloySignatureWrapper>,
+    /// The signer of the request (if recovered).
+    #[serde(skip)]
+    pub signer: Option<Address>,
 }
 
 #[cfg(test)]
