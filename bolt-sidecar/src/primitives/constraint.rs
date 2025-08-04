@@ -82,6 +82,10 @@ impl SignableBLS for ConstraintsMessage {
             hasher.update(tx.hash());
         }
 
+        // Include access list in the digest
+        let access_list_bytes = serde_json::to_vec(&self.access_list).unwrap_or_default();
+        hasher.update(&keccak256(&access_list_bytes).as_slice());
+
         hasher.finalize().into()
     }
 }
