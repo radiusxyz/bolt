@@ -526,6 +526,67 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             }
         }
 
+        // Create constraints for exclusion request transactions
+        let available_pubkeys = self.constraint_signer.available_pubkeys();
+        let signing_pubkey = if self.unsafe_skip_consensus_checks {
+            available_pubkeys.iter().min().cloned().expect("at least one available pubkey")
+        } else {
+            let validator_pubkey = match self.consensus.validate_request(&crate::primitives::InclusionRequest {
+                slot: exclusion_request.slot,
+                txs: exclusion_request.txs.clone(),
+                signature: None,
+                signer: None,
+            }) {
+                Ok(pubkey) => pubkey,
+                Err(err) => {
+                    warn!(?err, "Consensus: failed to validate exclusion request");
+                    let _ = response.send(Err(CommitmentError::Consensus(err)));
+                    return;
+                }
+            };
+
+            let Some(signing_key) = self
+                .constraints_client
+                .find_signing_key(validator_pubkey, available_pubkeys)
+            else {
+                error!(target_slot, "No available public key to sign constraints with");
+                let _ = response.send(Err(CommitmentError::Internal));
+                return;
+            };
+
+            signing_key
+        };
+
+        // Create and add constraints for each transaction
+        for tx in &exclusion_request.txs {
+            let message = ConstraintsMessage::from_tx_with_access_list(
+                signing_pubkey.clone(),
+                target_slot,
+                tx.clone(),
+                exclusion_request.access_list.clone(),
+            );
+            let digest = message.digest();
+
+            let signature_result = match &self.constraint_signer {
+                SignerBLS::Local(signer) => signer.sign_commit_boost_root(digest),
+                SignerBLS::CommitBoost(signer) => signer.sign_commit_boost_root(digest).await,
+                SignerBLS::Keystore(signer) => {
+                    signer.sign_commit_boost_root(digest, &signing_pubkey)
+                }
+            };
+
+            let signed_constraints = match signature_result {
+                Ok(signature) => SignedConstraints { message, signature },
+                Err(e) => {
+                    error!(?e, "Failed to sign exclusion constraints");
+                    let _ = response.send(Err(CommitmentError::Internal));
+                    return;
+                }
+            };
+
+            self.execution.add_constraint(target_slot, signed_constraints);
+        }
+
         match exclusion_request.commit_and_sign(&self.commitment_signer).await {
             Ok(commitment) => {
                 debug!(slot = target_slot, elapsed = ?start.elapsed(), "Exclusion commitment signed and sent");
