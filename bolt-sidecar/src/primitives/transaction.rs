@@ -75,7 +75,9 @@ pub struct FullTransaction {
 
 impl From<PooledTransaction> for FullTransaction {
     fn from(tx: PooledTransaction) -> Self {
-        Self { tx, sender: None }
+        // Recover the sender from the transaction signature
+        let sender = tx.recover_signer().ok();
+        Self { tx, sender }
     }
 }
 
@@ -131,7 +133,9 @@ impl FullTransaction {
     /// Convenience method to parse a raw transaction into a `FullTransaction`.
     pub fn decode_enveloped(data: impl AsRef<[u8]>) -> eyre::Result<Self> {
         let tx = PooledTransaction::decode_2718(&mut data.as_ref())?;
-        Ok(Self { tx, sender: None })
+        // Recover the sender from the transaction signature
+        let sender = tx.recover_signer().ok();
+        Ok(Self { tx, sender })
     }
 
     /// Returns the inner transaction.
@@ -208,9 +212,26 @@ where
     for s in hex_strings {
         let data = hex::decode(s.trim_start_matches("0x")).map_err(de::Error::custom)?;
         let tx = PooledTransaction::decode_2718(&mut data.as_slice())
-            .map_err(de::Error::custom)
-            .map(|tx| FullTransaction { tx, sender: None })?;
-        txs.push(tx);
+            .map_err(de::Error::custom)?;
+        
+        // Recover the sender from the transaction signature
+        let sender = tx.recover_signer().ok();
+        
+        if let Some(addr) = &sender {
+            tracing::debug!(
+                tx_hash = ?tx.hash(),
+                sender = ?addr,
+                "🔐 Successfully recovered transaction sender"
+            );
+        } else {
+            tracing::warn!(
+                tx_hash = ?tx.hash(),
+                "⚠️ Failed to recover transaction sender"
+            );
+        }
+        
+        let full_tx = FullTransaction { tx, sender };
+        txs.push(full_tx);
     }
 
     Ok(txs)

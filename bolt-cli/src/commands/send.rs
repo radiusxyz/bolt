@@ -102,6 +102,7 @@ impl SendCommand {
                 target_slot,
                 target_url.clone(),
                 &wallet,
+                self.exclusion,
             )
             .await?;
 
@@ -155,6 +156,7 @@ impl SendCommand {
                 slot + 2,
                 sidecar_url.clone(),
                 &wallet,
+                self.exclusion,
             )
             .await?;
 
@@ -194,9 +196,11 @@ async fn send_rpc_request(
     target_slot: u64,
     target_sidecar_url: Url,
     wallet: &PrivateKeySigner,
+    exclusion: bool,
 ) -> Result<()> {
+    let method = if exclusion { "bolt_requestExclusion" } else { "bolt_requestInclusion" };
     let request = prepare_rpc_request(
-        "bolt_requestInclusion",
+        method,
         serde_json::json!({
             "slot": target_slot,
             "txs": txs_rlp,
@@ -204,7 +208,7 @@ async fn send_rpc_request(
     );
 
     info!(?tx_hashes, target_slot, %target_sidecar_url);
-    let signature = sign_request(tx_hashes, target_slot, wallet).await?;
+    let signature = sign_request(tx_hashes, target_slot, wallet, exclusion).await?;
 
     let response = reqwest::Client::new()
         .post(target_sidecar_url)
@@ -227,8 +231,22 @@ async fn sign_request(
     tx_hashes: Vec<B256>,
     target_slot: u64,
     wallet: &PrivateKeySigner,
+    exclusion: bool,
 ) -> eyre::Result<String> {
-    let digest = {
+    let digest = if exclusion {
+        // For exclusion requests, we need to include the access_list hash
+        // Since we're not providing an access_list in the CLI, we'll use None (null)
+        let mut data = Vec::new();
+        let hashes = tx_hashes.iter().map(|hash| hash.as_slice()).collect::<Vec<_>>().concat();
+        data.extend_from_slice(&hashes);
+        data.extend_from_slice(target_slot.to_le_bytes().as_slice());
+        
+        // Hash of null access_list (None serialized as null)
+        let access_list_bytes = serde_json::to_vec(&None::<serde_json::Value>).unwrap_or_default();
+        data.extend_from_slice(&keccak256(&access_list_bytes).as_slice());
+        keccak256(data)
+    } else {
+        // For inclusion requests, use the original digest calculation
         let mut data = Vec::new();
         let hashes = tx_hashes.iter().map(|hash| hash.as_slice()).collect::<Vec<_>>().concat();
         data.extend_from_slice(&hashes);

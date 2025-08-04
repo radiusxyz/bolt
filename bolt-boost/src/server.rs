@@ -157,8 +157,12 @@ async fn submit_constraints(
     State(state): State<PbsState<BuilderState>>,
     Json(constraints): Json<Vec<SignedConstraints>>,
 ) -> Result<impl IntoResponse, PbsClientError> {
-    info!("Submitting {} constraints to relays", constraints.len());
     let (current_slot, _) = state.data.get_slot_and_uuid();
+    info!(
+        constraint_count = constraints.len(),
+        current_slot,
+        "📥 BOLT-BOOST: Received submit_constraints from sidecar"
+    );
 
     // Save constraints for the slot to verify proofs against later.
     for signed_constraints in &constraints {
@@ -166,15 +170,29 @@ async fn submit_constraints(
 
         // Only accept constraints for the current or next epoch.
         if slot > current_slot + EPOCH_SLOTS * 2 {
-            warn!(slot, current_slot, "Constraints are too far in the future");
+            warn!(
+                slot,
+                current_slot,
+                "❌ BOLT-BOOST: Constraints are too far in the future"
+            );
             return Err(PbsClientError::BadRequest);
         }
 
         if let Err(e) = state.data.constraints.insert(slot, signed_constraints.message.clone()) {
-            error!(slot, error = %e, "Failed to save constraints");
+            error!(
+                slot,
+                error = %e,
+                "❌ BOLT-BOOST: Failed to save constraints"
+            );
             return Err(PbsClientError::BadRequest);
         }
     }
+
+    info!(
+        constraint_count = constraints.len(),
+        slots = ?constraints.iter().map(|c| c.message.slot).collect::<Vec<_>>(),
+        "💾 BOLT-BOOST: Successfully stored constraints in cache"
+    );
 
     post_request(state, SUBMIT_CONSTRAINTS_PATH, &constraints).await?;
     Ok(StatusCode::OK)

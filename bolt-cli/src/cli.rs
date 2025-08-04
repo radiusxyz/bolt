@@ -131,6 +131,10 @@ pub struct SendCommand {
     #[clap(long, env = "BLOB", default_value = "false")]
     pub blob: bool,
 
+    /// If set, send an exclusion request instead of inclusion request
+    #[clap(long, env = "EXCLUSION", default_value = "false")]
+    pub exclusion: bool,
+
     /// The max fee per gas in gwei.
     #[clap(long, env = "MAX_FEE")]
     pub max_fee: Option<u128>,

@@ -472,11 +472,23 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         start: Instant,
     ) {
         let target_slot = exclusion_request.slot;
-        info!("Processing exclusion request for slot {}", target_slot);
+        let signer = exclusion_request.signer;
+        let tx_count = exclusion_request.txs.len();
+        
+        info!(
+            target_slot,
+            ?signer,
+            tx_count,
+            "🚫 SIDECAR: Received bolt_exclusionRequest from user"
+        );
 
         // If no access list is provided, try to fetch one from the execution client
         if exclusion_request.access_list.is_none() && !exclusion_request.txs.is_empty() {
-            debug!("No access list provided, fetching from execution client");
+            info!(
+                target_slot,
+                tx_count,
+                "🔍 SIDECAR: Calculating access list for user transactions"
+            );
 
             match self
                 .execution
@@ -514,10 +526,11 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                     }
                     exclusion_request.access_list =
                         Some(alloy::rpc::types::AccessList(merged_access_list));
-                    debug!(
+                    info!(
+                        target_slot,
                         access_list_size =
                             exclusion_request.access_list.as_ref().map_or(0, |al| al.0.len()),
-                        "Fetched and merged access lists"
+                        "✅ SIDECAR: Successfully calculated access list for user transactions"
                     );
                 }
                 Err(e) => {
@@ -858,7 +871,11 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             return;
         };
 
-        info!(slot, "Commitment deadline reached, building local block");
+        info!(
+            slot,
+            constraint_count = template.signed_constraints_list.len(),
+            "⏰ SIDECAR: Commitment deadline reached, building local block and submitting constraints"
+        );
 
         if let Err(e) = self.local_builder.build_new_local_payload(slot, template).await {
             error!(err = ?e, "Error while building local payload at deadline for slot {slot}");
@@ -868,14 +885,26 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         let constraints_client = Arc::new(self.constraints_client.clone());
 
         // Submit constraints to the constraints service with an exponential retry mechanism.
+        info!(
+            slot,
+            constraint_count = constraints.len(),
+            "📡 SIDECAR: Sending submit_constraints to bolt-boost"
+        );
+        
         tokio::spawn(retry_with_backoff(Some(10), None, move || {
             let constraints_client = Arc::clone(&constraints_client);
             let constraints = Arc::clone(&constraints);
             async move {
                 match constraints_client.submit_constraints(constraints.as_ref()).await {
-                    Ok(_) => Ok(()),
+                    Ok(_) => {
+                        info!(
+                            constraint_count = constraints.len(),
+                            "✅ SIDECAR: Successfully submitted constraints to bolt-boost"
+                        );
+                        Ok(())
+                    }
                     Err(e) => {
-                        error!(err = ?e, "Failed to submit constraints, retrying...");
+                        error!(err = ?e, "❌ SIDECAR: Failed to submit constraints to bolt-boost, retrying...");
                         Err(e)
                     }
                 }

@@ -140,14 +140,37 @@ grafana:
 
 # manually send a preconfirmation to the bolt devnet
 send-preconf count='1':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    EXECUTION_URL=$(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc 2>/dev/null || echo "http://127.0.0.1:58433")
+    BEACON_URL=$(kurtosis port print bolt-devnet cl-1-lighthouse-geth http 2>/dev/null || echo "http://127.0.0.1:58377")
+    SIDECAR_URL=$(kurtosis port print bolt-devnet bolt-sidecar-1-lighthouse-geth api 2>/dev/null || echo "127.0.0.1:58446")
     cd bolt-cli && RUST_LOG=info cargo run -- send \
         --devnet \
-        --devnet.execution_url $(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc) \
-        --devnet.beacon_url $(kurtosis port print bolt-devnet cl-1-lighthouse-geth http) \
-        --devnet.sidecar_url http://$(kurtosis port print bolt-devnet bolt-sidecar-1-lighthouse-geth api) \
+        --devnet.execution_url "${EXECUTION_URL}" \
+        --devnet.beacon_url "${BEACON_URL}" \
+        --devnet.sidecar_url "http://${SIDECAR_URL}" \
         --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
         --max-fee 400000 \
         --priority-fee 300000 \
+        --count {{count}}
+
+# manually send an exclusion preconfirmation to the bolt devnet
+send-exclusion-preconf count='1':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    EXECUTION_URL=$(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc 2>/dev/null || echo "http://127.0.0.1:58433")
+    BEACON_URL=$(kurtosis port print bolt-devnet cl-1-lighthouse-geth http 2>/dev/null || echo "http://127.0.0.1:58377")
+    SIDECAR_URL=$(kurtosis port print bolt-devnet bolt-sidecar-1-lighthouse-geth api 2>/dev/null || echo "127.0.0.1:58446")
+    cd bolt-cli && RUST_LOG=info cargo run -- send \
+        --devnet \
+        --devnet.execution_url "${EXECUTION_URL}" \
+        --devnet.beacon_url "${BEACON_URL}" \
+        --devnet.sidecar_url "http://${SIDECAR_URL}" \
+        --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
+        --max-fee 400000 \
+        --priority-fee 300000 \
+        --exclusion \
         --count {{count}}
 
 send-preconf-rpc count='1' rpc='http://127.0.0.1:8015/rpc':
@@ -190,31 +213,31 @@ send-blob-preconf-rpc count='1' rpc='http://127.0.0.1:8015/rpc':
 build-local-images:
     @just build-local-sidecar
     @just build-local-bolt-boost
-    @just build-local-helix
-    @just build-local-builder
+    # @just build-local-helix
+    # @just build-local-builder
 
 # build the docker image for the bolt sidecar
 [private]
 build-local-sidecar:
-	cd bolt-sidecar && docker build -t ghcr.io/chainbound/bolt-sidecar:0.1.0 . --load
+	cd bolt-sidecar && DOCKER_BUILDKIT=1 docker build -t ghcr.io/chainbound/bolt-sidecar:0.1.0 . --load
 
 # build the docker image for bolt-boost
 [private]
 build-local-bolt-boost:
-	cd bolt-boost && docker build -t ghcr.io/chainbound/bolt-boost:0.1.0 . --load
+	cd bolt-boost && DOCKER_BUILDKIT=1 docker build -t ghcr.io/chainbound/bolt-boost:0.1.0 . --load
 
 # build the docker image for radius helix locally
 [private]
 build-local-helix:
     git clone https://github.com/chainbound/helix.git helix-temp && \
-    cd helix-temp && docker build -t ghcr.io/chainbound/helix:0.1.0 . && \
+    cd helix-temp && DOCKER_BUILDKIT=1 docker build -t ghcr.io/chainbound/helix:0.1.0 . && \
     cd .. && rm -rf helix-temp
 
 # build the docker image for radius builder locally
 [private]
 build-local-builder:
     git clone https://github.com/chainbound/bolt-builder.git helix-temp && \
-    cd helix-temp && docker build -t ghcr.io/chainbound/bolt-builder:0.1.0 . && \
+    cd helix-temp && DOCKER_BUILDKIT=1 docker build -t ghcr.io/chainbound/bolt-builder:0.1.0 . && \
     cd .. && rm -rf helix-temp
 
 # # build the docker image for helix locally
