@@ -1,4 +1,8 @@
-use alloy::signers::k256::sha2::{Digest, Sha256};
+use alloy::{
+    primitives::keccak256,
+    rpc::types::AccessList,
+    signers::k256::sha2::{Digest, Sha256},
+};
 use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
 use serde::{Deserialize, Serialize};
 
@@ -36,6 +40,9 @@ pub struct ConstraintsMessage {
     /// The constraints that need to be signed.
     #[serde(deserialize_with = "deserialize_txs", serialize_with = "serialize_txs")]
     pub transactions: Vec<FullTransaction>,
+    /// The access list of states that these transactions touch.
+    /// Used by builders to calculate conflicting transactions.
+    pub access_list: Option<AccessList>,
 }
 
 impl ConstraintsMessage {
