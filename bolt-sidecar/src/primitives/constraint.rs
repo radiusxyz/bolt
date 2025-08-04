@@ -140,7 +140,7 @@ mod tests {
         let transactions = random_constraints(1); // Generate 'n' random constraints
 
         // Create a random `ConstraintsMessage`
-        let message = ConstraintsMessage { pubkey, slot, top, transactions };
+        let message = ConstraintsMessage { pubkey, slot, top, transactions, access_list: None };
 
         // Compute tree hash root
         let digest = SignableBLS::digest(&message);
@@ -160,7 +160,7 @@ mod tests {
         let transactions = random_constraints(2); // Generate 'n' random constraints
 
         // Create a random `ConstraintsMessage`
-        let message = ConstraintsMessage { pubkey, slot, top, transactions };
+        let message = ConstraintsMessage { pubkey, slot, top, transactions, access_list: None };
 
         // Serialize the `ConstraintsMessage` to JSON
         let json = serde_json::to_string(&message).unwrap();
