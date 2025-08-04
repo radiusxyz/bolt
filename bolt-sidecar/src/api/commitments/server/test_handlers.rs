@@ -2,6 +2,7 @@
 mod tests {
     use crate::{
         api::commitments::spec::{REQUEST_EXCLUSION_METHOD, REQUEST_FIRST_ACCESS_METHOD},
+        crypto::SignableBLS,
         primitives::{ExclusionRequest, FirstInclusionRequest},
     };
     use alloy::{
@@ -142,5 +143,45 @@ mod tests {
 
         let digest = first_inclusion_request.digest();
         assert_eq!(digest.len(), 32); // Should be a valid 32-byte hash
+    }
+
+    #[test]
+    fn test_constraints_message_with_access_list() {
+        use crate::primitives::{ConstraintsMessage, FullTransaction};
+        use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
+
+        let access_list = Some(AccessList(vec![AccessListItem {
+            address: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
+            storage_keys: vec![alloy::primitives::B256::from([1; 32])],
+        }]));
+
+        // Test from_tx_with_access_list constructor
+        let tx_bytes = alloy::hex::decode("f8678085019dc6838082520894deaddeaddeaddeaddeaddeaddeaddeaddeaddead38808360306ca06664c078fa60bd3ece050903dd295949908dd9686ec8871fa558f868e031cd39a00ed4f0b122b32b73f19230fabe6a726e2d07f84eda5beaa42a1ae1271bdee39f").unwrap();
+        let tx = FullTransaction::decode_enveloped(&tx_bytes).unwrap();
+
+        let constraints_msg = ConstraintsMessage::from_tx_with_access_list(
+            BlsPublicKey::default(),
+            12345,
+            tx,
+            access_list.clone(),
+        );
+
+        // Verify access list is properly set
+        assert_eq!(constraints_msg.access_list, access_list);
+        assert_eq!(constraints_msg.slot, 12345);
+        assert_eq!(constraints_msg.transactions.len(), 1);
+
+        // Test that digest includes access list (different from without access list)
+        let digest_with_access_list = constraints_msg.digest();
+        
+        let constraints_msg_without_access_list = ConstraintsMessage::from_tx(
+            BlsPublicKey::default(),
+            12345,
+            constraints_msg.transactions[0].clone(),
+        );
+        let digest_without_access_list = constraints_msg_without_access_list.digest();
+
+        // Digests should be different when access list is included
+        assert_ne!(digest_with_access_list, digest_without_access_list);
     }
 }
