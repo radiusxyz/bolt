@@ -1,6 +1,9 @@
 /// The commitments-API request handlers.
 mod handlers;
 
+#[cfg(test)]
+mod test_handlers;
+
 /// The commitments-API headers and constants.
 mod headers;
 

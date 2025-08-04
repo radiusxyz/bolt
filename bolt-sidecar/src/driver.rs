@@ -43,6 +43,7 @@ use crate::{
     LocalBuilder,
 };
 
+
 const API_EVENTS_BUFFER_SIZE: usize = 1024;
 
 /// The driver for the sidecar, responsible for managing the main event loop.
@@ -645,12 +646,14 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                 let signing_pubkey = if self.unsafe_skip_consensus_checks {
                     available_pubkeys.iter().min().cloned().expect("at least one available pubkey")
                 } else {
-                    let validator_pubkey = match self.consensus.validate_request(&crate::primitives::InclusionRequest {
-                        slot: request.slot,
-                        txs: request.txs.clone(),
-                        signature: None,
-                        signer: None,
-                    }) {
+                    let validator_pubkey = match self.consensus.validate_request(
+                        &crate::primitives::InclusionRequest {
+                            slot: request.slot,
+                            txs: request.txs.clone(),
+                            signature: None,
+                            signer: None,
+                        },
+                    ) {
                         Ok(pubkey) => pubkey,
                         Err(err) => {
                             warn!(?err, "Consensus: failed to validate first inclusion request");
@@ -659,13 +662,14 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                         }
                     };
 
-                    let Some(signing_key) =
-                        self.constraints_client.find_signing_key(validator_pubkey, available_pubkeys)
+                    let Some(signing_key) = self
+                        .constraints_client
+                        .find_signing_key(validator_pubkey, available_pubkeys)
                     else {
                         error!(slot, "No available public key to sign constraints with");
                         let _ = response.send(Err(CommitmentError::Internal));
                         continue;
-                    }; 
+                    };
 
                     signing_key
                 };
@@ -673,19 +677,26 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                 // Create constraints for first inclusion request transactions
                 let mut failed_signing = false;
                 for tx in &request.txs {
-                    let message = ConstraintsMessage::from_tx(signing_pubkey.clone(), slot, tx.clone());
+                    let message =
+                        ConstraintsMessage::from_tx(signing_pubkey.clone(), slot, tx.clone());
                     let digest = message.digest();
 
                     let signature_result = match &self.constraint_signer {
-                        crate::signer::SignerBLS::Local(signer) => signer.sign_commit_boost_root(digest),
-                        crate::signer::SignerBLS::CommitBoost(signer) => signer.sign_commit_boost_root(digest).await,
+                        crate::signer::SignerBLS::Local(signer) => {
+                            signer.sign_commit_boost_root(digest)
+                        }
+                        crate::signer::SignerBLS::CommitBoost(signer) => {
+                            signer.sign_commit_boost_root(digest).await
+                        }
                         crate::signer::SignerBLS::Keystore(signer) => {
                             signer.sign_commit_boost_root(digest, &signing_pubkey)
                         }
                     };
 
                     let signed_constraints = match signature_result {
-                        Ok(signature) => crate::primitives::SignedConstraints { message, signature },
+                        Ok(signature) => {
+                            crate::primitives::SignedConstraints { message, signature }
+                        }
                         Err(e) => {
                             error!(?e, "Failed to sign constraints for first inclusion request");
                             failed_signing = true;
@@ -720,24 +731,33 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                 let constraints_client = std::sync::Arc::new(self.constraints_client.clone());
                 let constraints = std::sync::Arc::new(batch_constraints);
 
-                debug!(slot, num_constraints = constraints.len(), "Submitting first inclusion constraints to bolt-boost");
+                debug!(
+                    slot,
+                    num_constraints = constraints.len(),
+                    "Submitting first inclusion constraints to bolt-boost"
+                );
 
-                tokio::spawn(crate::common::backoff::retry_with_backoff(Some(10), None, move || {
-                    let constraints_client = std::sync::Arc::clone(&constraints_client);
-                    let constraints = std::sync::Arc::clone(&constraints);
-                    async move {
-                        match constraints_client.submit_constraints(constraints.as_ref()).await {
-                            Ok(_) => {
-                                debug!("Successfully submitted first inclusion constraints");
-                                Ok(())
-                            }
-                            Err(e) => {
-                                error!(err = ?e, "Failed to submit first inclusion constraints, retrying...");
-                                Err(e)
+                tokio::spawn(crate::common::backoff::retry_with_backoff(
+                    Some(10),
+                    None,
+                    move || {
+                        let constraints_client = std::sync::Arc::clone(&constraints_client);
+                        let constraints = std::sync::Arc::clone(&constraints);
+                        async move {
+                            match constraints_client.submit_constraints(constraints.as_ref()).await
+                            {
+                                Ok(_) => {
+                                    debug!("Successfully submitted first inclusion constraints");
+                                    Ok(())
+                                }
+                                Err(e) => {
+                                    error!(err = ?e, "Failed to submit first inclusion constraints, retrying...");
+                                    Err(e)
+                                }
                             }
                         }
-                    }
-                }));
+                    },
+                ));
             }
         } else {
             debug!(slot, "No pending first inclusion requests for this slot");
