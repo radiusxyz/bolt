@@ -69,6 +69,22 @@ impl ConstraintsMessage {
             access_list: None,
         }
     }
+
+    /// Builds a constraints message from a single transaction with access list.
+    pub fn from_tx_with_access_list(
+        pubkey: BlsPublicKey, 
+        slot: u64, 
+        tx: FullTransaction,
+        access_list: Option<AccessList>,
+    ) -> Self {
+        Self { 
+            pubkey, 
+            slot, 
+            top: false, 
+            transactions: vec![tx],
+            access_list,
+        }
+    }
 }
 
 impl SignableBLS for ConstraintsMessage {
