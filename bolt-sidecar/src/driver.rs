@@ -35,7 +35,10 @@ use crate::{
         ConstraintsMessage, FetchPayloadRequest, SignedConstraints,
     },
     signer::{keystore::KeystoreSigner, local::LocalSigner, CommitBoostSigner, SignerBLS},
-    state::{fetcher::StateFetcher, CommitmentDeadline, ConsensusState, ExecutionState, HeadTracker, StateClient},
+    state::{
+        fetcher::StateFetcher, CommitmentDeadline, ConsensusState, ExecutionState, HeadTracker,
+        StateClient,
+    },
     telemetry::ApiMetrics,
     LocalBuilder,
 };
@@ -565,7 +568,8 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
     /// Schedule first inclusion processing after commitment deadline + first inclusion timer interval
     async fn schedule_first_inclusion_processing(&mut self, slot: u64) {
         // Create a new deadline for first inclusion processing
-        self.first_inclusion_deadline = Some(CommitmentDeadline::new(slot, self.first_inclusion_timer_interval));
+        self.first_inclusion_deadline =
+            Some(CommitmentDeadline::new(slot, self.first_inclusion_timer_interval));
         debug!(slot, interval = ?self.first_inclusion_timer_interval, "Scheduled first inclusion processing");
     }
 
@@ -573,12 +577,14 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
     async fn handle_first_inclusion_deadline(&mut self, slot: u64) {
         // Clear the deadline as it has been reached
         self.first_inclusion_deadline = None;
-        
+
         info!(slot, "First inclusion deadline reached, processing pending requests");
 
         // Process all pending first inclusion requests for this slot
         if let Some(requests) = self.pending_first_inclusion_requests.remove(&slot) {
             debug!(slot, num_requests = requests.len(), "Processing first inclusion requests");
+
+            let mut batch_constraints: Vec<crate::primitives::SignedConstraints> = Vec::new();
 
             for (mut request, response, start) in requests {
                 // Fetch access list if needed
@@ -595,7 +601,8 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                         .await
                     {
                         Ok(access_lists) => {
-                            let mut merged_access_list: Vec<alloy::rpc::types::AccessListItem> = Vec::new();
+                            let mut merged_access_list: Vec<alloy::rpc::types::AccessListItem> =
+                                Vec::new();
                             for access_list_result in access_lists {
                                 match access_list_result {
                                     Ok(access_list) => {
@@ -619,9 +626,11 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                                     }
                                 }
                             }
-                            request.access_list = Some(alloy::rpc::types::AccessList(merged_access_list));
+                            request.access_list =
+                                Some(alloy::rpc::types::AccessList(merged_access_list));
                             debug!(
-                                access_list_size = request.access_list.as_ref().map_or(0, |al| al.0.len()),
+                                access_list_size =
+                                    request.access_list.as_ref().map_or(0, |al| al.0.len()),
                                 "Fetched and merged access lists"
                             );
                         }
@@ -631,7 +640,69 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                     }
                 }
 
-                // Sign and commit the request directly (no auction)
+                // Determine the constraint signing public key for this request
+                let available_pubkeys = self.constraint_signer.available_pubkeys();
+                let signing_pubkey = if self.unsafe_skip_consensus_checks {
+                    available_pubkeys.iter().min().cloned().expect("at least one available pubkey")
+                } else {
+                    let validator_pubkey = match self.consensus.validate_request(&crate::primitives::InclusionRequest {
+                        slot: request.slot,
+                        txs: request.txs.clone(),
+                        signature: None,
+                        signer: None,
+                    }) {
+                        Ok(pubkey) => pubkey,
+                        Err(err) => {
+                            warn!(?err, "Consensus: failed to validate first inclusion request");
+                            let _ = response.send(Err(CommitmentError::Consensus(err)));
+                            continue;
+                        }
+                    };
+
+                    let Some(signing_key) =
+                        self.constraints_client.find_signing_key(validator_pubkey, available_pubkeys)
+                    else {
+                        error!(slot, "No available public key to sign constraints with");
+                        let _ = response.send(Err(CommitmentError::Internal));
+                        continue;
+                    }; 
+
+                    signing_key
+                };
+
+                // Create constraints for first inclusion request transactions
+                let mut failed_signing = false;
+                for tx in &request.txs {
+                    let message = ConstraintsMessage::from_tx(signing_pubkey.clone(), slot, tx.clone());
+                    let digest = message.digest();
+
+                    let signature_result = match &self.constraint_signer {
+                        crate::signer::SignerBLS::Local(signer) => signer.sign_commit_boost_root(digest),
+                        crate::signer::SignerBLS::CommitBoost(signer) => signer.sign_commit_boost_root(digest).await,
+                        crate::signer::SignerBLS::Keystore(signer) => {
+                            signer.sign_commit_boost_root(digest, &signing_pubkey)
+                        }
+                    };
+
+                    let signed_constraints = match signature_result {
+                        Ok(signature) => crate::primitives::SignedConstraints { message, signature },
+                        Err(e) => {
+                            error!(?e, "Failed to sign constraints for first inclusion request");
+                            failed_signing = true;
+                            break;
+                        }
+                    };
+
+                    batch_constraints.push(signed_constraints);
+                }
+
+                // If signing failed, send error response and continue to next request
+                if failed_signing {
+                    let _ = response.send(Err(CommitmentError::Internal));
+                    continue;
+                }
+
+                // Sign and commit the request
                 match request.commit_and_sign(&self.commitment_signer).await {
                     Ok(commitment) => {
                         debug!(slot, elapsed = ?start.elapsed(), "First inclusion commitment signed and sent");
@@ -642,6 +713,31 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                         let _ = response.send(Err(CommitmentError::Internal));
                     }
                 }
+            }
+
+            // Submit first inclusion constraints to bolt-boost
+            if !batch_constraints.is_empty() {
+                let constraints_client = std::sync::Arc::new(self.constraints_client.clone());
+                let constraints = std::sync::Arc::new(batch_constraints);
+
+                debug!(slot, num_constraints = constraints.len(), "Submitting first inclusion constraints to bolt-boost");
+
+                tokio::spawn(crate::common::backoff::retry_with_backoff(Some(10), None, move || {
+                    let constraints_client = std::sync::Arc::clone(&constraints_client);
+                    let constraints = std::sync::Arc::clone(&constraints);
+                    async move {
+                        match constraints_client.submit_constraints(constraints.as_ref()).await {
+                            Ok(_) => {
+                                debug!("Successfully submitted first inclusion constraints");
+                                Ok(())
+                            }
+                            Err(e) => {
+                                error!(err = ?e, "Failed to submit first inclusion constraints, retrying...");
+                                Err(e)
+                            }
+                        }
+                    }
+                }));
             }
         } else {
             debug!(slot, "No pending first inclusion requests for this slot");
@@ -668,14 +764,12 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
     async fn handle_commitment_deadline(&mut self, slot: u64) {
         // Record the commitment deadline timestamp for first inclusion processing
         self.commitment_deadline_timestamps.insert(slot, Instant::now());
-        
+
         let Some(template) = self.execution.get_block_template(slot) else {
             // Nothing to do then. Block templates are created only when constraints are added,
             // which means we haven't issued any commitment for this slot because we are
             // (probably) not the proposer for this block.
-            
-            // Still schedule first inclusion processing even if we don't have constraints
-            self.schedule_first_inclusion_processing(slot).await;
+
             return;
         };
 
@@ -702,7 +796,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                 }
             }
         }));
-        
+
         // Schedule first inclusion processing after the additional interval
         self.schedule_first_inclusion_processing(slot).await;
     }

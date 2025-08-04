@@ -21,7 +21,7 @@ pub const DEFAULT_COMMITMENT_DEADLINE_IN_MILLIS: u64 = 8_000;
 ///
 /// The sidecar will check for pending first inclusion requests at this interval.
 /// These requests are processed 500ms after the commitment deadline expires.
-pub const DEFAULT_FIRST_INCLUSION_TIMER_INTERVAL_IN_MILLIS: u64 = 100;
+pub const DEFAULT_FIRST_INCLUSION_TIMER_INTERVAL_IN_MILLIS: u64 = 500;
 
 /// Default slot time duration in seconds.
 pub const DEFAULT_SLOT_TIME_IN_SECONDS: u64 = 12;
