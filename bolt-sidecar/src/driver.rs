@@ -677,8 +677,12 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                 // Create constraints for first inclusion request transactions
                 let mut failed_signing = false;
                 for tx in &request.txs {
-                    let message =
-                        ConstraintsMessage::from_tx(signing_pubkey.clone(), slot, tx.clone());
+                    let message = ConstraintsMessage::from_tx_with_access_list(
+                        signing_pubkey.clone(),
+                        slot,
+                        tx.clone(),
+                        request.access_list.clone(),
+                    );
                     let digest = message.digest();
 
                     let signature_result = match &self.constraint_signer {
