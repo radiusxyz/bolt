@@ -2,13 +2,14 @@ use alloy::{
     consensus::{Signed, TxEip4844Variant, TxEip4844WithSidecar, TxEnvelope},
     eips::eip2718::{Decodable2718, Eip2718Error, Eip2718Result, Encodable2718},
     primitives::{keccak256, Bytes, TxHash, B256},
-    rpc::types::beacon::{BlsPublicKey, BlsSignature},
+    rpc::types::{beacon::{BlsPublicKey, BlsSignature}, AccessList},
     signers::k256::sha2::{Digest, Sha256},
 };
 use axum::http::HeaderMap;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use ssz_derive::{Decode, Encode};
+use ssz::{Decode as SszDecode, Encode as SszEncode, DecodeError, SszDecoderBuilder};
 use std::ops::Deref;
 use tracing::error;
 use tree_hash::TreeHash;
@@ -59,12 +60,14 @@ impl SignedConstraints {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Eq, PartialEq, Deserialize, Encode, Decode)]
+#[derive(Debug, Clone, Serialize, Eq, PartialEq, Deserialize)]
 pub struct ConstraintsMessage {
     pub pubkey: BlsPublicKey,
     pub slot: u64,
     pub top: bool,
     pub transactions: Vec<Bytes>,
+    #[serde(default)]
+    pub access_list: Option<AccessList>,
 }
 
 impl ConstraintsMessage {
@@ -80,7 +83,61 @@ impl ConstraintsMessage {
             hasher.update(tx.tx_hash());
         }
 
+        if let Some(access_list) = &self.access_list {
+            let access_list_bytes = serde_json::to_vec(access_list).unwrap_or_default();
+            hasher.update(access_list_bytes);
+        }
+
         Ok(hasher.finalize().into())
+    }
+}
+
+impl SszEncode for ConstraintsMessage {
+    fn is_ssz_fixed_len() -> bool {
+        false
+    }
+
+    fn ssz_bytes_len(&self) -> usize {
+        self.pubkey.ssz_bytes_len()
+            + self.slot.ssz_bytes_len()
+            + self.top.ssz_bytes_len()
+            + self.transactions.ssz_bytes_len()
+    }
+
+    fn ssz_append(&self, buf: &mut Vec<u8>) {
+        self.pubkey.ssz_append(buf);
+        self.slot.ssz_append(buf);
+        self.top.ssz_append(buf);
+        self.transactions.ssz_append(buf);
+    }
+}
+
+impl SszDecode for ConstraintsMessage {
+    fn is_ssz_fixed_len() -> bool {
+        false
+    }
+
+    fn ssz_fixed_len() -> usize {
+        0
+    }
+
+    fn from_ssz_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        let mut builder = SszDecoderBuilder::new(bytes);
+
+        builder.register_type::<BlsPublicKey>()?;
+        builder.register_type::<u64>()?;
+        builder.register_type::<bool>()?;
+        builder.register_type::<Vec<Bytes>>()?;
+
+        let mut decoder = builder.build()?;
+
+        Ok(Self {
+            pubkey: decoder.decode_next()?,
+            slot: decoder.decode_next()?,
+            top: decoder.decode_next()?,
+            transactions: decoder.decode_next()?,
+            access_list: None,
+        })
     }
 }
 

@@ -126,6 +126,7 @@ mod tests {
             slot: 0,
             top: false,
             transactions: vec![tx],
+            access_list: None,
         };
 
         assert!(cache.conflicts_with(&0, &constraints).is_none());
