@@ -50,12 +50,24 @@ impl ConstraintsMessage {
     pub fn build(pubkey: BlsPublicKey, request: InclusionRequest) -> Self {
         let transactions = request.txs;
 
-        Self { pubkey, slot: request.slot, top: false, transactions }
+        Self { 
+            pubkey, 
+            slot: request.slot, 
+            top: false, 
+            transactions,
+            access_list: None,
+        }
     }
 
     /// Builds a constraints message from a single transaction.
     pub fn from_tx(pubkey: BlsPublicKey, slot: u64, tx: FullTransaction) -> Self {
-        Self { pubkey, slot, top: false, transactions: vec![tx] }
+        Self { 
+            pubkey, 
+            slot, 
+            top: false, 
+            transactions: vec![tx],
+            access_list: None,
+        }
     }
 }
 
