@@ -16,4 +16,6 @@ dist/
 # other
 .DS_Store
 .node_modules/
-.claude/
+.claude
+bolt-boost/bolt-boost
+bolt-sidecar/bolt-sidecar
