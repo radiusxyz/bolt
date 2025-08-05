@@ -1,7 +1,6 @@
 use alloy::{
     consensus::Transaction,
     primitives::{keccak256, Address, PrimitiveSignature, B256},
-    rpc::types::AccessList,
 };
 use serde::{Deserialize, Serialize};
 
@@ -342,8 +341,6 @@ pub struct ExclusionRequest {
     /// The transactions that should be subject to exclusion constraints.
     #[serde(deserialize_with = "deserialize_txs", serialize_with = "serialize_txs")]
     pub txs: Vec<FullTransaction>,
-    /// The access list of states that these transactions touch.
-    pub access_list: Option<AccessList>,
     /// The signature over the request fields by the user.
     #[serde(skip)]
     pub signature: Option<AlloySignatureWrapper>,
@@ -361,8 +358,6 @@ pub struct FirstInclusionRequest {
     /// The transaction that should get first access.
     #[serde(deserialize_with = "deserialize_txs", serialize_with = "serialize_txs")]
     pub txs: Vec<FullTransaction>,
-    /// The access list of states for which first access is requested.
-    pub access_list: Option<AccessList>,
     /// The transaction representing the auction winner's bid. May be a one element vector.
     #[serde(deserialize_with = "deserialize_txs", serialize_with = "serialize_txs")]
     pub bid_transaction: Vec<FullTransaction>,
@@ -394,25 +389,16 @@ impl ExclusionRequest {
             &self.txs.iter().map(|tx| tx.hash().as_slice()).collect::<Vec<_>>().concat(),
         );
         data.extend_from_slice(&self.slot.to_le_bytes());
-        let access_list_bytes = serde_json::to_vec(&self.access_list).unwrap_or_default();
-        data.extend_from_slice(&keccak256(&access_list_bytes).as_slice());
         keccak256(&data)
     }
 
-    /// 🔑 USER SIGNATURE VERIFICATION: Returns the digest for verifying user's original signature
-    /// This calculates digest with access_list = None (as user originally signed it)
-    /// ⚠️  CRITICAL: This must match the digest calculation in CLI sign_request()
+    /// Returns the digest for verifying user's original signature
     pub fn user_signature_digest(&self) -> B256 {
         let mut data = Vec::new();
         data.extend_from_slice(
             &self.txs.iter().map(|tx| tx.hash().as_slice()).collect::<Vec<_>>().concat(),
         );
         data.extend_from_slice(&self.slot.to_le_bytes());
-        
-        // 🎯 KEY DIFFERENCE: Always use None for access_list regardless of current state
-        // This matches what user signed in CLI before sidecar added access_list
-        let access_list_bytes = serde_json::to_vec(&None::<serde_json::Value>).unwrap_or_default();
-        data.extend_from_slice(&keccak256(&access_list_bytes).as_slice());
         keccak256(&data)
     }
 
@@ -452,8 +438,6 @@ impl FirstInclusionRequest {
             &self.txs.iter().map(|tx| tx.hash().as_slice()).collect::<Vec<_>>().concat(),
         );
         data.extend_from_slice(&self.slot.to_le_bytes());
-        let access_list_bytes = serde_json::to_vec(&self.access_list).unwrap_or_default();
-        data.extend_from_slice(&keccak256(&access_list_bytes).as_slice());
         keccak256(&data)
     }
 

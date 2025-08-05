@@ -481,63 +481,6 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             "🚫 SIDECAR: Received bolt_exclusionRequest from user"
         );
 
-        // 🧮 ACCESS LIST CALCULATION: Sidecar adds access_list that user didn't have
-        // ⚠️  SIGNATURE PROBLEM: This changes the payload AFTER user signed it!
-        if exclusion_request.access_list.is_none() && !exclusion_request.txs.is_empty() {
-            info!(
-                target_slot,
-                tx_count,
-                "🔍 SIDECAR: Calculating access list for user transactions (CHANGES PAYLOAD!)"
-            );
-
-            match self
-                .execution
-                .state_client()
-                .create_access_lists_for_txs(&exclusion_request.txs, None)
-                .await
-            {
-                Ok(access_lists) => {
-                    // Merge all access lists into one
-                    let mut merged_access_list: Vec<alloy::rpc::types::AccessListItem> = Vec::new();
-                    for access_list_result in access_lists {
-                        match access_list_result {
-                            Ok(access_list) => {
-                                for item in access_list.0 {
-                                    // Check if address already exists
-                                    if let Some(existing) = merged_access_list
-                                        .iter_mut()
-                                        .find(|x| x.address == item.address)
-                                    {
-                                        // Merge storage keys
-                                        for key in item.storage_keys {
-                                            if !existing.storage_keys.contains(&key) {
-                                                existing.storage_keys.push(key);
-                                            }
-                                        }
-                                    } else {
-                                        merged_access_list.push(item);
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                warn!(?e, "Failed to fetch access list for transaction, continuing without it");
-                            }
-                        }
-                    }
-                    exclusion_request.access_list =
-                        Some(alloy::rpc::types::AccessList(merged_access_list));
-                    info!(
-                        target_slot,
-                        access_list_size =
-                            exclusion_request.access_list.as_ref().map_or(0, |al| al.0.len()),
-                        "✅ SIDECAR: Successfully calculated access list (PAYLOAD NOW DIFFERS FROM USER SIGNATURE!)"
-                    );
-                }
-                Err(e) => {
-                    warn!(?e, "Failed to fetch access lists from execution client, proceeding with empty access list");
-                }
-            }
-        }
 
         // Create constraints for exclusion request transactions
         let available_pubkeys = self.constraint_signer.available_pubkeys();
@@ -570,27 +513,20 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             signing_key
         };
 
-        // 🏗️ CONSTRAINT CREATION: Create constraints with MODIFIED payload (including access_list)
+        // Create constraints for exclusion request transactions
         for (i, tx) in exclusion_request.txs.iter().enumerate() {
-            // 🔀 PAYLOAD TRANSFORMATION: ConstraintsMessage now includes the access_list we added
-            // ✅ SIGNATURE SEPARATION: Constraint signature is SEPARATE from user signature!
-            let message = ConstraintsMessage::from_tx_with_access_list(
+            let message = ConstraintsMessage::from_tx(
                 signing_pubkey.clone(),
                 target_slot,
                 tx.clone(),
-                exclusion_request.access_list.clone(), // 🎯 Constraint includes access_list (DIFFERENT from user's original payload)
             );
             let digest = message.digest();
 
             info!(
                 target_slot,
                 tx_index = i,
-                has_access_list = exclusion_request.access_list.is_some(),
-                "🔐 SIDECAR: Creating BLS signature for constraint (WITH access_list)"
+                "🔐 SIDECAR: Creating BLS signature for constraint"
             );
-
-            // 🔐 VALIDATOR BLS SIGNATURE: Sidecar signs constraint with BLS key using FULL payload
-            // ✅ CORRECT APPROACH: This signature validates the constraint (with access_list)
             let signature_result = match &self.constraint_signer {
                 SignerBLS::Local(signer) => signer.sign_commit_boost_root(digest),
                 SignerBLS::CommitBoost(signer) => signer.sign_commit_boost_root(digest).await,
@@ -618,10 +554,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             self.execution.add_constraint(target_slot, signed_constraints);
         }
 
-        // 📜 COMMITMENT SIGNING: This creates the commitment response to user
-        // 🔑 DUAL SIGNATURE PATTERN:
-        //   1. User's ECDSA signature validates the original request
-        //   2. Validator's BLS signature validates the constraints (with access_list)
+        // Create the commitment response to user
         match exclusion_request.commit_and_sign(&self.commitment_signer).await {
             Ok(commitment) => {
                 debug!(slot = target_slot, elapsed = ?start.elapsed(), "✅ Exclusion commitment signed and sent");
@@ -683,59 +616,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
 
             let mut batch_constraints: Vec<crate::primitives::SignedConstraints> = Vec::new();
 
-            for (mut request, response, start) in requests {
-                // Fetch access list if needed
-                if request.access_list.is_none() && !request.txs.is_empty() {
-                    debug!("No access list provided, fetching from execution client");
-
-                    let mut all_txs = request.txs.clone();
-                    all_txs.extend(request.bid_transaction.clone());
-
-                    match self
-                        .execution
-                        .state_client()
-                        .create_access_lists_for_txs(&all_txs, None)
-                        .await
-                    {
-                        Ok(access_lists) => {
-                            let mut merged_access_list: Vec<alloy::rpc::types::AccessListItem> =
-                                Vec::new();
-                            for access_list_result in access_lists {
-                                match access_list_result {
-                                    Ok(access_list) => {
-                                        for item in access_list.0 {
-                                            if let Some(existing) = merged_access_list
-                                                .iter_mut()
-                                                .find(|x| x.address == item.address)
-                                            {
-                                                for key in item.storage_keys {
-                                                    if !existing.storage_keys.contains(&key) {
-                                                        existing.storage_keys.push(key);
-                                                    }
-                                                }
-                                            } else {
-                                                merged_access_list.push(item);
-                                            }
-                                        }
-                                    }
-                                    Err(e) => {
-                                        warn!(?e, "Failed to fetch access list for transaction, continuing without it");
-                                    }
-                                }
-                            }
-                            request.access_list =
-                                Some(alloy::rpc::types::AccessList(merged_access_list));
-                            debug!(
-                                access_list_size =
-                                    request.access_list.as_ref().map_or(0, |al| al.0.len()),
-                                "Fetched and merged access lists"
-                            );
-                        }
-                        Err(e) => {
-                            warn!(?e, "Failed to fetch access lists from execution client, proceeding with empty access list");
-                        }
-                    }
-                }
+            for (request, response, start) in requests {
 
                 // Determine the constraint signing public key for this request
                 let available_pubkeys = self.constraint_signer.available_pubkeys();
@@ -773,11 +654,10 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                 // Create constraints for first inclusion request transactions
                 let mut failed_signing = false;
                 for tx in &request.txs {
-                    let message = ConstraintsMessage::from_tx_with_access_list(
+                    let message = ConstraintsMessage::from_tx(
                         signing_pubkey.clone(),
                         slot,
                         tx.clone(),
-                        request.access_list.clone(),
                     );
                     let digest = message.digest();
 
@@ -906,13 +786,11 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         let constraints = Arc::new(template.signed_constraints_list.clone());
         let constraints_client = Arc::new(self.constraints_client.clone());
 
-        // 📡 CONSTRAINT SUBMISSION: Send constraints with BLS signatures to bolt-boost
-        // ❌ SIGNATURE MISMATCH HAPPENS HERE: Relay will verify BLS signature against wrong payload
-        // 🔀 PROBLEM: Constraints contain access_list that user never signed for!
+        // Send constraints with BLS signatures to bolt-boost
         info!(
             slot,
             constraint_count = constraints.len(),
-            "📡 SIDECAR: Sending submit_constraints to bolt-boost (WITH MODIFIED PAYLOAD!)"
+            "📡 SIDECAR: Sending submit_constraints to bolt-boost"
         );
 
         tokio::spawn(retry_with_backoff(Some(10), None, move || {
@@ -931,7 +809,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                         Ok(())
                     }
                     Err(e) => {
-                        error!(err = ?e, "❌ SIDECAR: Failed to submit constraints to bolt-boost, retrying... (LIKELY SIGNATURE MISMATCH!)");
+                        error!(err = ?e, "❌ SIDECAR: Failed to submit constraints to bolt-boost, retrying...");
                         Err(e)
                     }
                 }

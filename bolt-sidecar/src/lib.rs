@@ -22,8 +22,6 @@ pub use driver::SidecarDriver;
 #[cfg(test)]
 mod driver_test;
 
-#[cfg(test)]
-mod integration_test_access_list;
 
 /// Functionality for building local block templates that can
 /// be used as a fallback for proposers. It's also used to keep

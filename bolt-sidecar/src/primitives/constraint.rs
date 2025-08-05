@@ -1,6 +1,5 @@
 use alloy::{
     primitives::keccak256,
-    rpc::types::AccessList,
     signers::k256::sha2::{Digest, Sha256},
 };
 use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
@@ -40,9 +39,6 @@ pub struct ConstraintsMessage {
     /// The constraints that need to be signed.
     #[serde(deserialize_with = "deserialize_txs", serialize_with = "serialize_txs")]
     pub transactions: Vec<FullTransaction>,
-    /// The access list of states that these transactions touch.
-    /// Used by builders to calculate conflicting transactions.
-    pub access_list: Option<AccessList>,
 }
 
 impl ConstraintsMessage {
@@ -55,7 +51,6 @@ impl ConstraintsMessage {
             slot: request.slot, 
             top: false, 
             transactions,
-            access_list: None,
         }
     }
 
@@ -66,25 +61,9 @@ impl ConstraintsMessage {
             slot, 
             top: false, 
             transactions: vec![tx],
-            access_list: None,
         }
     }
 
-    /// Builds a constraints message from a single transaction with access list.
-    pub fn from_tx_with_access_list(
-        pubkey: BlsPublicKey, 
-        slot: u64, 
-        tx: FullTransaction,
-        access_list: Option<AccessList>,
-    ) -> Self {
-        Self { 
-            pubkey, 
-            slot, 
-            top: false, 
-            transactions: vec![tx],
-            access_list,
-        }
-    }
 }
 
 impl SignableBLS for ConstraintsMessage {
@@ -97,10 +76,6 @@ impl SignableBLS for ConstraintsMessage {
         for tx in &self.transactions {
             hasher.update(tx.hash());
         }
-
-        // Include access list in the digest
-        let access_list_bytes = serde_json::to_vec(&self.access_list).unwrap_or_default();
-        hasher.update(&keccak256(&access_list_bytes).as_slice());
 
         hasher.finalize().into()
     }
@@ -140,7 +115,7 @@ mod tests {
         let transactions = random_constraints(1); // Generate 'n' random constraints
 
         // Create a random `ConstraintsMessage`
-        let message = ConstraintsMessage { pubkey, slot, top, transactions, access_list: None };
+        let message = ConstraintsMessage { pubkey, slot, top, transactions };
 
         // Compute tree hash root
         let digest = SignableBLS::digest(&message);
@@ -160,7 +135,7 @@ mod tests {
         let transactions = random_constraints(2); // Generate 'n' random constraints
 
         // Create a random `ConstraintsMessage`
-        let message = ConstraintsMessage { pubkey, slot, top, transactions, access_list: None };
+        let message = ConstraintsMessage { pubkey, slot, top, transactions };
 
         // Serialize the `ConstraintsMessage` to JSON
         let json = serde_json::to_string(&message).unwrap();
