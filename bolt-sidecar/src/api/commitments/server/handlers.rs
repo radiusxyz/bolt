@@ -146,7 +146,9 @@ pub async fn rpc_entrypoint(
             // Set the signature here for later processing
             exclusion_request.set_signature(signature.into());
 
-            let digest = exclusion_request.digest();
+            // 🔑 USER SIGNATURE VERIFICATION: Use original digest (without access_list)
+            // ✅ SIGNATURE FIX: This matches what user signed in CLI before sidecar modifications
+            let digest = exclusion_request.user_signature_digest();
             let recovered_signer = signature.recover_address_from_prehash(&digest)?;
 
             if recovered_signer != signer {

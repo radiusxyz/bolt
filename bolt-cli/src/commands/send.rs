@@ -233,20 +233,23 @@ async fn sign_request(
     wallet: &PrivateKeySigner,
     exclusion: bool,
 ) -> eyre::Result<String> {
+    // 🔑 USER SIGNATURE: This creates the user's ECDSA signature for the commitment
+    // ⚠️  PROBLEM: This signature is computed WITHOUT the access_list that sidecar will add later!
     let digest = if exclusion {
-        // For exclusion requests, we need to include the access_list hash
-        // Since we're not providing an access_list in the CLI, we'll use None (null)
+        // 🚫 EXCLUSION REQUEST: User signs commitment with NULL access_list
+        // 📝 NOTE: Sidecar will later ADD access_list, making payload different!
         let mut data = Vec::new();
         let hashes = tx_hashes.iter().map(|hash| hash.as_slice()).collect::<Vec<_>>().concat();
         data.extend_from_slice(&hashes);
         data.extend_from_slice(target_slot.to_le_bytes().as_slice());
         
-        // Hash of null access_list (None serialized as null)
+        // 🎯 CRITICAL: Hash of null access_list (None serialized as null)
+        // ❌ SIGNATURE MISMATCH ROOT CAUSE: This will differ from sidecar's access_list!
         let access_list_bytes = serde_json::to_vec(&None::<serde_json::Value>).unwrap_or_default();
         data.extend_from_slice(&keccak256(&access_list_bytes).as_slice());
         keccak256(data)
     } else {
-        // For inclusion requests, use the original digest calculation
+        // ✅ INCLUSION REQUEST: Original digest calculation (works fine)
         let mut data = Vec::new();
         let hashes = tx_hashes.iter().map(|hash| hash.as_slice()).collect::<Vec<_>>().concat();
         data.extend_from_slice(&hashes);

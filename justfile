@@ -211,7 +211,7 @@ send-blob-preconf-rpc count='1' rpc='http://127.0.0.1:8015/rpc':
 
 # build all the docker images locally
 build-local-images:
-    @just build-local-sidecar
+    # @just build-local-sidecar
     @just build-local-bolt-boost
     # @just build-local-helix
     # @just build-local-builder

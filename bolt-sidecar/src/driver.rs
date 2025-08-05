@@ -482,12 +482,13 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             "🚫 SIDECAR: Received bolt_exclusionRequest from user"
         );
 
-        // If no access list is provided, try to fetch one from the execution client
+        // 🧮 ACCESS LIST CALCULATION: Sidecar adds access_list that user didn't have
+        // ⚠️  SIGNATURE PROBLEM: This changes the payload AFTER user signed it!
         if exclusion_request.access_list.is_none() && !exclusion_request.txs.is_empty() {
             info!(
                 target_slot,
                 tx_count,
-                "🔍 SIDECAR: Calculating access list for user transactions"
+                "🔍 SIDECAR: Calculating access list for user transactions (CHANGES PAYLOAD!)"
             );
 
             match self
@@ -530,7 +531,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                         target_slot,
                         access_list_size =
                             exclusion_request.access_list.as_ref().map_or(0, |al| al.0.len()),
-                        "✅ SIDECAR: Successfully calculated access list for user transactions"
+                        "✅ SIDECAR: Successfully calculated access list (PAYLOAD NOW DIFFERS FROM USER SIGNATURE!)"
                     );
                 }
                 Err(e) => {
@@ -570,16 +571,27 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             signing_key
         };
 
-        // Create and add constraints for each transaction
-        for tx in &exclusion_request.txs {
+        // 🏗️ CONSTRAINT CREATION: Create constraints with MODIFIED payload (including access_list)
+        for (i, tx) in exclusion_request.txs.iter().enumerate() {
+            // 🔀 PAYLOAD TRANSFORMATION: ConstraintsMessage now includes the access_list we added
+            // ✅ SIGNATURE SEPARATION: Constraint signature is SEPARATE from user signature!
             let message = ConstraintsMessage::from_tx_with_access_list(
                 signing_pubkey.clone(),
                 target_slot,
                 tx.clone(),
-                exclusion_request.access_list.clone(),
+                exclusion_request.access_list.clone(), // 🎯 Constraint includes access_list (DIFFERENT from user's original payload)
             );
             let digest = message.digest();
 
+            info!(
+                target_slot,
+                tx_index = i,
+                has_access_list = exclusion_request.access_list.is_some(),
+                "🔐 SIDECAR: Creating BLS signature for constraint (WITH access_list)"
+            );
+
+            // 🔐 VALIDATOR BLS SIGNATURE: Sidecar signs constraint with BLS key using FULL payload
+            // ✅ CORRECT APPROACH: This signature validates the constraint (with access_list)
             let signature_result = match &self.constraint_signer {
                 SignerBLS::Local(signer) => signer.sign_commit_boost_root(digest),
                 SignerBLS::CommitBoost(signer) => signer.sign_commit_boost_root(digest).await,
@@ -591,22 +603,33 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             let signed_constraints = match signature_result {
                 Ok(signature) => SignedConstraints { message, signature },
                 Err(e) => {
-                    error!(?e, "Failed to sign exclusion constraints");
+                    error!(?e, "❌ Failed to sign exclusion constraints");
                     let _ = response.send(Err(CommitmentError::Internal));
                     return;
                 }
             };
 
+            info!(
+                target_slot,
+                tx_index = i,
+                "✅ SIDECAR: Successfully created BLS-signed constraint"
+            );
+
+            // 📤 CONSTRAINT STORAGE: Store constraint for submission to bolt-boost
             self.execution.add_constraint(target_slot, signed_constraints);
         }
 
+        // 📜 COMMITMENT SIGNING: This creates the commitment response to user
+        // 🔑 DUAL SIGNATURE PATTERN: 
+        //   1. User's ECDSA signature validates the original request
+        //   2. Validator's BLS signature validates the constraints (with access_list)
         match exclusion_request.commit_and_sign(&self.commitment_signer).await {
             Ok(commitment) => {
-                debug!(slot = target_slot, elapsed = ?start.elapsed(), "Exclusion commitment signed and sent");
+                debug!(slot = target_slot, elapsed = ?start.elapsed(), "✅ Exclusion commitment signed and sent");
                 response.send(Ok(SignedCommitment::Exclusion(commitment))).ok()
             }
             Err(err) => {
-                error!(?err, "Failed to sign exclusion commitment");
+                error!(?err, "❌ Failed to sign exclusion commitment");
                 response.send(Err(CommitmentError::Internal)).ok()
             }
         };
@@ -884,11 +907,13 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         let constraints = Arc::new(template.signed_constraints_list.clone());
         let constraints_client = Arc::new(self.constraints_client.clone());
 
-        // Submit constraints to the constraints service with an exponential retry mechanism.
+        // 📡 CONSTRAINT SUBMISSION: Send constraints with BLS signatures to bolt-boost
+        // ❌ SIGNATURE MISMATCH HAPPENS HERE: Relay will verify BLS signature against wrong payload
+        // 🔀 PROBLEM: Constraints contain access_list that user never signed for!
         info!(
             slot,
             constraint_count = constraints.len(),
-            "📡 SIDECAR: Sending submit_constraints to bolt-boost"
+            "📡 SIDECAR: Sending submit_constraints to bolt-boost (WITH MODIFIED PAYLOAD!)"
         );
         
         tokio::spawn(retry_with_backoff(Some(10), None, move || {
@@ -904,7 +929,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                         Ok(())
                     }
                     Err(e) => {
-                        error!(err = ?e, "❌ SIDECAR: Failed to submit constraints to bolt-boost, retrying...");
+                        error!(err = ?e, "❌ SIDECAR: Failed to submit constraints to bolt-boost, retrying... (LIKELY SIGNATURE MISMATCH!)");
                         Err(e)
                     }
                 }

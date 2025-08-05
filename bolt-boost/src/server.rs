@@ -161,7 +161,7 @@ async fn submit_constraints(
     info!(
         constraint_count = constraints.len(),
         current_slot,
-        "📥 BOLT-BOOST: Received submit_constraints from sidecar"
+        "📥 BOLT-BOOST: Received submit_constraints from sidecar (WITH MODIFIED ACCESS_LIST!)"
     );
 
     // Save constraints for the slot to verify proofs against later.
@@ -194,6 +194,9 @@ async fn submit_constraints(
         "💾 BOLT-BOOST: Successfully stored constraints in cache"
     );
 
+    // 🌐 RELAY FORWARDING: Forward constraints to relay (helix)
+    // ❌ SIGNATURE VERIFICATION FAILS HERE: Relay sees payload with access_list 
+    //    but user's original signature was for payload WITHOUT access_list!
     post_request(state, SUBMIT_CONSTRAINTS_PATH, &constraints).await?;
     Ok(StatusCode::OK)
 }
