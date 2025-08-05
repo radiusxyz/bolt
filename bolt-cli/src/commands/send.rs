@@ -242,7 +242,7 @@ async fn sign_request(
         let hashes = tx_hashes.iter().map(|hash| hash.as_slice()).collect::<Vec<_>>().concat();
         data.extend_from_slice(&hashes);
         data.extend_from_slice(target_slot.to_le_bytes().as_slice());
-        
+
         // 🎯 CRITICAL: Hash of null access_list (None serialized as null)
         // ❌ SIGNATURE MISMATCH ROOT CAUSE: This will differ from sidecar's access_list!
         let access_list_bytes = serde_json::to_vec(&None::<serde_json::Value>).unwrap_or_default();

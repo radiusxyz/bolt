@@ -43,7 +43,6 @@ use crate::{
     LocalBuilder,
 };
 
-
 const API_EVENTS_BUFFER_SIZE: usize = 1024;
 
 /// The driver for the sidecar, responsible for managing the main event loop.
@@ -314,6 +313,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                         None => std::future::pending().await,
                     }
                 } => {
+
                     self.handle_first_inclusion_deadline(slot).await;
                 }
                 Some(payload_request) = self.payload_requests_rx.recv() => {
@@ -474,7 +474,6 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         let target_slot = exclusion_request.slot;
         let signer = exclusion_request.signer;
         let tx_count = exclusion_request.txs.len();
-        
         info!(
             target_slot,
             ?signer,
@@ -545,23 +544,23 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         let signing_pubkey = if self.unsafe_skip_consensus_checks {
             available_pubkeys.iter().min().cloned().expect("at least one available pubkey")
         } else {
-            let validator_pubkey = match self.consensus.validate_request(&crate::primitives::InclusionRequest {
-                slot: exclusion_request.slot,
-                txs: exclusion_request.txs.clone(),
-                signature: None,
-                signer: None,
-            }) {
-                Ok(pubkey) => pubkey,
-                Err(err) => {
-                    warn!(?err, "Consensus: failed to validate exclusion request");
-                    let _ = response.send(Err(CommitmentError::Consensus(err)));
-                    return;
-                }
-            };
+            let validator_pubkey =
+                match self.consensus.validate_request(&crate::primitives::InclusionRequest {
+                    slot: exclusion_request.slot,
+                    txs: exclusion_request.txs.clone(),
+                    signature: None,
+                    signer: None,
+                }) {
+                    Ok(pubkey) => pubkey,
+                    Err(err) => {
+                        warn!(?err, "Consensus: failed to validate exclusion request");
+                        let _ = response.send(Err(CommitmentError::Consensus(err)));
+                        return;
+                    }
+                };
 
-            let Some(signing_key) = self
-                .constraints_client
-                .find_signing_key(validator_pubkey, available_pubkeys)
+            let Some(signing_key) =
+                self.constraints_client.find_signing_key(validator_pubkey, available_pubkeys)
             else {
                 error!(target_slot, "No available public key to sign constraints with");
                 let _ = response.send(Err(CommitmentError::Internal));
@@ -620,7 +619,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         }
 
         // 📜 COMMITMENT SIGNING: This creates the commitment response to user
-        // 🔑 DUAL SIGNATURE PATTERN: 
+        // 🔑 DUAL SIGNATURE PATTERN:
         //   1. User's ECDSA signature validates the original request
         //   2. Validator's BLS signature validates the constraints (with access_list)
         match exclusion_request.commit_and_sign(&self.commitment_signer).await {
@@ -915,10 +914,13 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             constraint_count = constraints.len(),
             "📡 SIDECAR: Sending submit_constraints to bolt-boost (WITH MODIFIED PAYLOAD!)"
         );
-        
+
         tokio::spawn(retry_with_backoff(Some(10), None, move || {
             let constraints_client = Arc::clone(&constraints_client);
             let constraints = Arc::clone(&constraints);
+
+            info!("📡 SIDECAR: TEMP LOG Fix ExclusionCommitment processing, and then fix it");
+
             async move {
                 match constraints_client.submit_constraints(constraints.as_ref()).await {
                     Ok(_) => {
@@ -936,8 +938,9 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             }
         }));
 
+        // Fix ExclusionCommitment processing, and then fix it
         // Schedule first inclusion processing after the additional interval
-        self.schedule_first_inclusion_processing(slot).await;
+        // self.schedule_first_inclusion_processing(slot).await;
     }
 
     /// Handle a fetch payload request, responding with the local payload if available.

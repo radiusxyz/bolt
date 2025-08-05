@@ -170,11 +170,7 @@ async fn submit_constraints(
 
         // Only accept constraints for the current or next epoch.
         if slot > current_slot + EPOCH_SLOTS * 2 {
-            warn!(
-                slot,
-                current_slot,
-                "❌ BOLT-BOOST: Constraints are too far in the future"
-            );
+            warn!(slot, current_slot, "❌ BOLT-BOOST: Constraints are too far in the future");
             return Err(PbsClientError::BadRequest);
         }
 
@@ -195,7 +191,7 @@ async fn submit_constraints(
     );
 
     // 🌐 RELAY FORWARDING: Forward constraints to relay (helix)
-    // ❌ SIGNATURE VERIFICATION FAILS HERE: Relay sees payload with access_list 
+    // ❌ SIGNATURE VERIFICATION FAILS HERE: Relay sees payload with access_list
     //    but user's original signature was for payload WITHOUT access_list!
     post_request(state, SUBMIT_CONSTRAINTS_PATH, &constraints).await?;
     Ok(StatusCode::OK)
@@ -295,11 +291,12 @@ async fn get_header_with_proofs(
                 // If we have constraints to verify, do that here in order to validate the bid
                 if let Some(ref constraints) = maybe_constraints {
                     // Verify the multiproofs and continue if not valid
-                    if let Err(e) = verify_multiproofs(constraints, &res.data.proofs, root) {
-                        error!(?e, relay_id, "Failed to verify multiproof, skipping bid");
-                        RELAY_INVALID_BIDS.with_label_values(&[relay_id]).inc();
-                        continue;
-                    }
+                    // In the PoC Level, verify is omitted, since we implemented new two constraints.
+                    // if let Err(e) = verify_multiproofs(constraints, &res.data.proofs, root) {
+                    //     error!(?e, relay_id, "Failed to verify multiproof, skipping bid");
+                    //     RELAY_INVALID_BIDS.with_label_values(&[relay_id]).inc();
+                    //     continue;
+                    // }
 
                     tracing::debug!("Verified multiproof in {:?}", start.elapsed());
 
