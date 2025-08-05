@@ -14,20 +14,12 @@ mod tests {
     #[tokio::test]
     async fn test_request_exclusion_method_success() {
         // Create a test exclusion request
-        let exclusion_request = ExclusionRequest {
-            slot: 12345,
-            txs: vec![],
-            access_list: Some(AccessList(vec![AccessListItem {
-                address: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-                storage_keys: vec![],
-            }])),
-            signature: None,
-            signer: None,
-        };
+        let exclusion_request =
+            ExclusionRequest { slot: 12345, txs: vec![], signature: None, signer: None };
 
         // Test that the method name matches
         assert_eq!(REQUEST_EXCLUSION_METHOD, "bolt_requestExclusion");
-        
+
         // Test JSON serialization/deserialization
         let json_value = serde_json::to_value(&exclusion_request).unwrap();
         let deserialized: ExclusionRequest = serde_json::from_value(json_value).unwrap();
@@ -40,10 +32,6 @@ mod tests {
         let first_inclusion_request = FirstInclusionRequest {
             slot: 12345,
             txs: vec![],
-            access_list: Some(AccessList(vec![AccessListItem {
-                address: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-                storage_keys: vec![],
-            }])),
             bid_transaction: vec![],
             signature: None,
             signer: None,
@@ -51,7 +39,7 @@ mod tests {
 
         // Test that the method name matches
         assert_eq!(REQUEST_FIRST_ACCESS_METHOD, "bolt_requestFirstInclusion");
-        
+
         // Test JSON serialization/deserialization
         let json_value = serde_json::to_value(&first_inclusion_request).unwrap();
         let deserialized: FirstInclusionRequest = serde_json::from_value(json_value).unwrap();
@@ -62,7 +50,7 @@ mod tests {
     fn test_access_list_union_computation() {
         let addr1 = Address::from_str("0x1111111111111111111111111111111111111111").unwrap();
         let addr2 = Address::from_str("0x2222222222222222222222222222222222222222").unwrap();
-        
+
         // Create two access lists with overlapping addresses
         let access_list1 = AccessList(vec![
             AccessListItem {
@@ -75,19 +63,19 @@ mod tests {
             },
         ]);
 
-        let access_list2 = AccessList(vec![
-            AccessListItem {
-                address: addr1,
-                storage_keys: vec![alloy::primitives::B256::from([3; 32])], // Different key
-            },
-        ]);
+        let access_list2 = AccessList(vec![AccessListItem {
+            address: addr1,
+            storage_keys: vec![alloy::primitives::B256::from([3; 32])], // Different key
+        }]);
 
         // Simulate the union computation logic from the driver
         let mut merged_access_list: Vec<AccessListItem> = Vec::new();
-        
+
         for access_list in [access_list1, access_list2] {
             for item in access_list.0 {
-                if let Some(existing) = merged_access_list.iter_mut().find(|x| x.address == item.address) {
+                if let Some(existing) =
+                    merged_access_list.iter_mut().find(|x| x.address == item.address)
+                {
                     // Merge storage keys
                     for key in item.storage_keys {
                         if !existing.storage_keys.contains(&key) {
@@ -102,26 +90,18 @@ mod tests {
 
         // Verify the union is computed correctly
         assert_eq!(merged_access_list.len(), 2); // Two unique addresses
-        
+
         let addr1_item = merged_access_list.iter().find(|item| item.address == addr1).unwrap();
         assert_eq!(addr1_item.storage_keys.len(), 2); // Two unique keys for addr1
-        
+
         let addr2_item = merged_access_list.iter().find(|item| item.address == addr2).unwrap();
         assert_eq!(addr2_item.storage_keys.len(), 1); // One key for addr2
     }
 
     #[test]
     fn test_exclusion_request_digest_with_access_list() {
-        let exclusion_request = ExclusionRequest {
-            slot: 12345,
-            txs: vec![],
-            access_list: Some(AccessList(vec![AccessListItem {
-                address: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-                storage_keys: vec![alloy::primitives::B256::from([1; 32])],
-            }])),
-            signature: None,
-            signer: None,
-        };
+        let exclusion_request =
+            ExclusionRequest { slot: 12345, txs: vec![], signature: None, signer: None };
 
         let digest = exclusion_request.digest();
         assert_eq!(digest.len(), 32); // Should be a valid 32-byte hash
@@ -132,10 +112,6 @@ mod tests {
         let first_inclusion_request = FirstInclusionRequest {
             slot: 12345,
             txs: vec![],
-            access_list: Some(AccessList(vec![AccessListItem {
-                address: Address::from_str("0x1234567890123456789012345678901234567890").unwrap(),
-                storage_keys: vec![alloy::primitives::B256::from([1; 32])],
-            }])),
             bid_transaction: vec![],
             signature: None,
             signer: None,
@@ -159,21 +135,14 @@ mod tests {
         let tx_bytes = alloy::hex::decode("f8678085019dc6838082520894deaddeaddeaddeaddeaddeaddeaddeaddeaddead38808360306ca06664c078fa60bd3ece050903dd295949908dd9686ec8871fa558f868e031cd39a00ed4f0b122b32b73f19230fabe6a726e2d07f84eda5beaa42a1ae1271bdee39f").unwrap();
         let tx = FullTransaction::decode_enveloped(&tx_bytes).unwrap();
 
-        let constraints_msg = ConstraintsMessage::from_tx_with_access_list(
-            BlsPublicKey::default(),
-            12345,
-            tx,
-            access_list.clone(),
-        );
+        let constraints_msg = ConstraintsMessage::from_tx(BlsPublicKey::default(), 12345, tx);
 
-        // Verify access list is properly set
-        assert_eq!(constraints_msg.access_list, access_list);
         assert_eq!(constraints_msg.slot, 12345);
         assert_eq!(constraints_msg.transactions.len(), 1);
 
         // Test that digest includes access list (different from without access list)
         let digest_with_access_list = constraints_msg.digest();
-        
+
         let constraints_msg_without_access_list = ConstraintsMessage::from_tx(
             BlsPublicKey::default(),
             12345,

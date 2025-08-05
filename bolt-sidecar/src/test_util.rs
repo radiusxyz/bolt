@@ -260,7 +260,7 @@ async fn generate_test_data_kurtosis() {
     let transactions = random_constraints(1);
 
     // Prepare a ConstraintsMessage
-    let constraints_msg = ConstraintsMessage { pubkey: pk, slot: 32, top: true, transactions, access_list: None };
+    let constraints_msg = ConstraintsMessage { pubkey: pk, slot: 32, top: true, transactions };
 
     let digest = SignableBLS::digest(&constraints_msg);
 
