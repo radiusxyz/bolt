@@ -44,6 +44,9 @@ pub enum CommitmentError {
     /// Duplicate request.
     #[error("Duplicate request")]
     Duplicate,
+    /// Access list conflict detected.
+    #[error("Access list conflict: {0}")]
+    AccessListConflict(String),
     /// Internal server error.
     #[error("Internal server error")]
     Internal,
@@ -82,6 +85,7 @@ impl From<CommitmentError> for JsonRpcError {
         // TODO: the custom defined ones should be clearly documented.
         match err {
             CommitmentError::Duplicate => Self::new(-32001, err.to_string()),
+            CommitmentError::AccessListConflict(_) => Self::new(-32008, err.to_string()),
             CommitmentError::NoSignature => Self::new(-32002, err.to_string()),
             CommitmentError::InvalidSignature(err) => Self::new(-32003, err.to_string()),
             CommitmentError::Signature(err) => Self::new(-32004, err.to_string()),
@@ -103,6 +107,7 @@ impl From<&CommitmentError> for StatusCode {
     fn from(err: &CommitmentError) -> Self {
         match err {
             CommitmentError::Duplicate
+            | CommitmentError::AccessListConflict(_)
             | CommitmentError::NoSignature
             | CommitmentError::InvalidSignature(_)
             | CommitmentError::Signature(_)

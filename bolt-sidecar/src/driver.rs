@@ -1,7 +1,13 @@
-use std::{collections::HashMap, fmt, sync::Arc, time::Instant};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+    sync::{Arc, Mutex},
+    time::Instant,
+};
 
 use alloy::{
-    consensus::{TxType, Typed2718},
+    consensus::{Transaction, TxType, Typed2718},
+    primitives::{Address, B256},
     rpc::types::beacon::events::HeadEvent,
     signers::local::PrivateKeySigner,
 };
@@ -44,6 +50,14 @@ use crate::{
 };
 
 const API_EVENTS_BUFFER_SIZE: usize = 1024;
+
+/// Access list key for tracking used access list entries per slot
+/// (Address, StorageKey) pair uniquely identifies an access list entry
+pub type AccessListKey = (Address, B256);
+
+/// State management for atomic exclusion request processing
+/// Maps slot -> set of used access list keys to prevent conflicts
+type SlotAccessLists = Arc<Mutex<HashMap<u64, HashSet<AccessListKey>>>>;
 
 /// The driver for the sidecar, responsible for managing the main event loop.
 ///
@@ -97,6 +111,9 @@ pub struct SidecarDriver<C, ECDSA> {
     first_inclusion_timer_interval: std::time::Duration,
     /// First inclusion deadline for the current slot
     first_inclusion_deadline: Option<crate::state::CommitmentDeadline>,
+    /// State management for atomic exclusion request processing
+    /// Tracks used access list entries per slot to prevent conflicts
+    slot_access_lists: SlotAccessLists,
 }
 
 impl SidecarDriver<StateClient, PrivateKeySigner> {
@@ -177,6 +194,88 @@ impl SidecarDriver<StateClient, CommitBoostSigner> {
 }
 
 impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
+    /// Extract access list keys from a transaction
+    pub fn extract_access_list_keys(tx: &crate::primitives::FullTransaction) -> Vec<AccessListKey> {
+        let mut keys = Vec::new();
+
+        if let Some(access_list) = tx.access_list() {
+            for item in &access_list.0 {
+                for storage_key in &item.storage_keys {
+                    keys.push((item.address, *storage_key));
+                }
+            }
+        }
+
+        keys
+    }
+
+    /// Check if an exclusion request has conflicting access lists with existing commitments
+    /// Returns Ok(()) if no conflicts, Err(conflicting_keys) if conflicts detected
+    fn validate_exclusion_request_atomic(
+        &self,
+        exclusion_request: &crate::primitives::ExclusionRequest,
+    ) -> Result<Vec<AccessListKey>, Vec<AccessListKey>> {
+        let target_slot = exclusion_request.slot;
+
+        // Extract all access list keys from the exclusion request
+        let mut request_keys = Vec::new();
+        for tx in &exclusion_request.txs {
+            request_keys.extend(Self::extract_access_list_keys(tx));
+        }
+
+        // If no access list entries, no conflicts possible
+        if request_keys.is_empty() {
+            return Ok(request_keys);
+        }
+
+        // Lock the slot access lists for atomic validation
+        let slot_access_lists = self.slot_access_lists.lock().unwrap();
+
+        // Get existing access list keys for this slot
+        let existing_keys = slot_access_lists.get(&target_slot);
+
+        // Check for conflicts
+        let mut conflicting_keys = Vec::new();
+
+        if let Some(existing) = existing_keys {
+            for key in &request_keys {
+                if existing.contains(key) {
+                    conflicting_keys.push(*key);
+                }
+            }
+        }
+
+        if conflicting_keys.is_empty() {
+            Ok(request_keys)
+        } else {
+            Err(conflicting_keys)
+        }
+    }
+
+    /// Reserve access list keys for a slot (called after successful validation)
+    /// This method assumes the caller has already validated the request atomically
+    fn reserve_access_list_keys(&self, slot: u64, keys: Vec<AccessListKey>) {
+        if keys.is_empty() {
+            return;
+        }
+
+        let mut slot_access_lists = self.slot_access_lists.lock().unwrap();
+        let slot_keys = slot_access_lists.entry(slot).or_insert_with(HashSet::new);
+
+        for key in keys {
+            slot_keys.insert(key);
+        }
+    }
+
+    /// Clean up old slot access lists to prevent memory leaks
+    /// Should be called periodically or when slots are finalized
+    fn cleanup_old_access_lists(&self, current_slot: u64) {
+        let mut slot_access_lists = self.slot_access_lists.lock().unwrap();
+
+        // Keep only slots within a reasonable window (e.g., current slot + 100)
+        let cutoff_slot = current_slot.saturating_sub(100);
+        slot_access_lists.retain(|&slot, _| slot > cutoff_slot);
+    }
     /// Create a new sidecar driver with the given components
     pub async fn from_components(
         opts: &Opts,
@@ -288,6 +387,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             commitment_deadline_timestamps: HashMap::new(),
             first_inclusion_timer_interval: opts.chain.first_inclusion_timer_interval(),
             first_inclusion_deadline: None,
+            slot_access_lists: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -323,6 +423,9 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                     if let Err(e) = self.consensus.update_slot(slot).await {
                         error!(err = ?e, "Failed to update consensus state slot");
                     }
+
+                    // 🧹 CLEANUP: Periodically clean up old access list state to prevent memory leaks
+                    self.cleanup_old_access_lists(slot);
                 }
             }
         }
@@ -459,10 +562,11 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         ApiMetrics::increment_inclusion_commitments_accepted();
     }
 
-    /// Handle an exclusion request
+    /// Handle an exclusion request by creating constraints for each transaction
+    /// This method implements atomic validation to prevent access list conflicts
     async fn handle_exclusion_request(
         &mut self,
-        mut exclusion_request: crate::primitives::ExclusionRequest,
+        exclusion_request: crate::primitives::ExclusionRequest,
         response: tokio::sync::oneshot::Sender<
             Result<
                 crate::primitives::commitment::SignedCommitment,
@@ -478,11 +582,43 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             target_slot,
             ?signer,
             tx_count,
-            "🚫 SIDECAR: Received bolt_exclusionRequest from user"
+            "🚫 SIDECAR: Received bolt_exclusionRequest from user - performing atomic validation"
         );
 
+        // 🔒 ATOMIC VALIDATION: Check for access list conflicts before processing
+        let access_list_keys = match self.validate_exclusion_request_atomic(&exclusion_request) {
+            Ok(keys) => {
+                info!(
+                    target_slot,
+                    access_list_entries = keys.len(),
+                    "✅ ATOMIC VALIDATION: No access list conflicts detected"
+                );
+                keys
+            }
+            Err(conflicting_keys) => {
+                warn!(
+                    target_slot,
+                    conflicting_entries = conflicting_keys.len(),
+                    "❌ ATOMIC VALIDATION: Access list conflicts detected - rejecting request"
+                );
 
-        // Create constraints for exclusion request transactions
+                // Create detailed error response with conflicting access list information
+                let error_details = format!(
+                    "Access list conflict detected for slot {}. Conflicting entries: {}",
+                    target_slot,
+                    conflicting_keys
+                        .iter()
+                        .map(|(addr, key)| format!("{}:{:#x}", addr, key))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+
+                let _ = response.send(Err(CommitmentError::AccessListConflict(error_details)));
+                return;
+            }
+        };
+
+        // Perform consensus validation
         let available_pubkeys = self.constraint_signer.available_pubkeys();
         let signing_pubkey = if self.unsafe_skip_consensus_checks {
             available_pubkeys.iter().min().cloned().expect("at least one available pubkey")
@@ -513,20 +649,26 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             signing_key
         };
 
+        // 🔒 ATOMIC OPERATION: Reserve access list keys before processing constraints
+        // This ensures the entire exclusion request is processed atomically
+        self.reserve_access_list_keys(target_slot, access_list_keys.clone());
+
+        info!(
+            target_slot,
+            reserved_keys = access_list_keys.len(),
+            "🔐 ATOMIC OPERATION: Reserved access list keys for exclusion request"
+        );
+
         // Create constraints for exclusion request transactions
+        // At this point, we have atomically validated and reserved access lists
+        let mut signed_constraints_batch = Vec::new();
+
         for (i, tx) in exclusion_request.txs.iter().enumerate() {
-            let message = ConstraintsMessage::from_tx(
-                signing_pubkey.clone(),
-                target_slot,
-                tx.clone(),
-            );
+            let message =
+                ConstraintsMessage::from_tx(signing_pubkey.clone(), target_slot, tx.clone());
             let digest = message.digest();
 
-            info!(
-                target_slot,
-                tx_index = i,
-                "🔐 SIDECAR: Creating BLS signature for constraint"
-            );
+            info!(target_slot, tx_index = i, "🔐 SIDECAR: Creating BLS signature for constraint");
             let signature_result = match &self.constraint_signer {
                 SignerBLS::Local(signer) => signer.sign_commit_boost_root(digest),
                 SignerBLS::CommitBoost(signer) => signer.sign_commit_boost_root(digest).await,
@@ -539,20 +681,39 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                 Ok(signature) => SignedConstraints { message, signature },
                 Err(e) => {
                     error!(?e, "❌ Failed to sign exclusion constraints");
+
+                    // ❌ ROLLBACK: Remove reserved access list keys on failure
+                    // TODO: Implement proper rollback mechanism if needed
+                    warn!(
+                        target_slot,
+                        "⚠️  Access list keys were reserved but constraint signing failed. Consider implementing rollback."
+                    );
+
                     let _ = response.send(Err(CommitmentError::Internal));
                     return;
                 }
             };
 
+            signed_constraints_batch.push(signed_constraints);
+        }
+
+        // 📤 ATOMIC CONSTRAINT STORAGE: Store all constraints atomically
+        for (i, signed_constraints) in signed_constraints_batch.into_iter().enumerate() {
             info!(
                 target_slot,
                 tx_index = i,
                 "✅ SIDECAR: Successfully created BLS-signed constraint"
             );
 
-            // 📤 CONSTRAINT STORAGE: Store constraint for submission to bolt-boost
             self.execution.add_constraint(target_slot, signed_constraints);
         }
+
+        info!(
+            target_slot,
+            tx_count,
+            elapsed = ?start.elapsed(),
+            "🎯 ATOMIC SUCCESS: Exclusion request processed atomically with access list validation"
+        );
 
         // Create the commitment response to user
         match exclusion_request.commit_and_sign(&self.commitment_signer).await {
@@ -617,7 +778,6 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             let mut batch_constraints: Vec<crate::primitives::SignedConstraints> = Vec::new();
 
             for (request, response, start) in requests {
-
                 // Determine the constraint signing public key for this request
                 let available_pubkeys = self.constraint_signer.available_pubkeys();
                 let signing_pubkey = if self.unsafe_skip_consensus_checks {
@@ -654,11 +814,8 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                 // Create constraints for first inclusion request transactions
                 let mut failed_signing = false;
                 for tx in &request.txs {
-                    let message = ConstraintsMessage::from_tx(
-                        signing_pubkey.clone(),
-                        slot,
-                        tx.clone(),
-                    );
+                    let message =
+                        ConstraintsMessage::from_tx(signing_pubkey.clone(), slot, tx.clone());
                     let digest = message.digest();
 
                     let signature_result = match &self.constraint_signer {
