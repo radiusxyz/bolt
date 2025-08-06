@@ -340,14 +340,14 @@ impl SendCommand {
 
         info!("🎯 Sending first inclusion request: tx_hash={:?}, slot={}", tx_hash, target_slot);
 
-        // Send the first inclusion request
-        send_rpc_request(
+        // Send the first inclusion request  
+        // First inclusion needs both txs and bid_transaction fields
+        send_first_inclusion_rpc_request(
             vec![hex::encode(&raw_tx)],
             vec![tx_hash],
             target_slot,
             sidecar_url.clone(),
             signer,
-            RequestType::FirstInclusion,
         ).await?;
 
         info!("✅ First inclusion request sent successfully!");
@@ -523,6 +523,44 @@ async fn sign_request(
     let signature = hex::encode_prefixed(wallet.sign_hash(&digest).await?.as_bytes());
 
     Ok(format!("{}:{}", wallet.address(), signature))
+}
+
+/// Send a first inclusion RPC request with proper JSON structure
+/// FirstInclusionRequest needs both `txs` and `bid_transaction` fields
+async fn send_first_inclusion_rpc_request(
+    txs_rlp: Vec<String>,
+    tx_hashes: Vec<B256>,
+    target_slot: u64,
+    target_sidecar_url: Url,
+    wallet: &PrivateKeySigner,
+) -> Result<()> {
+    let request = prepare_rpc_request(
+        "bolt_requestFirstInclusion",
+        serde_json::json!({
+            "slot": target_slot,
+            "txs": txs_rlp.clone(),
+            "bid_transaction": txs_rlp, // Same transaction for both fields in this test
+        }),
+    );
+
+    info!(?tx_hashes, target_slot, %target_sidecar_url);
+    let signature = sign_request(tx_hashes, target_slot, wallet, &RequestType::FirstInclusion).await?;
+
+    let response = reqwest::Client::new()
+        .post(target_sidecar_url)
+        .header("content-type", "application/json")
+        .header("x-bolt-signature", signature)
+        .body(serde_json::to_string(&request)?)
+        .send()
+        .await
+        .wrap_err("failed to send POST request")?;
+
+    let response = response.text().await?;
+
+    // strip out long series of zeros in the response (to avoid spamming blob contents)
+    let response = response.replace(&"0".repeat(32), ".").replace(&".".repeat(4), "");
+    info!("Response: {:?}", response);
+    Ok(())
 }
 
 fn prepare_rpc_request(method: &str, params: Value) -> Value {
