@@ -171,6 +171,7 @@ send-exclusion-preconf count='1':
         --max-fee 400000 \
         --priority-fee 300000 \
         --exclusion \
+        --with-access-list \
         --count {{count}}
 
 send-preconf-rpc count='1' rpc='http://127.0.0.1:8015/rpc':

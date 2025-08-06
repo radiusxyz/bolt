@@ -135,6 +135,10 @@ pub struct SendCommand {
     #[clap(long, env = "EXCLUSION", default_value = "false")]
     pub exclusion: bool,
 
+    /// If set, create transactions with a mock access list for testing
+    #[clap(long, env = "WITH_ACCESS_LIST", default_value = "false")]
+    pub with_access_list: bool,
+
     /// The max fee per gas in gwei.
     #[clap(long, env = "MAX_FEE")]
     pub max_fee: Option<u128>,

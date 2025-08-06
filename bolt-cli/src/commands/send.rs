@@ -9,7 +9,7 @@ use alloy::{
     network::{EthereumWallet, TransactionBuilder, TransactionBuilder4844},
     primitives::{keccak256, Address, B256, U256},
     providers::{ProviderBuilder, SendableTx},
-    rpc::types::TransactionRequest,
+    rpc::types::{AccessList, AccessListItem, TransactionRequest},
     signers::{local::PrivateKeySigner, Signer},
 };
 use eyre::{bail, Context, ContextCompat, Result};
@@ -77,7 +77,7 @@ impl SendCommand {
         let mut next_nonce = None;
         for _ in 0..self.count {
             // generate a simple self-transfer of ETH
-            let mut req = create_tx_request(wallet.address(), self.blob);
+            let mut req = create_tx_request(wallet.address(), self.blob, self.with_access_list);
             if let Some(max_fee) = self.max_fee {
                 req.set_max_fee_per_gas(max_fee * GWEI_TO_WEI as u128);
             }
@@ -131,7 +131,7 @@ impl SendCommand {
         // Send the transactions to the devnet sidecar
         let mut next_nonce = None;
         for _ in 0..self.count {
-            let mut req = create_tx_request(wallet.address(), self.blob);
+            let mut req = create_tx_request(wallet.address(), self.blob, self.with_access_list);
             if let Some(max_fee) = self.max_fee {
                 req.set_max_fee_per_gas(max_fee * GWEI_TO_WEI as u128);
             }
@@ -175,7 +175,7 @@ async fn request_current_slot_number(beacon_url: &Url) -> Result<u64> {
     Ok(slot.as_u64().unwrap_or(slot.as_str().wrap_err("invalid slot type")?.parse()?))
 }
 
-fn create_tx_request(to: Address, with_blob: bool) -> TransactionRequest {
+fn create_tx_request(to: Address, with_blob: bool, with_access_list: bool) -> TransactionRequest {
     let mut req = TransactionRequest::default();
     req = req.with_to(to).with_value(U256::from(100_000));
     req = req.with_input(rand::thread_rng().gen::<[u8; 32]>());
@@ -185,6 +185,24 @@ fn create_tx_request(to: Address, with_blob: bool) -> TransactionRequest {
         let sidecar: BlobTransactionSidecar = sidecar.build().unwrap();
         req = req.with_blob_sidecar(sidecar);
         req = req.with_max_fee_per_blob_gas(3_000_000);
+    }
+
+    if with_access_list {
+        // Create a mock access list with random hex data for testing
+        let access_list = AccessList(vec![
+            AccessListItem {
+                address: Address::ZERO,
+                storage_keys: vec![B256::ZERO],
+            },
+            AccessListItem {
+                address: Address::from([0xff; 20]), // Random address
+                storage_keys: vec![
+                    B256::from(rand::thread_rng().gen::<[u8; 32]>()),
+                    B256::from(rand::thread_rng().gen::<[u8; 32]>()),
+                ],
+            },
+        ]);
+        req = req.with_access_list(access_list);
     }
 
     req

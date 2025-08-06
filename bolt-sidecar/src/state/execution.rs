@@ -435,6 +435,7 @@ impl<C: StateFetcher> ExecutionState<C> {
     /// if one does not exist for said block number.
     pub fn add_constraint(&mut self, target_slot: u64, signed_constraints: SignedConstraints) {
         if let Some(template) = self.block_templates.get_mut(&target_slot) {
+            // **** TODO
             template.add_constraints(signed_constraints);
         } else {
             let mut template = BlockTemplate::default();
