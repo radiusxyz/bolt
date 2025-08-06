@@ -186,7 +186,7 @@ fund-accounts amount='100':
     EXECUTION_URL=$(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc 2>/dev/null || echo "http://127.0.0.1:58433")
     cd bolt-cli && RUST_LOG=info cargo run -- fund \
         --execution-url "${EXECUTION_URL}" \
-        --funding-private-key 0x614561D2d143621E126e87831AEF287678B442b8000000000000000000000000 \
+        --funding-private-key 0x53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
         --amount {{amount}}
 
 send-preconf-rpc count='1' rpc='http://127.0.0.1:8015/rpc':
