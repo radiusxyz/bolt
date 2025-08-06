@@ -191,9 +191,10 @@ impl SendCommand {
         let signer1: PrivateKeySigner = signer1_key.parse().wrap_err("invalid signer1 private key")?;
         let signer2: PrivateKeySigner = signer2_key.parse().wrap_err("invalid signer2 private key")?;
 
-        info!("Sending multi-exclusion requests:");
-        info!("  Signer 1: {} (access list: 0x000...001)", signer1.address());
-        info!("  Signer 2: {} (access list: 0x000...001, 0x000...003)", signer2.address());
+        info!("🚀 Starting integrated exclusion + first inclusion flow:");
+        info!("  Signer 1: {} (access list: [0x000...001]) - EXPECTED TO SUCCEED", signer1.address());
+        info!("  Signer 2: {} (access list: [0x000...001, 0x000...003]) - EXPECTED TO FAIL", signer2.address());
+        info!("  First inclusion: Signer1 → [0x000...001] (subset of successful exclusion)");
 
         // Create transactions for both signers
         let req1 = create_tx_request_with_hardcoded_access_list(signer1.address(), 1);
@@ -271,10 +272,85 @@ impl SendCommand {
         // Execute both requests concurrently
         let (result1, result2) = tokio::join!(task1, task2);
 
-        result1?;
-        result2?;
+        // Check results
+        let exclusion1_success = result1.is_ok();
+        let exclusion2_success = result2.is_ok();
+        
+        if let Err(e) = result1 {
+            info!("Exclusion request 1 failed as expected: {:?}", e);
+        }
+        if let Err(e) = result2 {
+            info!("Exclusion request 2 failed: {:?}", e);
+        }
 
-        info!("Both exclusion requests sent concurrently!");
+        info!("Exclusion requests completed. Signer1 success: {}, Signer2 success: {}", 
+              exclusion1_success, exclusion2_success);
+
+        // 🎯 FIRST INCLUSION: Send first inclusion request from successful signer
+        // Based on our access list strategy, signer1 should succeed (has [0x000...1] only)
+        if exclusion1_success {
+            info!("🚀 Sending first inclusion request from signer1 (successful exclusion)");
+            
+            // Small delay to simulate realistic timing (within 500ms window)
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            
+            self.send_first_inclusion_request(target_slot, sidecar_url, execution_url, &signer1).await?;
+        } else {
+            info!("⚠️ Signer1 exclusion failed, cannot send first inclusion request");
+        }
+
+        info!("✅ Multi-exclusion + first inclusion flow completed!");
+        Ok(())
+    }
+
+    /// Send a first inclusion request from the successful exclusion signer
+    /// This request uses a subset access list of the successful exclusion
+    async fn send_first_inclusion_request(
+        &self,
+        target_slot: u64,
+        sidecar_url: &Url,
+        execution_url: &Url,
+        signer: &PrivateKeySigner,
+    ) -> Result<()> {
+        info!("📋 Creating first inclusion transaction with subset access list");
+        
+        // Create first inclusion transaction with subset access list
+        let req = create_tx_request_for_first_inclusion(signer.address());
+        
+        // Create provider for the signer
+        let transaction_signer = EthereumWallet::from(signer.clone());
+        let provider = ProviderBuilder::new()
+            .with_recommended_fillers()
+            .wallet(transaction_signer)
+            .on_http(execution_url.clone());
+
+        // Set gas parameters
+        let mut req = req;
+        if let Some(max_fee) = self.max_fee {
+            req = req.with_max_fee_per_gas(max_fee * GWEI_TO_WEI as u128);
+        }
+        req = req.with_max_priority_fee_per_gas(self.priority_fee * GWEI_TO_WEI as u128);
+
+        // Fill the transaction
+        let filled_tx = provider.fill(req).await?;
+        let (raw_tx, tx_hash) = match filled_tx {
+            SendableTx::Builder(_) => bail!("expected a raw transaction"),
+            SendableTx::Envelope(raw) => (raw.encoded_2718(), *raw.tx_hash()),
+        };
+
+        info!("🎯 Sending first inclusion request: tx_hash={:?}, slot={}", tx_hash, target_slot);
+
+        // Send the first inclusion request
+        send_rpc_request(
+            vec![hex::encode(&raw_tx)],
+            vec![tx_hash],
+            target_slot,
+            sidecar_url.clone(),
+            signer,
+            RequestType::FirstInclusion,
+        ).await?;
+
+        info!("✅ First inclusion request sent successfully!");
         Ok(())
     }
 }
