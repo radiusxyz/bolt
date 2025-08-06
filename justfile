@@ -160,7 +160,7 @@ send-preconf count='1':
         --priority-fee 300000 \
         --count {{count}}
 
-# manually send an exclusion preconfirmation to the bolt devnet
+# manually send an exclusion preconfirmation to the bolt devnet (now sends 2 transactions from different signers)
 send-exclusion-preconf count='1':
     #!/usr/bin/env bash
     set -euo pipefail
@@ -176,7 +176,7 @@ send-exclusion-preconf count='1':
         --max-fee 400000 \
         --priority-fee 300000 \
         --exclusion \
-        --with-access-list \
+        --multi-exclusion \
         --count {{count}}
 
 # fund test accounts with ETH from the hardcoded funding account

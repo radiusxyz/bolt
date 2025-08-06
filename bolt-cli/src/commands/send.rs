@@ -122,6 +122,7 @@ impl SendCommand {
         let cl_url = self.devnet_beacon_url.clone().wrap_err("missing devnet beacon URL")?;
         let sidecar_url = self.devnet_sidecar_url.clone().wrap_err("missing devnet sidecar URL")?;
 
+        let el_url_for_multi = el_url.clone();
         let provider = ProviderBuilder::new()
             .with_recommended_fillers()
             .wallet(transaction_signer)
@@ -130,44 +131,150 @@ impl SendCommand {
         // Fetch the current slot from the devnet beacon node
         let slot = request_current_slot_number(&cl_url).await?;
 
-        // Send the transactions to the devnet sidecar
-        let mut next_nonce = None;
-        for _ in 0..self.count {
-            let mut req = create_tx_request(wallet.address(), self.blob, self.with_access_list);
-            if let Some(max_fee) = self.max_fee {
-                req.set_max_fee_per_gas(max_fee * GWEI_TO_WEI as u128);
-            }
-
-            req.set_max_priority_fee_per_gas(self.priority_fee * GWEI_TO_WEI as u128);
-
-            if let Some(next_nonce) = next_nonce {
-                req.set_nonce(next_nonce);
-            }
-
-            info!("Transaction request: {:?}", req);
-
-            let (raw_tx, tx_hash) = match provider.fill(req).await.wrap_err("failed to fill")? {
-                SendableTx::Builder(_) => bail!("expected a raw transaction"),
-                SendableTx::Envelope(raw) => {
-                    next_nonce = Some(raw.nonce() + 1);
-                    (raw.encoded_2718(), *raw.tx_hash())
+        if self.multi_exclusion && self.exclusion {
+            // Special handling for multi-exclusion requests
+            self.send_multi_exclusion_requests(slot, &sidecar_url, &el_url_for_multi).await?;
+        } else {
+            // Original single transaction logic
+            let mut next_nonce = None;
+            for _ in 0..self.count {
+                let mut req = create_tx_request(wallet.address(), self.blob, self.with_access_list);
+                if let Some(max_fee) = self.max_fee {
+                    req.set_max_fee_per_gas(max_fee * GWEI_TO_WEI as u128);
                 }
-            };
 
-            send_rpc_request(
-                vec![hex::encode(&raw_tx)],
-                vec![tx_hash],
-                slot + 2,
-                sidecar_url.clone(),
-                &wallet,
-                self.exclusion,
-            )
-            .await?;
+                req.set_max_priority_fee_per_gas(self.priority_fee * GWEI_TO_WEI as u128);
 
-            // Sleep for a bit to avoid spamming
-            tokio::time::sleep(Duration::from_millis(200)).await;
+                if let Some(next_nonce) = next_nonce {
+                    req.set_nonce(next_nonce);
+                }
+
+                info!("Transaction request: {:?}", req);
+
+                let (raw_tx, tx_hash) = match provider.fill(req).await.wrap_err("failed to fill")? {
+                    SendableTx::Builder(_) => bail!("expected a raw transaction"),
+                    SendableTx::Envelope(raw) => {
+                        next_nonce = Some(raw.nonce() + 1);
+                        (raw.encoded_2718(), *raw.tx_hash())
+                    }
+                };
+
+                send_rpc_request(
+                    vec![hex::encode(&raw_tx)],
+                    vec![tx_hash],
+                    slot + 2,
+                    sidecar_url.clone(),
+                    &wallet,
+                    self.exclusion,
+                )
+                .await?;
+
+                // Sleep for a bit to avoid spamming
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
         }
 
+        Ok(())
+    }
+
+    /// Send multiple exclusion requests concurrently with different signers and access lists
+    async fn send_multi_exclusion_requests(
+        &self,
+        slot: u64,
+        sidecar_url: &Url,
+        execution_url: &Url,
+    ) -> Result<()> {
+        // Define the two signers with their private keys
+        let signer1_key = "0x53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710"; // Funding account
+        let signer2_key = "0x1d6e4bbdafe6f2b2d38536f543ac1268c788ca59fbb09a5470ca9697da6d72e2"; // Account 1
+
+        let signer1: PrivateKeySigner = signer1_key.parse().wrap_err("invalid signer1 private key")?;
+        let signer2: PrivateKeySigner = signer2_key.parse().wrap_err("invalid signer2 private key")?;
+
+        info!("Sending multi-exclusion requests:");
+        info!("  Signer 1: {} (access list: 0x000...001)", signer1.address());
+        info!("  Signer 2: {} (access list: 0x000...001, 0x000...003)", signer2.address());
+
+        // Create transactions for both signers
+        let req1 = create_tx_request_with_hardcoded_access_list(signer1.address(), 1);
+        let req2 = create_tx_request_with_hardcoded_access_list(signer2.address(), 2);
+
+        // Create separate providers for each signer
+        let transaction_signer1 = EthereumWallet::from(signer1.clone());
+        let provider1 = ProviderBuilder::new()
+            .with_recommended_fillers()
+            .wallet(transaction_signer1)
+            .on_http(execution_url.clone());
+
+        let transaction_signer2 = EthereumWallet::from(signer2.clone());
+        let provider2 = ProviderBuilder::new()
+            .with_recommended_fillers()
+            .wallet(transaction_signer2)
+            .on_http(execution_url.clone());
+
+        // Fill transactions
+        let mut req1 = req1;
+        if let Some(max_fee) = self.max_fee {
+            req1 = req1.with_max_fee_per_gas(max_fee * GWEI_TO_WEI as u128);
+        }
+        req1 = req1.with_max_priority_fee_per_gas(self.priority_fee * GWEI_TO_WEI as u128);
+
+        let mut req2 = req2;
+        if let Some(max_fee) = self.max_fee {
+            req2 = req2.with_max_fee_per_gas(max_fee * GWEI_TO_WEI as u128);
+        }
+        req2 = req2.with_max_priority_fee_per_gas(self.priority_fee * GWEI_TO_WEI as u128);
+
+        // Fill both transactions concurrently
+        let (filled1, filled2) = tokio::try_join!(
+            provider1.fill(req1),
+            provider2.fill(req2)
+        )?;
+
+        let (raw_tx1, tx_hash1) = match filled1 {
+            SendableTx::Builder(_) => bail!("expected a raw transaction"),
+            SendableTx::Envelope(raw) => (raw.encoded_2718(), *raw.tx_hash()),
+        };
+
+        let (raw_tx2, tx_hash2) = match filled2 {
+            SendableTx::Builder(_) => bail!("expected a raw transaction"),
+            SendableTx::Envelope(raw) => (raw.encoded_2718(), *raw.tx_hash()),
+        };
+
+        // Send both exclusion requests concurrently (asynchronously)
+        let target_slot = slot + 2;
+        let sidecar_url1 = sidecar_url.clone();
+        let sidecar_url2 = sidecar_url.clone();
+
+        let task1 = send_rpc_request(
+            vec![hex::encode(&raw_tx1)],
+            vec![tx_hash1],
+            target_slot,
+            sidecar_url1,
+            &signer1,
+            true, // exclusion = true
+        );
+
+        let task2 = async {
+            // Small delay to simulate 0.2 seconds apart
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            send_rpc_request(
+                vec![hex::encode(&raw_tx2)],
+                vec![tx_hash2],
+                target_slot,
+                sidecar_url2,
+                &signer2,
+                true, // exclusion = true
+            ).await
+        };
+
+        // Execute both requests concurrently
+        let (result1, result2) = tokio::join!(task1, task2);
+
+        result1?;
+        result2?;
+
+        info!("Both exclusion requests sent concurrently!");
         Ok(())
     }
 }
@@ -207,6 +314,45 @@ fn create_tx_request(to: Address, with_blob: bool, with_access_list: bool) -> Tr
     }
 
     req
+}
+
+fn create_tx_request_with_hardcoded_access_list(
+    to: Address, 
+    access_list_type: u8
+) -> TransactionRequest {
+    let mut req = TransactionRequest::default();
+    req = req.with_to(to).with_value(U256::from(100_000));
+    req = req.with_input(rand::thread_rng().gen::<[u8; 32]>());
+
+    let access_list = match access_list_type {
+        1 => {
+            // First exclusion request: access list with 0x000...001
+            let mut key1 = [0u8; 32];
+            key1[31] = 1; // Set the last byte to 1 for 0x000...001
+            AccessList(vec![
+                AccessListItem { 
+                    address: Address::ZERO, 
+                    storage_keys: vec![B256::from(key1)] 
+                }
+            ])
+        },
+        2 => {
+            // Second exclusion request: access list with 0x000...001 and 0x000...003
+            let mut key1 = [0u8; 32];
+            key1[31] = 1; // 0x000...001
+            let mut key3 = [0u8; 32];
+            key3[31] = 3; // 0x000...003
+            AccessList(vec![
+                AccessListItem { 
+                    address: Address::ZERO, 
+                    storage_keys: vec![B256::from(key1), B256::from(key3)] 
+                }
+            ])
+        },
+        _ => panic!("Invalid access list type")
+    };
+    
+    req.with_access_list(access_list)
 }
 
 async fn send_rpc_request(
