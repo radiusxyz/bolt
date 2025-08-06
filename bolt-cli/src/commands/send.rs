@@ -355,6 +355,34 @@ fn create_tx_request_with_hardcoded_access_list(
     req.with_access_list(access_list)
 }
 
+/// Create a transaction request with first inclusion access list (subset of exclusion)
+/// 
+/// Access List Strategy:
+/// - Signer1 exclusion: [0x000...1, 0x000...3] → FAILS (conflicts with existing)
+/// - Signer2 exclusion: [0x000...1] → SUCCEEDS (no conflicts)  
+/// - First inclusion: [0x000...1] → VALID (subset of signer2's successful exclusion)
+///
+/// This creates a transaction with access list that is a subset of the successful exclusion request
+fn create_tx_request_for_first_inclusion(to: Address) -> TransactionRequest {
+    let mut req = TransactionRequest::default();
+    req = req.with_to(to).with_value(U256::from(100_000));
+    req = req.with_input(rand::thread_rng().gen::<[u8; 32]>());
+
+    // First inclusion access list: subset of successful exclusion (just 0x000...001)
+    // This matches signer2's successful exclusion which had [0x000...001] only
+    let mut key1 = [0u8; 32];
+    key1[31] = 1; // 0x000...001
+    
+    let access_list = AccessList(vec![
+        AccessListItem { 
+            address: Address::ZERO, 
+            storage_keys: vec![B256::from(key1)] // Only the key that was in successful exclusion
+        }
+    ]);
+    
+    req.with_access_list(access_list)
+}
+
 #[derive(Debug, Clone)]
 enum RequestType {
     Inclusion,
