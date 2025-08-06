@@ -297,13 +297,14 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
 
     /// Store exclusion constraint information for first inclusion validation
     /// This allows us to validate that first inclusion requests match previous exclusion constraints
-    fn store_exclusion_constraint_info(&self, slot: u64, signer: Address, access_list_keys: Vec<AccessListKey>) {
+    fn store_exclusion_constraint_info(
+        &self,
+        slot: u64,
+        signer: Address,
+        access_list_keys: Vec<AccessListKey>,
+    ) {
         let access_list_count = access_list_keys.len();
-        let constraint_info = ExclusionConstraintInfo {
-            signer,
-            access_list_keys,
-            slot,
-        };
+        let constraint_info = ExclusionConstraintInfo { signer, access_list_keys, slot };
 
         let mut slot_exclusion_constraints = self.slot_exclusion_constraints.lock().unwrap();
         slot_exclusion_constraints.entry(slot).or_insert_with(Vec::new).push(constraint_info);
@@ -318,25 +319,32 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
 
     /// Validate a first inclusion request against previous exclusion constraints
     /// Returns Ok(()) if valid, Err(error_msg) if validation fails
-    fn validate_first_inclusion_request(&self, request: &crate::primitives::FirstInclusionRequest) -> Result<(), String> {
+    fn validate_first_inclusion_request(
+        &self,
+        request: &crate::primitives::FirstInclusionRequest,
+    ) -> Result<(), String> {
         let slot = request.slot;
-        
+
         // Check if request has signer information
-        let request_signer = request.signer.ok_or_else(|| {
-            "First inclusion request must include signer information".to_string()
-        })?;
+        let request_signer = request
+            .signer
+            .ok_or_else(|| "First inclusion request must include signer information".to_string())?;
 
         // Get exclusion constraints for this slot
         let slot_exclusion_constraints = self.slot_exclusion_constraints.lock().unwrap();
-        let exclusion_constraints = slot_exclusion_constraints.get(&slot).ok_or_else(|| {
-            format!("No exclusion constraints found for slot {}", slot)
-        })?;
+        let exclusion_constraints = slot_exclusion_constraints
+            .get(&slot)
+            .ok_or_else(|| format!("No exclusion constraints found for slot {}", slot))?;
 
         // Find matching exclusion constraint by signer
-        let matching_exclusion = exclusion_constraints.iter()
+        let matching_exclusion = exclusion_constraints
+            .iter()
             .find(|constraint| constraint.signer == request_signer)
             .ok_or_else(|| {
-                format!("No exclusion constraint found for signer {} in slot {}", request_signer, slot)
+                format!(
+                    "No exclusion constraint found for signer {} in slot {}",
+                    request_signer, slot
+                )
             })?;
 
         // Extract access list keys from first inclusion request
@@ -513,7 +521,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                         None => std::future::pending().await,
                     }
                 } => {
-
+                    // It doesn't work.
                     self.handle_first_inclusion_deadline(slot).await;
                 }
                 Some(payload_request) = self.payload_requests_rx.recv() => {
@@ -818,7 +826,11 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
 
         // 📋 EXCLUSION TRACKING: Store exclusion constraint info for first inclusion validation
         if let Some(request_signer) = signer {
-            self.store_exclusion_constraint_info(target_slot, request_signer, access_list_keys.clone());
+            self.store_exclusion_constraint_info(
+                target_slot,
+                request_signer,
+                access_list_keys.clone(),
+            );
         }
 
         // Create the commitment response to user
@@ -889,17 +901,15 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                 let signing_pubkey = if self.unsafe_skip_consensus_checks {
                     available_pubkeys.iter().min().cloned().expect("at least one available pubkey")
                 } else {
-                    let validator_pubkey = match self.consensus.validate_request(
-                        &crate::primitives::InclusionRequest {
-                            slot: request.slot,
-                            txs: request.txs.clone(),
-                            signature: None,
-                            signer: None,
+                    // 🕐 FIRST INCLUSION TIMING: Skip deadline validation since first inclusion 
+                    // is processed after commitment deadline by design (500ms delay)
+                    let validator_pubkey = match self.consensus.find_validator_pubkey_for_slot(request.slot) {
+                        Ok(pubkey) => {
+                            debug!(slot = request.slot, "✅ First inclusion: found validator pubkey for slot");
+                            pubkey
                         },
-                    ) {
-                        Ok(pubkey) => pubkey,
                         Err(err) => {
-                            warn!(?err, "Consensus: failed to validate first inclusion request");
+                            warn!(?err, slot = request.slot, "Consensus: failed to find validator pubkey for first inclusion request");
                             let _ = response.send(Err(CommitmentError::Consensus(err)));
                             continue;
                         }
@@ -1094,8 +1104,12 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             }
         }));
 
+        // Wait 500ms before processing first inclusion requests
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        
         // Fix ExclusionCommitment processing, and then fix it
         // Schedule first inclusion processing after the additional interval
+        self.handle_first_inclusion_deadline(slot).await;
         // self.schedule_first_inclusion_processing(slot).await;
     }
 

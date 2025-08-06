@@ -210,7 +210,7 @@ impl ConsensusState {
     }
 
     /// Finds the validator public key for the given slot from the proposer duties.
-    fn find_validator_pubkey_for_slot(&self, slot: u64) -> Result<BlsPublicKey, ConsensusError> {
+    pub fn find_validator_pubkey_for_slot(&self, slot: u64) -> Result<BlsPublicKey, ConsensusError> {
         self.epoch
             .proposer_duties
             .iter()

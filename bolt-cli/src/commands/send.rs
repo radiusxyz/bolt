@@ -291,8 +291,8 @@ impl SendCommand {
         if exclusion1_success {
             info!("🚀 Sending first inclusion request from signer1 (successful exclusion)");
             
-            // Small delay to simulate realistic timing (within 500ms window)
-            tokio::time::sleep(Duration::from_millis(300)).await;
+            // Send first inclusion immediately after exclusion success (within consensus deadline)
+            // tokio::time::sleep(Duration::from_millis(50)).await;
             
             self.send_first_inclusion_request(target_slot, sidecar_url, execution_url, &signer1).await?;
         } else {
