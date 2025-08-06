@@ -1,3 +1,8 @@
+# Account private keys for testing
+ACCOUNT_1_PRIVATE_KEY := "1d6e4bbdafe6f2b2d38536f543ac1268c788ca59fbb09a5470ca9697da6d72e2"
+ACCOUNT_2_PRIVATE_KEY := "dceef37487843c70ed16300c9c596415c44694c217603e7af7d01de92127b77d"
+ACCOUNT_3_PRIVATE_KEY := "529b5151d7501017161593074c97546302346ebbecdf1a63119efab37ab150b0"
+
 # display a help message about available commands
 default:
   @just --list --unsorted
