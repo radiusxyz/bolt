@@ -88,6 +88,8 @@ impl SendCommand {
                 req.set_nonce(next_nonce);
             }
 
+            info!("Transaction request: {:?}", req);
+
             let (raw_tx, tx_hash) = match provider.fill(req).await.wrap_err("failed to fill")? {
                 SendableTx::Builder(_) => bail!("expected a raw transaction"),
                 SendableTx::Envelope(raw) => {
@@ -142,6 +144,8 @@ impl SendCommand {
                 req.set_nonce(next_nonce);
             }
 
+            info!("Transaction request: {:?}", req);
+
             let (raw_tx, tx_hash) = match provider.fill(req).await.wrap_err("failed to fill")? {
                 SendableTx::Builder(_) => bail!("expected a raw transaction"),
                 SendableTx::Envelope(raw) => {
@@ -190,10 +194,7 @@ fn create_tx_request(to: Address, with_blob: bool, with_access_list: bool) -> Tr
     if with_access_list {
         // Create a mock access list with random hex data for testing
         let access_list = AccessList(vec![
-            AccessListItem {
-                address: Address::ZERO,
-                storage_keys: vec![B256::ZERO],
-            },
+            AccessListItem { address: Address::ZERO, storage_keys: vec![B256::ZERO] },
             AccessListItem {
                 address: Address::from([0xff; 20]), // Random address
                 storage_keys: vec![

@@ -10,6 +10,10 @@ pub mod pubkeys;
 /// broadcast preconfirmations in Bolt.
 pub mod send;
 
+/// Module for the bolt `fund` command to fund
+/// test accounts with ETH.
+pub mod fund;
+
 /// Module for the validators-related commands to interact with the bolt network.
 pub mod validators;
 

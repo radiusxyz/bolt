@@ -36,6 +36,9 @@ pub enum Cmd {
     /// Send a preconfirmation request to a bolt proposer.
     Send(Box<SendCommand>),
 
+    /// Fund test accounts with ETH.
+    Fund(FundCommand),
+
     /// Handle validators in the bolt network.
     Validators(ValidatorsCommand),
 
@@ -57,6 +60,7 @@ impl Cmd {
             Self::Delegate(cmd) => cmd.run().await,
             Self::Pubkeys(cmd) => cmd.run().await,
             Self::Send(cmd) => cmd.run().await,
+            Self::Fund(cmd) => cmd.run().await,
             Self::Validators(cmd) => cmd.run().await,
             Self::Operators(cmd) => cmd.run().await,
             Self::Generate(cmd) => cmd.run(),
@@ -163,6 +167,22 @@ pub struct SendCommand {
     /// The URL of the devnet sidecar for sending transactions
     #[clap(long = "devnet.sidecar_url", hide = true)]
     pub devnet_sidecar_url: Option<Url>,
+}
+
+/// Command for funding test accounts with ETH.
+#[derive(Debug, Clone, Parser)]
+pub struct FundCommand {
+    /// The URL of the execution client for sending transactions
+    #[clap(long, env = "EXECUTION_URL")]
+    pub execution_url: Url,
+
+    /// The private key to fund accounts from (should have sufficient balance)
+    #[clap(long, env = "FUNDING_PRIVATE_KEY")]
+    pub funding_private_key: String,
+
+    /// Amount of ETH to send to each account
+    #[clap(long, env = "AMOUNT", default_value = "100")]
+    pub amount: u64,
 }
 
 #[derive(Debug, Clone, Parser)]
