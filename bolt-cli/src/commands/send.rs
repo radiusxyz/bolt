@@ -104,7 +104,7 @@ impl SendCommand {
                 target_slot,
                 target_url.clone(),
                 &wallet,
-                self.exclusion,
+                if self.exclusion { RequestType::Exclusion } else { RequestType::Inclusion },
             )
             .await?;
 
@@ -165,7 +165,7 @@ impl SendCommand {
                     slot + 2,
                     sidecar_url.clone(),
                     &wallet,
-                    self.exclusion,
+                    if self.exclusion { RequestType::Exclusion } else { RequestType::Inclusion },
                 )
                 .await?;
 
@@ -252,7 +252,7 @@ impl SendCommand {
             target_slot,
             sidecar_url1,
             &signer1,
-            true, // exclusion = true
+            RequestType::Exclusion,
         );
 
         let task2 = async {
@@ -264,7 +264,7 @@ impl SendCommand {
                 target_slot,
                 sidecar_url2,
                 &signer2,
-                true, // exclusion = true
+                RequestType::Exclusion,
             ).await
         };
 
@@ -355,15 +355,26 @@ fn create_tx_request_with_hardcoded_access_list(
     req.with_access_list(access_list)
 }
 
+#[derive(Debug, Clone)]
+enum RequestType {
+    Inclusion,
+    Exclusion,
+    FirstInclusion,
+}
+
 async fn send_rpc_request(
     txs_rlp: Vec<String>,
     tx_hashes: Vec<B256>,
     target_slot: u64,
     target_sidecar_url: Url,
     wallet: &PrivateKeySigner,
-    exclusion: bool,
+    request_type: RequestType,
 ) -> Result<()> {
-    let method = if exclusion { "bolt_requestExclusion" } else { "bolt_requestInclusion" };
+    let method = match request_type {
+        RequestType::Inclusion => "bolt_requestInclusion",
+        RequestType::Exclusion => "bolt_requestExclusion", 
+        RequestType::FirstInclusion => "bolt_requestFirstInclusion",
+    };
     let request = prepare_rpc_request(
         method,
         serde_json::json!({
@@ -373,7 +384,7 @@ async fn send_rpc_request(
     );
 
     info!(?tx_hashes, target_slot, %target_sidecar_url);
-    let signature = sign_request(tx_hashes, target_slot, wallet, exclusion).await?;
+    let signature = sign_request(tx_hashes, target_slot, wallet, &request_type).await?;
 
     let response = reqwest::Client::new()
         .post(target_sidecar_url)
@@ -396,7 +407,7 @@ async fn sign_request(
     tx_hashes: Vec<B256>,
     target_slot: u64,
     wallet: &PrivateKeySigner,
-    exclusion: bool,
+    request_type: &RequestType,
 ) -> eyre::Result<String> {
     // User signs commitment digest
     let mut data = Vec::new();
