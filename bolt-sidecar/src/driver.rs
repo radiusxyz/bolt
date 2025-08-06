@@ -59,6 +59,21 @@ pub type AccessListKey = (Address, B256);
 /// Maps slot -> set of used access list keys to prevent conflicts
 type SlotAccessLists = Arc<Mutex<HashMap<u64, HashSet<AccessListKey>>>>;
 
+/// Exclusion constraint information for first inclusion validation
+/// Tracks the original exclusion constraints to validate against first inclusion requests
+#[derive(Debug, Clone)]
+pub struct ExclusionConstraintInfo {
+    /// The signer address that created the exclusion constraint
+    pub signer: Address,
+    /// The access list keys that were reserved in the exclusion constraint
+    pub access_list_keys: Vec<AccessListKey>,
+    /// The slot for which this exclusion constraint applies
+    pub slot: u64,
+}
+
+/// Maps slot -> list of exclusion constraints for first inclusion validation
+type SlotExclusionConstraints = Arc<Mutex<HashMap<u64, Vec<ExclusionConstraintInfo>>>>;
+
 /// The driver for the sidecar, responsible for managing the main event loop.
 ///
 /// The reponsibilities of the driver include:
@@ -114,6 +129,9 @@ pub struct SidecarDriver<C, ECDSA> {
     /// State management for atomic exclusion request processing
     /// Tracks used access list entries per slot to prevent conflicts
     slot_access_lists: SlotAccessLists,
+    /// Tracks exclusion constraints for first inclusion validation
+    /// Maps slot -> list of exclusion constraints with signer and access list info
+    slot_exclusion_constraints: SlotExclusionConstraints,
 }
 
 impl SidecarDriver<StateClient, PrivateKeySigner> {
@@ -276,6 +294,87 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         let cutoff_slot = current_slot.saturating_sub(100);
         slot_access_lists.retain(|&slot, _| slot > cutoff_slot);
     }
+
+    /// Store exclusion constraint information for first inclusion validation
+    /// This allows us to validate that first inclusion requests match previous exclusion constraints
+    fn store_exclusion_constraint_info(&self, slot: u64, signer: Address, access_list_keys: Vec<AccessListKey>) {
+        let access_list_count = access_list_keys.len();
+        let constraint_info = ExclusionConstraintInfo {
+            signer,
+            access_list_keys,
+            slot,
+        };
+
+        let mut slot_exclusion_constraints = self.slot_exclusion_constraints.lock().unwrap();
+        slot_exclusion_constraints.entry(slot).or_insert_with(Vec::new).push(constraint_info);
+
+        debug!(
+            slot,
+            ?signer,
+            access_list_count,
+            "📋 Stored exclusion constraint info for first inclusion validation"
+        );
+    }
+
+    /// Validate a first inclusion request against previous exclusion constraints
+    /// Returns Ok(()) if valid, Err(error_msg) if validation fails
+    fn validate_first_inclusion_request(&self, request: &crate::primitives::FirstInclusionRequest) -> Result<(), String> {
+        let slot = request.slot;
+        
+        // Check if request has signer information
+        let request_signer = request.signer.ok_or_else(|| {
+            "First inclusion request must include signer information".to_string()
+        })?;
+
+        // Get exclusion constraints for this slot
+        let slot_exclusion_constraints = self.slot_exclusion_constraints.lock().unwrap();
+        let exclusion_constraints = slot_exclusion_constraints.get(&slot).ok_or_else(|| {
+            format!("No exclusion constraints found for slot {}", slot)
+        })?;
+
+        // Find matching exclusion constraint by signer
+        let matching_exclusion = exclusion_constraints.iter()
+            .find(|constraint| constraint.signer == request_signer)
+            .ok_or_else(|| {
+                format!("No exclusion constraint found for signer {} in slot {}", request_signer, slot)
+            })?;
+
+        // Extract access list keys from first inclusion request
+        let mut request_access_keys = Vec::new();
+        for tx in &request.txs {
+            request_access_keys.extend(Self::extract_access_list_keys(tx));
+        }
+
+        // Validate that request access list is a subset of exclusion constraint access list
+        for request_key in &request_access_keys {
+            if !matching_exclusion.access_list_keys.contains(request_key) {
+                return Err(format!(
+                    "First inclusion access list key {}:{:#x} not found in exclusion constraint for signer {} in slot {}",
+                    request_key.0, request_key.1, request_signer, slot
+                ));
+            }
+        }
+
+        debug!(
+            slot,
+            ?request_signer,
+            exclusion_keys = matching_exclusion.access_list_keys.len(),
+            request_keys = request_access_keys.len(),
+            "✅ First inclusion validation: access list is subset of exclusion constraint"
+        );
+
+        Ok(())
+    }
+
+    /// Clean up old exclusion constraints to prevent memory leaks
+    /// Should be called periodically along with access list cleanup
+    fn cleanup_old_exclusion_constraints(&self, current_slot: u64) {
+        let mut slot_exclusion_constraints = self.slot_exclusion_constraints.lock().unwrap();
+
+        // Keep only slots within a reasonable window (same as access lists)
+        let cutoff_slot = current_slot.saturating_sub(100);
+        slot_exclusion_constraints.retain(|&slot, _| slot > cutoff_slot);
+    }
     /// Create a new sidecar driver with the given components
     pub async fn from_components(
         opts: &Opts,
@@ -388,6 +487,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             first_inclusion_timer_interval: opts.chain.first_inclusion_timer_interval(),
             first_inclusion_deadline: None,
             slot_access_lists: Arc::new(Mutex::new(HashMap::new())),
+            slot_exclusion_constraints: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -424,8 +524,9 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                         error!(err = ?e, "Failed to update consensus state slot");
                     }
 
-                    // 🧹 CLEANUP: Periodically clean up old access list state to prevent memory leaks
+                    // 🧹 CLEANUP: Periodically clean up old state to prevent memory leaks
                     self.cleanup_old_access_lists(slot);
+                    self.cleanup_old_exclusion_constraints(slot);
                 }
             }
         }
@@ -715,6 +816,11 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             "🎯 ATOMIC SUCCESS: Exclusion request processed atomically with access list validation"
         );
 
+        // 📋 EXCLUSION TRACKING: Store exclusion constraint info for first inclusion validation
+        if let Some(request_signer) = signer {
+            self.store_exclusion_constraint_info(target_slot, request_signer, access_list_keys.clone());
+        }
+
         // Create the commitment response to user
         match exclusion_request.commit_and_sign(&self.commitment_signer).await {
             Ok(commitment) => {
@@ -811,11 +917,26 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                     signing_key
                 };
 
+                // 🔍 FIRST INCLUSION VALIDATION: Verify signer and access list subset
+                let validation_result = self.validate_first_inclusion_request(&request);
+                match validation_result {
+                    Ok(_) => {
+                        debug!(slot, ?request.signer, "✅ First inclusion validation passed");
+                    }
+                    Err(error_msg) => {
+                        warn!(slot, ?request.signer, error = %error_msg, "❌ First inclusion validation failed");
+                        let _ = response.send(Err(CommitmentError::Internal));
+                        continue;
+                    }
+                }
+
                 // Create constraints for first inclusion request transactions
                 let mut failed_signing = false;
                 for tx in &request.txs {
-                    let message =
+                    let mut message =
                         ConstraintsMessage::from_tx(signing_pubkey.clone(), slot, tx.clone());
+                    // 🔝 FIRST INCLUSION: Set top: true for first inclusion constraints
+                    message.top = true;
                     let digest = message.digest();
 
                     let signature_result = match &self.constraint_signer {

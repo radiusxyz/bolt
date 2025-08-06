@@ -2,14 +2,17 @@ use alloy::{
     consensus::{Signed, TxEip4844Variant, TxEip4844WithSidecar, TxEnvelope},
     eips::eip2718::{Decodable2718, Eip2718Error, Eip2718Result, Encodable2718},
     primitives::{keccak256, Bytes, TxHash, B256},
-    rpc::types::{beacon::{BlsPublicKey, BlsSignature}, AccessList},
+    rpc::types::{
+        beacon::{BlsPublicKey, BlsSignature},
+        AccessList,
+    },
     signers::k256::sha2::{Digest, Sha256},
 };
 use axum::http::HeaderMap;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
+use ssz::{Decode as SszDecode, DecodeError, Encode as SszEncode, SszDecoderBuilder};
 use ssz_derive::{Decode, Encode};
-use ssz::{Decode as SszDecode, Encode as SszEncode, DecodeError, SszDecoderBuilder};
 use std::ops::Deref;
 use tracing::error;
 use tree_hash::TreeHash;
