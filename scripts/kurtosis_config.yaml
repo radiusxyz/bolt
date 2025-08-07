@@ -34,11 +34,11 @@ mev_params:
   # Bolt-specific images:
   # Adding the `bolt_boost_image` will start the devnet with Bolt-Boost
   # instead of MEV-Boost by Flashbots
-  bolt_boost_image: ghcr.io/chainbound/bolt-boost:0.1.0 # Bolt-Boost based on Commit-Boost
+  bolt_boost_image: ghcr.io/radiusxyz/bolt-boost:0.1.0 # Bolt-Boost based on Commit-Boost
   # mev_boost_image: ghcr.io/chainbound/bolt-mev-boost:0.1.0
 
   # sidecar
-  bolt_sidecar_image: ghcr.io/chainbound/bolt-sidecar:0.1.0
+  bolt_sidecar_image: ghcr.io/radiusxyz/bolt-sidecar:0.1.0
   bolt_sidecar_extra_params:
     commitment_deadline: 2000  # time parameter within which constraints must be submitted
     # firewall_rpcs: "ws://host.docker.internal:8015/api/v1/firewall_stream"
@@ -49,7 +49,7 @@ mev_params:
   
 
   # builder
-  mev_builder_image: ghcr.io/chainbound/bolt-builder:0.1.0
+  mev_builder_image: ghcr.io/radiusxyz/bolt-builder:0.1.0
   mev_builder_cl_image: sigp/lighthouse:v6.0.0
   
 

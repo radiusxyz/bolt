@@ -217,58 +217,58 @@ fund-accounts amount='100':
         --funding-private-key 0x53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
         --amount {{amount}}
 
-send-preconf-rpc count='1' rpc='http://127.0.0.1:8015/rpc':
-  cd bolt-cli && RUST_LOG=info cargo run -- send \
-      --devnet \
-      --devnet.execution_url $(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc) \
-      --devnet.beacon_url $(kurtosis port print bolt-devnet cl-1-lighthouse-geth http) \
-      --devnet.sidecar_url {{ rpc }} \
-      --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
-      --max-fee 4 \
-      --priority-fee 3 \
-      --count {{count}}
+# send-preconf-rpc count='1' rpc='http://127.0.0.1:8015/rpc':
+#   cd bolt-cli && RUST_LOG=info cargo run -- send \
+#       --devnet \
+#       --devnet.execution_url $(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc) \
+#       --devnet.beacon_url $(kurtosis port print bolt-devnet cl-1-lighthouse-geth http) \
+#       --devnet.sidecar_url {{ rpc }} \
+#       --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
+#       --max-fee 4 \
+#       --priority-fee 3 \
+#       --count {{count}}
 
-# manually send a blob preconfirmation to the bolt devnet
-send-blob-preconf count='1':
-    cd bolt-cli && RUST_LOG=info cargo run -- send \
-        --devnet \
-        --devnet.execution_url $(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc) \
-        --devnet.beacon_url $(kurtosis port print bolt-devnet cl-1-lighthouse-geth http) \
-        --devnet.sidecar_url http://$(kurtosis port print bolt-devnet bolt-sidecar-1-lighthouse-geth api) \
-        --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
-        --blob \
-        --max-fee 4 \
-        --priority-fee 3 \
-        --count {{count}}
+# # manually send a blob preconfirmation to the bolt devnet
+# send-blob-preconf count='1':
+#     cd bolt-cli && RUST_LOG=info cargo run -- send \
+#         --devnet \
+#         --devnet.execution_url $(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc) \
+#         --devnet.beacon_url $(kurtosis port print bolt-devnet cl-1-lighthouse-geth http) \
+#         --devnet.sidecar_url http://$(kurtosis port print bolt-devnet bolt-sidecar-1-lighthouse-geth api) \
+#         --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
+#         --blob \
+#         --max-fee 4 \
+#         --priority-fee 3 \
+#         --count {{count}}
 
-send-blob-preconf-rpc count='1' rpc='http://127.0.0.1:8015/rpc':
-  cd bolt-cli && RUST_LOG=info cargo run -- send \
-      --devnet \
-      --devnet.execution_url $(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc) \
-      --devnet.beacon_url $(kurtosis port print bolt-devnet cl-1-lighthouse-geth http) \
-      --devnet.sidecar_url {{ rpc }} \
-      --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
-      --blob \
-      --max-fee 4 \
-      --priority-fee 3 \
-      --count {{count}}
+# send-blob-preconf-rpc count='1' rpc='http://127.0.0.1:8015/rpc':
+#   cd bolt-cli && RUST_LOG=info cargo run -- send \
+#       --devnet \
+#       --devnet.execution_url $(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc) \
+#       --devnet.beacon_url $(kurtosis port print bolt-devnet cl-1-lighthouse-geth http) \
+#       --devnet.sidecar_url {{ rpc }} \
+#       --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
+#       --blob \
+#       --max-fee 4 \
+#       --priority-fee 3 \
+#       --count {{count}}
 
 # build all the docker images locally
 build-local-images:
-    # @just build-local-sidecar
+    @just build-local-sidecar
     @just build-local-bolt-boost
-    # @just build-local-helix
-    # @just build-local-builder
+    @just build-local-helix
+    @just build-local-builder
 
 # build the docker image for the bolt sidecar
 [private]
 build-local-sidecar:
-	cd bolt-sidecar && DOCKER_BUILDKIT=1 docker build -t ghcr.io/chainbound/bolt-sidecar:0.1.0 . --load
+	cd bolt-sidecar && DOCKER_BUILDKIT=1 docker build -t ghcr.io/radiusxyz/bolt-sidecar:0.1.0 . --load
 
 # build the docker image for bolt-boost
 [private]
 build-local-bolt-boost:
-	cd bolt-boost && DOCKER_BUILDKIT=1 docker build -t ghcr.io/chainbound/bolt-boost:0.1.0 . --load
+	cd bolt-boost && DOCKER_BUILDKIT=1 docker build -t ghcr.io/radiusxyz/bolt-boost:0.1.0 . --load
 
 # build the docker image for radius helix locally
 [private]
@@ -280,8 +280,8 @@ build-local-helix:
 # build the docker image for radius builder locally
 [private]
 build-local-builder:
-    git clone https://github.com/chainbound/bolt-builder.git helix-temp && \
-    cd helix-temp && DOCKER_BUILDKIT=1 docker build -t ghcr.io/chainbound/bolt-builder:0.1.0 . && \
+    git clone https://github.com/radiusxyz/bolt-builder.git helix-temp && \
+    cd helix-temp && DOCKER_BUILDKIT=1 docker build -t ghcr.io/radiusxyz/bolt-builder:0.1.0 . && \
     cd .. && rm -rf helix-temp
 
 # # build the docker image for helix locally

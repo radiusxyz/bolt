@@ -1,6 +1,6 @@
 services:
   bolt-sidecar:
-    image: ghcr.io/chainbound/bolt-sidecar:v0.2.1-alpha
+    image: ghcr.io/radiusxyz/bolt-sidecar:v0.2.1-alpha
     container_name: bolt-sidecar
     restart: unless-stopped
     ports:

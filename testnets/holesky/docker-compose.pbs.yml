@@ -32,7 +32,7 @@ services:
       ADMINER_PLUGINS: tables-filter tinymce
 
   builder:
-    image: ghcr.io/chainbound/bolt-builder:v0.3.0-alpha.rc3
+    image: ghcr.io/radiusxyz/bolt-builder:v0.3.0-alpha.rc3
     restart: unless-stopped
     volumes:
       - "chaindata:/var/lib/chaindata"
