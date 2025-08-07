@@ -24,7 +24,41 @@ use crate::cli::SendCommand;
 /// Path to the lookahead endpoint on the Bolt RPC server.
 const BOLT_LOOKAHEAD_PATH: &str = "/api/v1/proposers/lookahead";
 
+// Test signer keys for multi-exclusion integration testing
+const TEST_SIGNER1_KEY: &str = "0x53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710";
+const TEST_SIGNER2_KEY: &str = "0x1d6e4bbdafe6f2b2d38536f543ac1268c788ca59fbb09a5470ca9697da6d72e2";
+
+// Timing constants for multi-exclusion flow
+const EXCLUSION_REQUEST_DELAY_MS: u64 = 200;
+
 impl SendCommand {
+    /// Set up gas parameters for a transaction request
+    fn setup_gas_parameters(&self, mut req: TransactionRequest) -> TransactionRequest {
+        if let Some(max_fee) = self.max_fee {
+            req = req.with_max_fee_per_gas(max_fee * GWEI_TO_WEI as u128);
+        }
+        req.with_max_priority_fee_per_gas(self.priority_fee * GWEI_TO_WEI as u128)
+    }
+
+    /// Log detailed transaction information
+    fn log_transaction_details(tx: &alloy::consensus::TxEnvelope, label: &str, signer_address: Address) {
+        info!("📋 {label} DETAILS:");
+        info!("  Hash: {}", tx.tx_hash());
+        info!("  From: {signer_address}");
+        info!("  To: {}", tx.to().unwrap_or_default());
+        info!("  Nonce: {}", tx.nonce());
+        info!("  Value: {} wei", tx.value());
+        info!("  Gas Limit: {}", tx.gas_limit());
+        info!("  Max Fee Per Gas: {} wei", tx.max_fee_per_gas());
+        info!("  Access List: {:?}", tx.access_list());
+    }
+
+    /// Initialize test signers for multi-exclusion testing
+    fn create_test_signers() -> Result<(PrivateKeySigner, PrivateKeySigner)> {
+        let signer1 = TEST_SIGNER1_KEY.parse().wrap_err("invalid signer1 private key")?;
+        let signer2 = TEST_SIGNER2_KEY.parse().wrap_err("invalid signer2 private key")?;
+        Ok((signer1, signer2))
+    }
     /// Run the `send` command.
     pub async fn run(self) -> Result<()> {
         let wallet: PrivateKeySigner = self.private_key.parse().wrap_err("invalid private key")?;
@@ -184,12 +218,7 @@ impl SendCommand {
         sidecar_url: &Url,
         execution_url: &Url,
     ) -> Result<()> {
-        // Define the two signers with their private keys
-        let signer1_key = "0x53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710"; // Funding account
-        let signer2_key = "0x1d6e4bbdafe6f2b2d38536f543ac1268c788ca59fbb09a5470ca9697da6d72e2"; // Account 1
-
-        let signer1: PrivateKeySigner = signer1_key.parse().wrap_err("invalid signer1 private key")?;
-        let signer2: PrivateKeySigner = signer2_key.parse().wrap_err("invalid signer2 private key")?;
+        let (signer1, signer2) = Self::create_test_signers()?;
 
         info!("🚀 Starting integrated exclusion + first inclusion flow:");
         info!("  Signer 1: {} (access list: [0x000...001]) - EXPECTED TO SUCCEED", signer1.address());
@@ -197,8 +226,8 @@ impl SendCommand {
         info!("  First inclusion: Signer1 → [0x000...001] (subset of successful exclusion)");
 
         // Create transactions for both signers
-        let req1 = create_tx_request_with_hardcoded_access_list(signer1.address(), 1);
-        let req2 = create_tx_request_with_hardcoded_access_list(signer2.address(), 2);
+        let req1 = create_tx_request_with_hardcoded_access_list(signer1.address(), AccessListType::SingleKey);
+        let req2 = create_tx_request_with_hardcoded_access_list(signer2.address(), AccessListType::DoubleKey);
 
         // Create separate providers for each signer
         let transaction_signer1 = EthereumWallet::from(signer1.clone());
@@ -213,18 +242,9 @@ impl SendCommand {
             .wallet(transaction_signer2)
             .on_http(execution_url.clone());
 
-        // Fill transactions
-        let mut req1 = req1;
-        if let Some(max_fee) = self.max_fee {
-            req1 = req1.with_max_fee_per_gas(max_fee * GWEI_TO_WEI as u128);
-        }
-        req1 = req1.with_max_priority_fee_per_gas(self.priority_fee * GWEI_TO_WEI as u128);
-
-        let mut req2 = req2;
-        if let Some(max_fee) = self.max_fee {
-            req2 = req2.with_max_fee_per_gas(max_fee * GWEI_TO_WEI as u128);
-        }
-        req2 = req2.with_max_priority_fee_per_gas(self.priority_fee * GWEI_TO_WEI as u128);
+        // Set up gas parameters for both transactions
+        let req1 = self.setup_gas_parameters(req1);
+        let req2 = self.setup_gas_parameters(req2);
 
         // Fill both transactions concurrently
         let (filled1, filled2) = tokio::try_join!(
@@ -234,12 +254,18 @@ impl SendCommand {
 
         let (raw_tx1, tx_hash1, nonce1) = match filled1 {
             SendableTx::Builder(_) => bail!("expected a raw transaction"),
-            SendableTx::Envelope(raw) => (raw.encoded_2718(), *raw.tx_hash(), raw.nonce()),
+            SendableTx::Envelope(raw) => {
+                Self::log_transaction_details(&raw, "EXCLUSION TX1", signer1.address());
+                (raw.encoded_2718(), *raw.tx_hash(), raw.nonce())
+            }
         };
 
-        let (raw_tx2, tx_hash2, nonce2) = match filled2 {
+        let (raw_tx2, tx_hash2, _nonce2) = match filled2 {
             SendableTx::Builder(_) => bail!("expected a raw transaction"),
-            SendableTx::Envelope(raw) => (raw.encoded_2718(), *raw.tx_hash(), raw.nonce()),
+            SendableTx::Envelope(raw) => {
+                Self::log_transaction_details(&raw, "EXCLUSION TX2", signer2.address());
+                (raw.encoded_2718(), *raw.tx_hash(), raw.nonce())
+            }
         };
 
         // Send both exclusion requests concurrently (asynchronously)
@@ -257,8 +283,7 @@ impl SendCommand {
         );
 
         let task2 = async {
-            // Small delay to simulate 0.2 seconds apart
-            tokio::time::sleep(Duration::from_millis(200)).await;
+            tokio::time::sleep(Duration::from_millis(EXCLUSION_REQUEST_DELAY_MS)).await;
             send_rpc_request(
                 vec![hex::encode(&raw_tx2)],
                 vec![tx_hash2],
@@ -269,10 +294,7 @@ impl SendCommand {
             ).await
         };
 
-        // Execute both requests concurrently
         let (result1, result2) = tokio::join!(task1, task2);
-
-        // Check results
         let exclusion1_success = result1.is_ok();
         let exclusion2_success = result2.is_ok();
         
@@ -286,14 +308,8 @@ impl SendCommand {
         info!("Exclusion requests completed. Signer1 success: {}, Signer2 success: {}", 
               exclusion1_success, exclusion2_success);
 
-        // 🎯 FIRST INCLUSION: Send first inclusion request from successful signer
-        // Based on our access list strategy, signer1 should succeed (has [0x000...1] only)
         if exclusion1_success {
             info!("🚀 Sending first inclusion request from signer1 (successful exclusion)");
-            
-            // Send first inclusion immediately after exclusion success (within consensus deadline)
-            // tokio::time::sleep(Duration::from_millis(50)).await;
-            
             self.send_first_inclusion_request(target_slot, sidecar_url, execution_url, &signer1, nonce1).await?;
         } else {
             info!("⚠️ Signer1 exclusion failed, cannot send first inclusion request");
@@ -304,50 +320,38 @@ impl SendCommand {
     }
 
     /// Send a first inclusion request from the successful exclusion signer
-    /// This request uses a subset access list of the successful exclusion
     async fn send_first_inclusion_request(
         &self,
         target_slot: u64,
         sidecar_url: &Url,
         execution_url: &Url,
         signer: &PrivateKeySigner,
-        exclusion_nonce: u64,  // Pass the nonce used in exclusion request
+        exclusion_nonce: u64,
     ) -> Result<()> {
         info!("📋 Creating first inclusion transaction with subset access list");
         
-        // Create first inclusion transaction with subset access list
         let req = create_tx_request_for_first_inclusion(signer.address());
-        
-        // Create provider for the signer
         let transaction_signer = EthereumWallet::from(signer.clone());
         let provider = ProviderBuilder::new()
             .with_recommended_fillers()
             .wallet(transaction_signer)
             .on_http(execution_url.clone());
 
-        // Set gas parameters and INCREMENTED NONCE for first inclusion
-        let mut req = req;
-        if let Some(max_fee) = self.max_fee {
-            req = req.with_max_fee_per_gas(max_fee * GWEI_TO_WEI as u128);
-        }
-        req = req.with_max_priority_fee_per_gas(self.priority_fee * GWEI_TO_WEI as u128);
-        
-        // 🔢 NONCE FIX: Use incremented nonce to avoid conflict with exclusion transaction
-        req = req.with_nonce(exclusion_nonce + 1);
+        let req = self.setup_gas_parameters(req).with_nonce(exclusion_nonce + 1);
         
         info!("🔢 First inclusion nonce: {} (exclusion used: {})", exclusion_nonce + 1, exclusion_nonce);
 
-        // Fill the transaction
         let filled_tx = provider.fill(req).await?;
         let (raw_tx, tx_hash) = match filled_tx {
             SendableTx::Builder(_) => bail!("expected a raw transaction"),
-            SendableTx::Envelope(raw) => (raw.encoded_2718(), *raw.tx_hash()),
+            SendableTx::Envelope(raw) => {
+                Self::log_transaction_details(&raw, "FIRST INCLUSION TX", signer.address());
+                (raw.encoded_2718(), *raw.tx_hash())
+            }
         };
 
         info!("🎯 Sending first inclusion request: tx_hash={:?}, slot={}", tx_hash, target_slot);
 
-        // Send the first inclusion request  
-        // First inclusion needs both txs and bid_transaction fields
         send_first_inclusion_rpc_request(
             vec![hex::encode(&raw_tx)],
             vec![tx_hash],
@@ -381,11 +385,10 @@ fn create_tx_request(to: Address, with_blob: bool, with_access_list: bool) -> Tr
     }
 
     if with_access_list {
-        // Create a mock access list with random hex data for testing
         let access_list = AccessList(vec![
             AccessListItem { address: Address::ZERO, storage_keys: vec![B256::ZERO] },
             AccessListItem {
-                address: Address::from([0xff; 20]), // Random address
+                address: Address::from([0xff; 20]),
                 storage_keys: vec![
                     B256::from(rand::thread_rng().gen::<[u8; 32]>()),
                     B256::from(rand::thread_rng().gen::<[u8; 32]>()),
@@ -400,69 +403,20 @@ fn create_tx_request(to: Address, with_blob: bool, with_access_list: bool) -> Tr
 
 fn create_tx_request_with_hardcoded_access_list(
     to: Address, 
-    access_list_type: u8
+    access_list_type: AccessListType
 ) -> TransactionRequest {
     let mut req = TransactionRequest::default();
     req = req.with_to(to).with_value(U256::from(100_000));
     req = req.with_input(rand::thread_rng().gen::<[u8; 32]>());
-
-    let access_list = match access_list_type {
-        1 => {
-            // First exclusion request: access list with 0x000...001
-            let mut key1 = [0u8; 32];
-            key1[31] = 1; // Set the last byte to 1 for 0x000...001
-            AccessList(vec![
-                AccessListItem { 
-                    address: Address::ZERO, 
-                    storage_keys: vec![B256::from(key1)] 
-                }
-            ])
-        },
-        2 => {
-            // Second exclusion request: access list with 0x000...001 and 0x000...003
-            let mut key1 = [0u8; 32];
-            key1[31] = 1; // 0x000...001
-            let mut key3 = [0u8; 32];
-            key3[31] = 3; // 0x000...003
-            AccessList(vec![
-                AccessListItem { 
-                    address: Address::ZERO, 
-                    storage_keys: vec![B256::from(key1), B256::from(key3)] 
-                }
-            ])
-        },
-        _ => panic!("Invalid access list type")
-    };
-    
-    req.with_access_list(access_list)
+    req.with_access_list(access_list_type.create_access_list())
 }
 
 /// Create a transaction request with first inclusion access list (subset of exclusion)
-/// 
-/// Access List Strategy:
-/// - Signer1 exclusion: [0x000...1, 0x000...3] → FAILS (conflicts with existing)
-/// - Signer2 exclusion: [0x000...1] → SUCCEEDS (no conflicts)  
-/// - First inclusion: [0x000...1] → VALID (subset of signer2's successful exclusion)
-///
-/// This creates a transaction with access list that is a subset of the successful exclusion request
 fn create_tx_request_for_first_inclusion(to: Address) -> TransactionRequest {
     let mut req = TransactionRequest::default();
     req = req.with_to(to).with_value(U256::from(100_000));
     req = req.with_input(rand::thread_rng().gen::<[u8; 32]>());
-
-    // First inclusion access list: subset of successful exclusion (just 0x000...001)
-    // This matches signer2's successful exclusion which had [0x000...001] only
-    let mut key1 = [0u8; 32];
-    key1[31] = 1; // 0x000...001
-    
-    let access_list = AccessList(vec![
-        AccessListItem { 
-            address: Address::ZERO, 
-            storage_keys: vec![B256::from(key1)] // Only the key that was in successful exclusion
-        }
-    ]);
-    
-    req.with_access_list(access_list)
+    req.with_access_list(AccessListType::SingleKey.create_access_list())
 }
 
 #[derive(Debug, Clone)]
@@ -470,6 +424,37 @@ enum RequestType {
     Inclusion,
     Exclusion,
     FirstInclusion,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum AccessListType {
+    SingleKey = 1,  // [0x000...001]
+    DoubleKey = 2,  // [0x000...001, 0x000...003]
+}
+
+impl AccessListType {
+    fn create_access_list(self) -> AccessList {
+        match self {
+            AccessListType::SingleKey => {
+                let mut key = [0u8; 32];
+                key[31] = 1;
+                AccessList(vec![AccessListItem {
+                    address: Address::ZERO,
+                    storage_keys: vec![B256::from(key)],
+                }])
+            }
+            AccessListType::DoubleKey => {
+                let mut key1 = [0u8; 32];
+                key1[31] = 1;
+                let mut key3 = [0u8; 32];
+                key3[31] = 3;
+                AccessList(vec![AccessListItem {
+                    address: Address::ZERO,
+                    storage_keys: vec![B256::from(key1), B256::from(key3)],
+                }])
+            }
+        }
+    }
 }
 
 async fn send_rpc_request(
@@ -507,7 +492,6 @@ async fn send_rpc_request(
 
     let response = response.text().await?;
 
-    // strip out long series of zeros in the response (to avoid spamming blob contents)
     let response = response.replace(&"0".repeat(32), ".").replace(&".".repeat(4), "");
     info!("Response: {:?}", response);
     Ok(())
@@ -517,9 +501,8 @@ async fn sign_request(
     tx_hashes: Vec<B256>,
     target_slot: u64,
     wallet: &PrivateKeySigner,
-    request_type: &RequestType,
+    _request_type: &RequestType,
 ) -> eyre::Result<String> {
-    // User signs commitment digest
     let mut data = Vec::new();
     let hashes = tx_hashes.iter().map(|hash| hash.as_slice()).collect::<Vec<_>>().concat();
     data.extend_from_slice(&hashes);
@@ -532,7 +515,6 @@ async fn sign_request(
 }
 
 /// Send a first inclusion RPC request with proper JSON structure
-/// FirstInclusionRequest needs both `txs` and `bid_transaction` fields
 async fn send_first_inclusion_rpc_request(
     txs_rlp: Vec<String>,
     tx_hashes: Vec<B256>,
@@ -545,7 +527,7 @@ async fn send_first_inclusion_rpc_request(
         serde_json::json!({
             "slot": target_slot,
             "txs": txs_rlp.clone(),
-            "bid_transaction": txs_rlp, // Same transaction for both fields in this test
+            "bid_transaction": txs_rlp,
         }),
     );
 
@@ -563,7 +545,6 @@ async fn send_first_inclusion_rpc_request(
 
     let response = response.text().await?;
 
-    // strip out long series of zeros in the response (to avoid spamming blob contents)
     let response = response.replace(&"0".repeat(32), ".").replace(&".".repeat(4), "");
     info!("Response: {:?}", response);
     Ok(())
