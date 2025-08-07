@@ -143,6 +143,34 @@ grafana:
     xdg-open "$url"; \
   fi
 
+
+# send integrated preconfirmation test scenario with account funding, exclusions, and first inclusion
+send-preconfs-test-scenario count='1':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    EXECUTION_URL=$(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc 2>/dev/null || echo "http://127.0.0.1:58433")
+    BEACON_URL=$(kurtosis port print bolt-devnet cl-1-lighthouse-geth http 2>/dev/null || echo "http://127.0.0.1:58377")
+    SIDECAR_URL=$(kurtosis port print bolt-devnet bolt-sidecar-1-lighthouse-geth api 2>/dev/null || echo "127.0.0.1:58446")
+    
+    echo "🏦 Funding test accounts before running preconfirmation scenario..."
+    cd bolt-cli && RUST_LOG=info cargo run -- fund \
+        --execution-url "${EXECUTION_URL}" \
+        --funding-private-key 0x53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
+        --amount 100
+    
+    echo "🚀 Starting integrated exclusion + first inclusion test scenario..."
+    RUST_LOG=info cargo run -- send \
+        --devnet \
+        --devnet.execution_url "${EXECUTION_URL}" \
+        --devnet.beacon_url "${BEACON_URL}" \
+        --devnet.sidecar_url "http://${SIDECAR_URL}" \
+        --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
+        --max-fee 400000 \
+        --priority-fee 300000 \
+        --exclusion \
+        --multi-exclusion \
+        --count {{count}}
+
 # manually send a preconfirmation to the bolt devnet
 send-preconf count='1':
     #!/usr/bin/env bash
@@ -188,25 +216,6 @@ fund-accounts amount='100':
         --execution-url "${EXECUTION_URL}" \
         --funding-private-key 0x53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
         --amount {{amount}}
-
-# send multiple exclusion requests concurrently with different signers and hardcoded access lists
-send-multi-exclusion-preconf count='1':
-    #!/usr/bin/env bash
-    set -euo pipefail
-    EXECUTION_URL=$(kurtosis port print bolt-devnet el-1-geth-lighthouse rpc 2>/dev/null || echo "http://127.0.0.1:58433")
-    BEACON_URL=$(kurtosis port print bolt-devnet cl-1-lighthouse-geth http 2>/dev/null || echo "http://127.0.0.1:58377")
-    SIDECAR_URL=$(kurtosis port print bolt-devnet bolt-sidecar-1-lighthouse-geth api 2>/dev/null || echo "127.0.0.1:58446")
-    cd bolt-cli && RUST_LOG=info cargo run -- send \
-        --devnet \
-        --devnet.execution_url "${EXECUTION_URL}" \
-        --devnet.beacon_url "${BEACON_URL}" \
-        --devnet.sidecar_url "http://${SIDECAR_URL}" \
-        --private-key 53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
-        --max-fee 400000 \
-        --priority-fee 300000 \
-        --exclusion \
-        --multi-exclusion \
-        --count {{count}}
 
 send-preconf-rpc count='1' rpc='http://127.0.0.1:8015/rpc':
   cd bolt-cli && RUST_LOG=info cargo run -- send \
