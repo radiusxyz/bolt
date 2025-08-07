@@ -232,14 +232,14 @@ impl SendCommand {
             provider2.fill(req2)
         )?;
 
-        let (raw_tx1, tx_hash1) = match filled1 {
+        let (raw_tx1, tx_hash1, nonce1) = match filled1 {
             SendableTx::Builder(_) => bail!("expected a raw transaction"),
-            SendableTx::Envelope(raw) => (raw.encoded_2718(), *raw.tx_hash()),
+            SendableTx::Envelope(raw) => (raw.encoded_2718(), *raw.tx_hash(), raw.nonce()),
         };
 
-        let (raw_tx2, tx_hash2) = match filled2 {
+        let (raw_tx2, tx_hash2, nonce2) = match filled2 {
             SendableTx::Builder(_) => bail!("expected a raw transaction"),
-            SendableTx::Envelope(raw) => (raw.encoded_2718(), *raw.tx_hash()),
+            SendableTx::Envelope(raw) => (raw.encoded_2718(), *raw.tx_hash(), raw.nonce()),
         };
 
         // Send both exclusion requests concurrently (asynchronously)
@@ -294,7 +294,7 @@ impl SendCommand {
             // Send first inclusion immediately after exclusion success (within consensus deadline)
             // tokio::time::sleep(Duration::from_millis(50)).await;
             
-            self.send_first_inclusion_request(target_slot, sidecar_url, execution_url, &signer1).await?;
+            self.send_first_inclusion_request(target_slot, sidecar_url, execution_url, &signer1, nonce1).await?;
         } else {
             info!("⚠️ Signer1 exclusion failed, cannot send first inclusion request");
         }
@@ -311,6 +311,7 @@ impl SendCommand {
         sidecar_url: &Url,
         execution_url: &Url,
         signer: &PrivateKeySigner,
+        exclusion_nonce: u64,  // Pass the nonce used in exclusion request
     ) -> Result<()> {
         info!("📋 Creating first inclusion transaction with subset access list");
         
@@ -324,12 +325,17 @@ impl SendCommand {
             .wallet(transaction_signer)
             .on_http(execution_url.clone());
 
-        // Set gas parameters
+        // Set gas parameters and INCREMENTED NONCE for first inclusion
         let mut req = req;
         if let Some(max_fee) = self.max_fee {
             req = req.with_max_fee_per_gas(max_fee * GWEI_TO_WEI as u128);
         }
         req = req.with_max_priority_fee_per_gas(self.priority_fee * GWEI_TO_WEI as u128);
+        
+        // 🔢 NONCE FIX: Use incremented nonce to avoid conflict with exclusion transaction
+        req = req.with_nonce(exclusion_nonce + 1);
+        
+        info!("🔢 First inclusion nonce: {} (exclusion used: {})", exclusion_nonce + 1, exclusion_nonce);
 
         // Fill the transaction
         let filled_tx = provider.fill(req).await?;
