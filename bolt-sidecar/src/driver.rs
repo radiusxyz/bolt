@@ -871,14 +871,6 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         debug!(slot = target_slot, "Added first inclusion request to pending queue");
     }
 
-    /// Schedule first inclusion processing after commitment deadline + first inclusion timer interval
-    async fn schedule_first_inclusion_processing(&mut self, slot: u64) {
-        // Create a new deadline for first inclusion processing
-        self.first_inclusion_deadline =
-            Some(CommitmentDeadline::new(slot, self.first_inclusion_timer_interval));
-        debug!(slot, interval = ?self.first_inclusion_timer_interval, "Scheduled first inclusion processing");
-    }
-
     /// Handle pending first inclusion requests after the commitment deadline + interval
     async fn handle_first_inclusion_deadline(&mut self, slot: u64) {
         // Clear the deadline as it has been reached
@@ -1119,7 +1111,6 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         // Fix ExclusionCommitment processing, and then fix it
         // Schedule first inclusion processing after the additional interval
         self.handle_first_inclusion_deadline(slot).await;
-        // self.schedule_first_inclusion_processing(slot).await;
     }
 
     /// Handle a fetch payload request, responding with the local payload if available.
