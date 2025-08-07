@@ -1,0 +1,13 @@
+# Should use only this Dockerfile when you just built the binary
+FROM ubuntu AS runtime
+WORKDIR /app
+
+# 필수 라이브러리 설치
+RUN apt-get update && \
+    apt-get install -y openssl ca-certificates libssl3 libssl-dev
+
+# 로컬에서 빌드한 바이너리 복사
+COPY ./bolt-boost /usr/local/bin/bolt-boost
+
+# 엔트리포인트 실행
+ENTRYPOINT ["/usr/local/bin/bolt-boost"]
