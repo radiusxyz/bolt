@@ -257,8 +257,8 @@ fund-accounts amount='100':
 build-local-images:
     @just build-local-sidecar
     @just build-local-bolt-boost
-    @just build-local-helix
-    @just build-local-builder
+    # @just build-local-helix
+    # @just build-local-builder
 
 # build the docker image for the bolt sidecar
 [private]

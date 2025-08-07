@@ -45,7 +45,16 @@ git checkout main
    DOCKER_DEFAULT_PLATFORM=linux/amd64 just up
    ```
 
-4. Send precommitment to Sidecar RPC: `just send-preconf`
+4. Send preconfirmation test scenario: `just send-preconfs-test-scenario`
+
+   This command runs an integrated test scenario that demonstrates the complete exclusion → first inclusion flow:
+   
+   - **Account Funding**: Automatically funds test accounts with ETH before running the scenario
+   - **Exclusion Requests**: Sends multiple exclusion requests from different signers to register access list constraints
+   - **First Inclusion Request**: The winning searcher (who sent exclusion requests early) gets first access to previously excluded states
+   - **Atomic Processing**: Validates that exclusion constraints are enforced and first inclusion requests access the correct states
+   
+   The scenario simulates real MEV searcher behavior where searchers first exclude competing transactions from accessing certain states, then claim first inclusion rights to those states for their own transactions.
 
 (The MEV-Boost / Commit-Boost option can be selected in the [Kurtosis config](./scripts/kurtosis_config.yaml) using `mev_boost_image` or `bolt_boost_image`.)
 
