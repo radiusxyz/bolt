@@ -38,14 +38,11 @@ use cb_common::{
 };
 use cb_pbs::{register_validator, BuilderApi, BuilderApiState, PbsState};
 
-use crate::metrics::{
-    GET_HEADER_WP_TAG, RELAY_INVALID_BIDS, RELAY_LATENCY, RELAY_STATUS_CODE, TIMEOUT_ERROR_CODE_STR,
-};
+use crate::metrics::{GET_HEADER_WP_TAG, RELAY_LATENCY, RELAY_STATUS_CODE, TIMEOUT_ERROR_CODE_STR};
 
 use super::{
     constraints::ConstraintsCache,
     error::PbsClientError,
-    proofs::verify_multiproofs,
     types::{
         Config, GetHeaderParams, GetHeaderWithProofsResponse, RequestConfig, SignedConstraints,
         SignedDelegation, SignedExecutionPayloadHeaderWithProofs, SignedRevocation,
@@ -284,13 +281,13 @@ async fn get_header_with_proofs(
 
         match res {
             Ok(Some(res)) => {
-                let root = res.data.header.message.header.transactions_root;
+                let _root = res.data.header.message.header.transactions_root;
 
                 let start = Instant::now();
 
                 // If we have constraints to verify, do that here in order to validate the bid
-                if let Some(ref constraints) = maybe_constraints {
-                    // Verify the multiproofs and continue if not valid
+                if let Some(ref _constraints) = maybe_constraints {
+                    // TODO: Verify the multiproofs and continue if not valid
                     // In the PoC Level, verify is omitted, since we implemented new two constraints.
                     // if let Err(e) = verify_multiproofs(constraints, &res.data.proofs, root) {
                     //     error!(?e, relay_id, "Failed to verify multiproof, skipping bid");

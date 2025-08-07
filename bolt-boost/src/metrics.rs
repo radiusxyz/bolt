@@ -9,7 +9,7 @@ use cb_pbs::PbsService;
 pub(crate) const TIMEOUT_ERROR_CODE_STR: &str = "555";
 pub(crate) const GET_HEADER_WP_TAG: &str = "get_header_with_proofs";
 
-pub(crate) fn init_metrics() -> eyre::Result<()> {
+pub fn init_metrics() -> eyre::Result<()> {
     // Initialize metrics
     PbsService::register_metric(Box::new(RELAY_LATENCY.clone()));
     PbsService::register_metric(Box::new(RELAY_STATUS_CODE.clone()));
