@@ -41,10 +41,7 @@ use crate::{
         ConstraintsMessage, FetchPayloadRequest, SignedConstraints,
     },
     signer::{keystore::KeystoreSigner, local::LocalSigner, CommitBoostSigner, SignerBLS},
-    state::{
-        fetcher::StateFetcher, CommitmentDeadline, ConsensusState, ExecutionState, HeadTracker,
-        StateClient,
-    },
+    state::{fetcher::StateFetcher, ConsensusState, ExecutionState, HeadTracker, StateClient},
     telemetry::ApiMetrics,
     LocalBuilder,
 };
@@ -106,7 +103,7 @@ pub struct SidecarDriver<C, ECDSA> {
     slot_stream: SlotStream<SystemTimeProvider>,
     /// Whether to skip consensus checks (should only be used for testing)
     unsafe_skip_consensus_checks: bool,
-    /// Pending first inclusion requests awaiting processing 500ms after commitment deadline (slot -> (request, response_sender, start_time))
+    /// Pending first inclusion requests awaiting processing after commitment deadline + first_inclusion_timer_interval (slot -> (request, response_sender, start_time))
     pending_first_inclusion_requests: HashMap<
         u64,
         Vec<(
@@ -120,12 +117,8 @@ pub struct SidecarDriver<C, ECDSA> {
             Instant,
         )>,
     >,
-    /// Track when commitment deadlines occurred for each slot to schedule first inclusion processing
-    commitment_deadline_timestamps: HashMap<u64, Instant>,
     /// Timer interval for checking pending first inclusion requests
     first_inclusion_timer_interval: std::time::Duration,
-    /// First inclusion deadline for the current slot
-    first_inclusion_deadline: Option<crate::state::CommitmentDeadline>,
     /// State management for atomic exclusion request processing
     /// Tracks used access list entries per slot to prevent conflicts
     slot_access_lists: SlotAccessLists,
@@ -491,9 +484,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             payload_requests_rx,
             slot_stream,
             pending_first_inclusion_requests: HashMap::new(),
-            commitment_deadline_timestamps: HashMap::new(),
             first_inclusion_timer_interval: opts.chain.first_inclusion_timer_interval(),
-            first_inclusion_deadline: None,
             slot_access_lists: Arc::new(Mutex::new(HashMap::new())),
             slot_exclusion_constraints: Arc::new(Mutex::new(HashMap::new())),
         })
@@ -857,11 +848,11 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
     ) {
         let target_slot = first_inclusion_request.slot;
         info!(
-            "Received first inclusion request for slot {}, adding to pending queue for processing after commitment deadline + 500ms",
+            "Received first inclusion request for slot {}, adding to pending queue for processing after commitment deadline + first_inclusion_timer_interval",
             target_slot
         );
 
-        // Add the request to the pending queue for processing after commitment deadline + 500ms
+        // Add the request to the pending queue for processing after commitment deadline + first_inclusion_timer_interval
         self.pending_first_inclusion_requests.entry(target_slot).or_insert_with(Vec::new).push((
             first_inclusion_request,
             response,
@@ -873,9 +864,6 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
 
     /// Handle pending first inclusion requests after the commitment deadline + interval
     async fn handle_first_inclusion_deadline(&mut self, slot: u64) {
-        // Clear the deadline as it has been reached
-        self.first_inclusion_deadline = None;
-
         info!(slot, "First inclusion deadline reached, processing pending requests");
 
         // Process all pending first inclusion requests for this slot
@@ -891,7 +879,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                     available_pubkeys.iter().min().cloned().expect("at least one available pubkey")
                 } else {
                     // 🕐 FIRST INCLUSION TIMING: Skip deadline validation since first inclusion
-                    // is processed after commitment deadline by design (500ms delay)
+                    // is processed after commitment deadline by design (configurable delay)
                     let validator_pubkey = match self
                         .consensus
                         .find_validator_pubkey_for_slot(request.slot)
@@ -1031,10 +1019,6 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         } else {
             debug!(slot, "No pending first inclusion requests for this slot");
         }
-
-        // Clean up old deadline timestamps
-        let current_slot = self.consensus.latest_slot();
-        self.commitment_deadline_timestamps.retain(|&s, _| s >= current_slot.saturating_sub(2));
     }
 
     /// Handle a new head event, updating the execution state.
@@ -1051,9 +1035,6 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
     /// Handle a commitment deadline event, submitting constraints to the Constraints client service
     /// and starting to build a local payload for the given target slot.
     async fn handle_commitment_deadline(&mut self, slot: u64) {
-        // Record the commitment deadline timestamp for first inclusion processing
-        self.commitment_deadline_timestamps.insert(slot, Instant::now());
-
         let Some(template) = self.execution.get_block_template(slot) else {
             // Nothing to do then. Block templates are created only when constraints are added,
             // which means we haven't issued any commitment for this slot because we are
@@ -1105,8 +1086,8 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
             }
         }));
 
-        // Wait 500ms before processing first inclusion requests
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        // Wait for configured first inclusion timer interval before processing first inclusion requests
+        tokio::time::sleep(self.first_inclusion_timer_interval).await;
 
         // Fix ExclusionCommitment processing, and then fix it
         // Schedule first inclusion processing after the additional interval
@@ -1145,12 +1126,7 @@ impl fmt::Debug for SidecarDriver<StateClient, PrivateKeySigner> {
                 "pending_first_inclusion_requests",
                 &format!("{} slots", self.pending_first_inclusion_requests.len()),
             )
-            .field(
-                "commitment_deadline_timestamps",
-                &format!("{} slots", self.commitment_deadline_timestamps.len()),
-            )
             .field("first_inclusion_timer_interval", &self.first_inclusion_timer_interval)
-            .field("first_inclusion_deadline", &self.first_inclusion_deadline.is_some())
             .finish()
     }
 }

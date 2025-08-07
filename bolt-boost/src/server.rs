@@ -1,5 +1,6 @@
 use alloy::{
     eips::merge::EPOCH_SLOTS,
+    hex,
     primitives::{utils::format_ether, B256, U256},
     rpc::types::beacon::{relay::ValidatorRegistration, BlsPublicKey},
 };
@@ -164,6 +165,37 @@ async fn submit_constraints(
     // Save constraints for the slot to verify proofs against later.
     for signed_constraints in &constraints {
         let slot = signed_constraints.message.slot;
+
+        // 📋 DETAILED CONSTRAINTS MESSAGE LOGGING
+        info!(
+            "📋 BOLT-BOOST: ConstraintsMessage Details:"
+        );
+        info!(
+            "  🔑 Pubkey: {}",
+            signed_constraints.message.pubkey
+        );
+        info!(
+            "  🎰 Slot: {}",
+            signed_constraints.message.slot
+        );
+        info!(
+            "  🔝 Top (must be at top of block): {}",
+            signed_constraints.message.top
+        );
+        info!(
+            "  📦 Transaction count: {}",
+            signed_constraints.message.transactions.len()
+        );
+        
+        // Log details for each transaction
+        for (i, tx_bytes) in signed_constraints.message.transactions.iter().enumerate() {
+            info!(
+                "  🔗 Transaction {}: {} bytes (hex: {})",
+                i + 1,
+                tx_bytes.len(),
+                hex::encode(&tx_bytes[..tx_bytes.len().min(32)])
+            );
+        }
 
         // Only accept constraints for the current or next epoch.
         if slot > current_slot + EPOCH_SLOTS * 2 {
