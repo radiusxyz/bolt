@@ -515,15 +515,6 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                 Some(slot) = self.consensus.wait_commitment_deadline() => {
                     self.handle_commitment_deadline(slot).await;
                 }
-                Some(slot) = async {
-                    match &mut self.first_inclusion_deadline {
-                        Some(deadline) => deadline.wait().await,
-                        None => std::future::pending().await,
-                    }
-                } => {
-                    // It doesn't work.
-                    self.handle_first_inclusion_deadline(slot).await;
-                }
                 Some(payload_request) = self.payload_requests_rx.recv() => {
                     self.handle_fetch_payload_request(payload_request);
                 }
@@ -777,7 +768,13 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                 ConstraintsMessage::from_tx(signing_pubkey.clone(), target_slot, tx.clone());
             let digest = message.digest();
 
-            info!(target_slot, tx_index = i, "🔐 SIDECAR: Creating BLS signature for constraint");
+            info!(
+                target_slot,
+                tx_index = i,
+                tx_hash = %tx.hash(),
+                top = %message.top,
+                "🔐 SIDECAR: Created Exclusion constraint with top=false"
+            );
             let signature_result = match &self.constraint_signer {
                 SignerBLS::Local(signer) => signer.sign_commit_boost_root(digest),
                 SignerBLS::CommitBoost(signer) => signer.sign_commit_boost_root(digest).await,
@@ -901,13 +898,19 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                 let signing_pubkey = if self.unsafe_skip_consensus_checks {
                     available_pubkeys.iter().min().cloned().expect("at least one available pubkey")
                 } else {
-                    // 🕐 FIRST INCLUSION TIMING: Skip deadline validation since first inclusion 
+                    // 🕐 FIRST INCLUSION TIMING: Skip deadline validation since first inclusion
                     // is processed after commitment deadline by design (500ms delay)
-                    let validator_pubkey = match self.consensus.find_validator_pubkey_for_slot(request.slot) {
+                    let validator_pubkey = match self
+                        .consensus
+                        .find_validator_pubkey_for_slot(request.slot)
+                    {
                         Ok(pubkey) => {
-                            debug!(slot = request.slot, "✅ First inclusion: found validator pubkey for slot");
+                            debug!(
+                                slot = request.slot,
+                                "✅ First inclusion: found validator pubkey for slot"
+                            );
                             pubkey
-                        },
+                        }
                         Err(err) => {
                             warn!(?err, slot = request.slot, "Consensus: failed to find validator pubkey for first inclusion request");
                             let _ = response.send(Err(CommitmentError::Consensus(err)));
@@ -947,6 +950,12 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
                         ConstraintsMessage::from_tx(signing_pubkey.clone(), slot, tx.clone());
                     // 🔝 FIRST INCLUSION: Set top: true for first inclusion constraints
                     message.top = true;
+                    info!(
+                        slot,
+                        tx_hash = %tx.hash(),
+                        top = %message.top,
+                        "🔝 SIDECAR: Created First Inclusion constraint with top=true"
+                    );
                     let digest = message.digest();
 
                     let signature_result = match &self.constraint_signer {
@@ -1106,7 +1115,7 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
 
         // Wait 500ms before processing first inclusion requests
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        
+
         // Fix ExclusionCommitment processing, and then fix it
         // Schedule first inclusion processing after the additional interval
         self.handle_first_inclusion_deadline(slot).await;
