@@ -1,7 +1,4 @@
-use alloy::{
-    primitives::keccak256,
-    signers::k256::sha2::{Digest, Sha256},
-};
+use alloy::signers::k256::sha2::{Digest, Sha256};
 use ethereum_consensus::crypto::PublicKey as BlsPublicKey;
 use serde::{Deserialize, Serialize};
 
