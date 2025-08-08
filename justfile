@@ -255,10 +255,10 @@ fund-accounts amount='100':
 
 # build all the docker images locally
 build-local-images:
-    @just build-local-sidecar
-    @just build-local-bolt-boost
+    # @just build-local-sidecar
+    # @just build-local-bolt-boost
     # @just build-local-helix
-    # @just build-local-builder
+    @just build-local-builder
 
 # build the docker image for the bolt sidecar
 [private]
@@ -281,8 +281,8 @@ build-local-helix:
 [private]
 build-local-builder:
     git clone https://github.com/radiusxyz/bolt-builder.git helix-temp && \
-    cd helix-temp && DOCKER_BUILDKIT=1 docker build -t ghcr.io/radiusxyz/bolt-builder:0.1.0 . && \
-    cd .. && rm -rf helix-temp
+    cd builder-temp && DOCKER_BUILDKIT=1 docker build -t ghcr.io/radiusxyz/bolt-builder:0.1.0 . && \
+    cd .. && rm -rf builder-temp
 
 # # build the docker image for helix locally
 # [private]

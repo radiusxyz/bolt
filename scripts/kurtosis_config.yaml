@@ -49,8 +49,8 @@ mev_params:
   
 
   # builder
-  # mev_builder_image: ghcr.io/radiusxyz/bolt-builder:0.1.0
-  mev_builder_image: ghcr.io/chainbound/bolt-builder:0.1.0
+  mev_builder_image: ghcr.io/radiusxyz/bolt-builder:0.1.0
+  # mev_builder_image: ghcr.io/chainbound/bolt-builder:0.1.0
   mev_builder_cl_image: sigp/lighthouse:v6.0.0
   
 
