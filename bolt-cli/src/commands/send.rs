@@ -41,7 +41,11 @@ impl SendCommand {
     }
 
     /// Log detailed transaction information
-    fn log_transaction_details(tx: &alloy::consensus::TxEnvelope, label: &str, signer_address: Address) {
+    fn log_transaction_details(
+        tx: &alloy::consensus::TxEnvelope,
+        label: &str,
+        signer_address: Address,
+    ) {
         info!("📋 {label} DETAILS:");
         info!("  Hash: {}", tx.tx_hash());
         info!("  From: {signer_address}");
@@ -221,13 +225,25 @@ impl SendCommand {
         let (signer1, signer2) = Self::create_test_signers()?;
 
         info!("🚀 Starting integrated exclusion + first inclusion flow:");
-        info!("  Signer 1: {} (access list: [0x000...001]) - EXPECTED TO SUCCEED", signer1.address());
-        info!("  Signer 2: {} (access list: [0x000...001, 0x000...003]) - EXPECTED TO FAIL", signer2.address());
+        info!(
+            "  Signer 1: {} (access list: [0x000...001]) - EXPECTED TO SUCCEED",
+            signer1.address()
+        );
+        info!(
+            "  Signer 2: {} (access list: [0x000...001, 0x000...002]) - EXPECTED TO FAIL",
+            signer2.address()
+        );
         info!("  First inclusion: Signer1 → [0x000...001] (subset of successful exclusion)");
 
         // Create transactions for both signers
-        let req1 = create_tx_request_with_hardcoded_access_list(signer1.address(), AccessListType::SingleKey);
-        let req2 = create_tx_request_with_hardcoded_access_list(signer2.address(), AccessListType::DoubleKey);
+        let req1 = create_tx_request_with_hardcoded_access_list(
+            signer1.address(),
+            AccessListType::SingleKey,
+        );
+        let req2 = create_tx_request_with_hardcoded_access_list(
+            signer2.address(),
+            AccessListType::DoubleKey,
+        );
 
         // Create separate providers for each signer
         let transaction_signer1 = EthereumWallet::from(signer1.clone());
@@ -247,10 +263,7 @@ impl SendCommand {
         let req2 = self.setup_gas_parameters(req2);
 
         // Fill both transactions concurrently
-        let (filled1, filled2) = tokio::try_join!(
-            provider1.fill(req1),
-            provider2.fill(req2)
-        )?;
+        let (filled1, filled2) = tokio::try_join!(provider1.fill(req1), provider2.fill(req2))?;
 
         let (raw_tx1, tx_hash1, nonce1) = match filled1 {
             SendableTx::Builder(_) => bail!("expected a raw transaction"),
@@ -291,13 +304,14 @@ impl SendCommand {
                 sidecar_url2,
                 &signer2,
                 RequestType::Exclusion,
-            ).await
+            )
+            .await
         };
 
         let (result1, result2) = tokio::join!(task1, task2);
         let exclusion1_success = result1.is_ok();
         let exclusion2_success = result2.is_ok();
-        
+
         if let Err(e) = result1 {
             info!("Exclusion request 1 failed as expected: {:?}", e);
         }
@@ -305,12 +319,21 @@ impl SendCommand {
             info!("Exclusion request 2 failed: {:?}", e);
         }
 
-        info!("Exclusion requests completed. Signer1 success: {}, Signer2 success: {}", 
-              exclusion1_success, exclusion2_success);
+        info!(
+            "Exclusion requests completed. Signer1 success: {}, Signer2 success: {}",
+            exclusion1_success, exclusion2_success
+        );
 
         if exclusion1_success {
             info!("🚀 Sending first inclusion request from signer1 (successful exclusion)");
-            self.send_first_inclusion_request(target_slot, sidecar_url, execution_url, &signer1, nonce1).await?;
+            self.send_first_inclusion_request(
+                target_slot,
+                sidecar_url,
+                execution_url,
+                &signer1,
+                nonce1,
+            )
+            .await?;
         } else {
             info!("⚠️ Signer1 exclusion failed, cannot send first inclusion request");
         }
@@ -329,7 +352,7 @@ impl SendCommand {
         exclusion_nonce: u64,
     ) -> Result<()> {
         info!("📋 Creating first inclusion transaction with subset access list");
-        
+
         let req = create_tx_request_for_first_inclusion(signer.address());
         let transaction_signer = EthereumWallet::from(signer.clone());
         let provider = ProviderBuilder::new()
@@ -338,8 +361,12 @@ impl SendCommand {
             .on_http(execution_url.clone());
 
         let req = self.setup_gas_parameters(req).with_nonce(exclusion_nonce + 1);
-        
-        info!("🔢 First inclusion nonce: {} (exclusion used: {})", exclusion_nonce + 1, exclusion_nonce);
+
+        info!(
+            "🔢 First inclusion nonce: {} (exclusion used: {})",
+            exclusion_nonce + 1,
+            exclusion_nonce
+        );
 
         let filled_tx = provider.fill(req).await?;
         let (raw_tx, tx_hash) = match filled_tx {
@@ -358,7 +385,8 @@ impl SendCommand {
             target_slot,
             sidecar_url.clone(),
             signer,
-        ).await?;
+        )
+        .await?;
 
         info!("✅ First inclusion request sent successfully!");
         Ok(())
@@ -402,8 +430,8 @@ fn create_tx_request(to: Address, with_blob: bool, with_access_list: bool) -> Tr
 }
 
 fn create_tx_request_with_hardcoded_access_list(
-    to: Address, 
-    access_list_type: AccessListType
+    to: Address,
+    access_list_type: AccessListType,
 ) -> TransactionRequest {
     let mut req = TransactionRequest::default();
     req = req.with_to(to).with_value(U256::from(100_000));
@@ -428,30 +456,43 @@ enum RequestType {
 
 #[derive(Debug, Clone, Copy)]
 enum AccessListType {
-    SingleKey = 1,  // [0x000...001]
-    DoubleKey = 2,  // [0x000...001, 0x000...003]
+    SingleKey = 1, // Address: 0x000...001 with random storage key
+    DoubleKey = 2, // Addresses: 0x000...001, 0x000...002 with random storage keys
 }
 
 impl AccessListType {
     fn create_access_list(self) -> AccessList {
+        // Generate a random storage key that can be reused across addresses
+        let random_storage_key = B256::from(rand::thread_rng().gen::<[u8; 32]>());
+        
         match self {
             AccessListType::SingleKey => {
-                let mut key = [0u8; 32];
-                key[31] = 1;
+                // Single address: 0x000...001 with random storage key
+                let mut addr = [0u8; 20];
+                addr[19] = 1; // 0x000...001
                 AccessList(vec![AccessListItem {
-                    address: Address::ZERO,
-                    storage_keys: vec![B256::from(key)],
+                    address: Address::from(addr),
+                    storage_keys: vec![random_storage_key],
                 }])
             }
             AccessListType::DoubleKey => {
-                let mut key1 = [0u8; 32];
-                key1[31] = 1;
-                let mut key3 = [0u8; 32];
-                key3[31] = 3;
-                AccessList(vec![AccessListItem {
-                    address: Address::ZERO,
-                    storage_keys: vec![B256::from(key1), B256::from(key3)],
-                }])
+                // Two different addresses: 0x000...001 and 0x000...002
+                // Both can use the same random storage key (doesn't matter if same)
+                let mut addr1 = [0u8; 20];
+                addr1[19] = 1; // 0x000...001
+                let mut addr2 = [0u8; 20]; 
+                addr2[19] = 2; // 0x000...002
+                
+                AccessList(vec![
+                    AccessListItem {
+                        address: Address::from(addr1),
+                        storage_keys: vec![random_storage_key],
+                    },
+                    AccessListItem {
+                        address: Address::from(addr2),
+                        storage_keys: vec![random_storage_key], // Same storage key is fine
+                    },
+                ])
             }
         }
     }
@@ -467,7 +508,7 @@ async fn send_rpc_request(
 ) -> Result<()> {
     let method = match request_type {
         RequestType::Inclusion => "bolt_requestInclusion",
-        RequestType::Exclusion => "bolt_requestExclusion", 
+        RequestType::Exclusion => "bolt_requestExclusion",
         RequestType::FirstInclusion => "bolt_requestFirstInclusion",
     };
     let request = prepare_rpc_request(
@@ -532,7 +573,8 @@ async fn send_first_inclusion_rpc_request(
     );
 
     info!(?tx_hashes, target_slot, %target_sidecar_url);
-    let signature = sign_request(tx_hashes, target_slot, wallet, &RequestType::FirstInclusion).await?;
+    let signature =
+        sign_request(tx_hashes, target_slot, wallet, &RequestType::FirstInclusion).await?;
 
     let response = reqwest::Client::new()
         .post(target_sidecar_url)
