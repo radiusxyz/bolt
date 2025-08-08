@@ -7,7 +7,7 @@ use std::{
 
 use alloy::{
     consensus::{Transaction, TxType, Typed2718},
-    primitives::{Address, B256},
+    primitives::Address,
     rpc::types::beacon::events::HeadEvent,
     signers::local::PrivateKeySigner,
 };
@@ -49,8 +49,8 @@ use crate::{
 const API_EVENTS_BUFFER_SIZE: usize = 1024;
 
 /// Access list key for tracking used access list entries per slot
-/// (Address, StorageKey) pair uniquely identifies an access list entry
-pub type AccessListKey = (Address, B256);
+/// Address-level tracking for contract-level conflict detection
+pub type AccessListKey = Address;
 
 /// State management for atomic exclusion request processing
 /// Maps slot -> set of used access list keys to prevent conflicts
@@ -205,19 +205,20 @@ impl SidecarDriver<StateClient, CommitBoostSigner> {
 }
 
 impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
-    /// Extract access list keys from a transaction
+    /// Extract access list keys (addresses only) from a transaction for contract-level conflict detection
     pub fn extract_access_list_keys(tx: &crate::primitives::FullTransaction) -> Vec<AccessListKey> {
-        let mut keys = Vec::new();
+        let mut addresses = Vec::new();
 
         if let Some(access_list) = tx.access_list() {
             for item in &access_list.0 {
-                for storage_key in &item.storage_keys {
-                    keys.push((item.address, *storage_key));
+                // Only track the address, ignore storage keys for contract-level conflict detection
+                if !addresses.contains(&item.address) {
+                    addresses.push(item.address);
                 }
             }
         }
 
-        keys
+        addresses
     }
 
     /// Check if an exclusion request has conflicting access lists with existing commitments
@@ -350,8 +351,8 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
         for request_key in &request_access_keys {
             if !matching_exclusion.access_list_keys.contains(request_key) {
                 return Err(format!(
-                    "First inclusion access list key {}:{:#x} not found in exclusion constraint for signer {} in slot {}",
-                    request_key.0, request_key.1, request_signer, slot
+                    "First inclusion access list address {} not found in exclusion constraint for signer {} in slot {}",
+                    request_key, request_signer, slot
                 ));
             }
         }
@@ -695,11 +696,11 @@ impl<C: StateFetcher, ECDSA: SignerECDSA> SidecarDriver<C, ECDSA> {
 
                 // Create detailed error response with conflicting access list information
                 let error_details = format!(
-                    "Access list conflict detected for slot {}. Conflicting entries: {}",
+                    "Access list conflict detected for slot {}. Conflicting addresses: {}",
                     target_slot,
                     conflicting_keys
                         .iter()
-                        .map(|(addr, key)| format!("{}:{:#x}", addr, key))
+                        .map(|addr| format!("{}", addr))
                         .collect::<Vec<_>>()
                         .join(", ")
                 );
