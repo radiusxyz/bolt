@@ -158,6 +158,7 @@ send-preconfs-test-scenario count='1':
         --funding-private-key 0x53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710 \
         --amount 100
     
+    sleep 5
     echo "🚀 Starting integrated exclusion + first inclusion test scenario..."
     RUST_LOG=info cargo run -- send \
         --devnet \
@@ -255,9 +256,9 @@ fund-accounts amount='100':
 
 # build all the docker images locally
 build-local-images:
-    # @just build-local-sidecar
-    # @just build-local-bolt-boost
-    # @just build-local-helix
+    @just build-local-sidecar
+    @just build-local-bolt-boost
+    @just build-local-helix
     @just build-local-builder
 
 # build the docker image for the bolt sidecar
