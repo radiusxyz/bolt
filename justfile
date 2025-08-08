@@ -281,16 +281,9 @@ build-local-helix:
 # build the docker image for radius builder locally
 [private]
 build-local-builder:
-    git clone https://github.com/radiusxyz/bolt-builder.git helix-temp && \
+    git clone https://github.com/radiusxyz/bolt-builder.git builder-temp && \
     cd builder-temp && DOCKER_BUILDKIT=1 docker build -t ghcr.io/radiusxyz/bolt-builder:0.1.0 . && \
     cd .. && rm -rf builder-temp
-
-# # build the docker image for helix locally
-# [private]
-# build-local-helix:
-# 	git clone https://github.com/chainbound/helix.git helix-temp && \
-# 	cd helix-temp && docker build -t ghcr.io/chainbound/helix:0.1.0 . && \
-# 	cd .. && rm -rf helix-temp
 
 # Cross platform compilation with cargo cross.
 # Install cross with: `cargo install cross --git https://github.com/cross-rs/cross`.

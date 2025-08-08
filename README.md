@@ -62,5 +62,8 @@ When the devnet starts successfully, you should see logs similar to the ones sho
 
 ![Devnet Success Logs](./.github/assets/devnet-success-logs.png)
 
+> [!TIP]
+> After 4 epochs, please use CLI: `just send-preconfs-test-scenario`
+
 
 ### [Bolt readme](https://github.com/chainbound/bolt/blob/unstable/README.md)
