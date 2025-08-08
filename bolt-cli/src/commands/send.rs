@@ -13,6 +13,7 @@ use alloy::{
     signers::{local::PrivateKeySigner, Signer},
 };
 use eyre::{bail, Context, ContextCompat, Result};
+use futures::future;
 use rand::Rng;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
@@ -27,6 +28,7 @@ const BOLT_LOOKAHEAD_PATH: &str = "/api/v1/proposers/lookahead";
 // Test signer keys for multi-exclusion integration testing
 const TEST_SIGNER1_KEY: &str = "0x53321db7c1e331d93a11a41d16f004d7ff63972ec8ec7c25db329728ceeb1710";
 const TEST_SIGNER2_KEY: &str = "0x1d6e4bbdafe6f2b2d38536f543ac1268c788ca59fbb09a5470ca9697da6d72e2";
+const TEST_SIGNER3_KEY: &str = "0x529b5151d7501017161593074c97546302346ebbecdf1a63119efab37ab150b0";
 
 // Timing constants for multi-exclusion flow
 const EXCLUSION_REQUEST_DELAY_MS: u64 = 200;
@@ -38,6 +40,13 @@ impl SendCommand {
             req = req.with_max_fee_per_gas(max_fee * GWEI_TO_WEI as u128);
         }
         req.with_max_priority_fee_per_gas(self.priority_fee * GWEI_TO_WEI as u128)
+    }
+
+    /// Set up reasonable gas parameters for mempool transactions (much lower fees)
+    fn setup_mempool_gas_parameters(&self, mut req: TransactionRequest) -> TransactionRequest {
+        // Use much lower gas fees for mempool transactions to avoid exceeding caps
+        req = req.with_max_fee_per_gas(20 * GWEI_TO_WEI as u128); // 20 gwei instead of 400000
+        req.with_max_priority_fee_per_gas(2 * GWEI_TO_WEI as u128) // 2 gwei instead of 300000
     }
 
     /// Log detailed transaction information
@@ -58,10 +67,11 @@ impl SendCommand {
     }
 
     /// Initialize test signers for multi-exclusion testing
-    fn create_test_signers() -> Result<(PrivateKeySigner, PrivateKeySigner)> {
+    fn create_test_signers() -> Result<(PrivateKeySigner, PrivateKeySigner, PrivateKeySigner)> {
         let signer1 = TEST_SIGNER1_KEY.parse().wrap_err("invalid signer1 private key")?;
         let signer2 = TEST_SIGNER2_KEY.parse().wrap_err("invalid signer2 private key")?;
-        Ok((signer1, signer2))
+        let signer3 = TEST_SIGNER3_KEY.parse().wrap_err("invalid signer3 private key")?;
+        Ok((signer1, signer2, signer3))
     }
     /// Run the `send` command.
     pub async fn run(self) -> Result<()> {
@@ -222,7 +232,7 @@ impl SendCommand {
         sidecar_url: &Url,
         execution_url: &Url,
     ) -> Result<()> {
-        let (signer1, signer2) = Self::create_test_signers()?;
+        let (signer1, signer2, signer3) = Self::create_test_signers()?;
 
         info!("🚀 Starting integrated exclusion + first inclusion flow:");
         info!(
@@ -308,6 +318,17 @@ impl SendCommand {
             .await
         };
 
+        // Send 2 async transactions from signer3 concurrently
+        info!(
+            "🔄 Sending 2 async transactions from signer3: {} (ACCOUNT_3_PRIVATE_KEY)",
+            signer3.address()
+        );
+        // Wait 2 seconds to allow commitment requests to be processed first
+        tokio::time::sleep(Duration::from_secs(4)).await;
+        let signer3_tasks = self
+            .send_signer3_async_transactions(target_slot, sidecar_url, execution_url, &signer3)
+            .await?;
+
         let (result1, result2) = tokio::join!(task1, task2);
         let exclusion1_success = result1.is_ok();
         let exclusion2_success = result2.is_ok();
@@ -318,6 +339,15 @@ impl SendCommand {
         if let Err(e) = result2 {
             info!("Exclusion request 2 failed: {:?}", e);
         }
+
+        // Wait for signer3 tasks to complete
+        let signer3_results = future::join_all(signer3_tasks).await;
+        let signer3_successes = signer3_results.iter().filter(|r| r.is_ok()).count();
+        info!(
+            "✅ Signer3 mempool transactions completed: {}/{} successful",
+            signer3_successes,
+            signer3_results.len()
+        );
 
         info!(
             "Exclusion requests completed. Signer1 success: {}, Signer2 success: {}",
@@ -390,6 +420,116 @@ impl SendCommand {
 
         info!("✅ First inclusion request sent successfully!");
         Ok(())
+    }
+
+    /// Send 2 async transactions from signer3 (ACCOUNT_3_PRIVATE_KEY) directly to EL mempool
+    /// 1 transaction with access list 0x000...001, 1 transaction with access list 0x000...002
+    async fn send_signer3_async_transactions(
+        &self,
+        _target_slot: u64,
+        _sidecar_url: &Url,
+        execution_url: &Url,
+        signer3: &PrivateKeySigner,
+    ) -> Result<Vec<tokio::task::JoinHandle<Result<()>>>> {
+        let transaction_signer3 = EthereumWallet::from(signer3.clone());
+        let provider3 = ProviderBuilder::new()
+            .with_recommended_fillers()
+            .wallet(transaction_signer3)
+            .on_http(execution_url.clone());
+
+        let mut tasks = Vec::new();
+        let mut current_nonce: Option<u64> = None;
+
+        // Transaction 1: access list 0x000...001
+        info!("📝 Creating SIGNER3 TX1 with access list [0x000...001]");
+        let mut req1 = create_tx_request_with_hardcoded_access_list(
+            signer3.address(),
+            AccessListType::SingleKey,
+        );
+        req1 = self.setup_mempool_gas_parameters(req1);
+
+        // Set nonce for first transaction
+        if let Some(nonce) = current_nonce {
+            req1 = req1.with_nonce(nonce);
+        }
+
+        info!("📋 SIGNER3 TX1 Request Details:");
+        info!("  To: {}", signer3.address());
+        info!("  Access List Type: SingleKey (0x000...001)");
+        info!("  Max Fee: 20 gwei, Priority Fee: 2 gwei");
+
+        let filled_tx1 = provider3.fill(req1).await?;
+        let (raw_tx1, tx_hash1, nonce1) = match filled_tx1 {
+            SendableTx::Builder(_) => bail!("expected a raw transaction"),
+            SendableTx::Envelope(raw) => {
+                Self::log_transaction_details(
+                    &raw,
+                    "SIGNER3 MEMPOOL TX1 (0x000...001)",
+                    signer3.address(),
+                );
+                current_nonce = Some(raw.nonce() + 1); // Increment nonce for next transaction
+                (raw.encoded_2718(), *raw.tx_hash(), raw.nonce())
+            }
+        };
+
+        let execution_url_clone1 = execution_url.clone();
+        let task1 = tokio::spawn(async move {
+            send_transaction_to_mempool(
+                hex::encode(&raw_tx1),
+                tx_hash1,
+                execution_url_clone1,
+                nonce1,
+                1,
+            )
+            .await
+        });
+        tasks.push(task1);
+
+        // Transaction 2: access list 0x000...002
+        info!("📝 Creating SIGNER3 TX2 with access list [0x000...002]");
+        let mut req2 = create_tx_request_with_hardcoded_access_list(
+            signer3.address(),
+            AccessListType::DoubleKey,
+        );
+        req2 = self.setup_mempool_gas_parameters(req2);
+
+        // Set nonce for second transaction
+        if let Some(nonce) = current_nonce {
+            req2 = req2.with_nonce(nonce);
+        }
+
+        info!("📋 SIGNER3 TX2 Request Details:");
+        info!("  To: {}", signer3.address());
+        info!("  Access List Type: DoubleKey (0x000...001 + 0x000...002)");
+        info!("  Max Fee: 20 gwei, Priority Fee: 2 gwei");
+
+        let filled_tx2 = provider3.fill(req2).await?;
+        let (raw_tx2, tx_hash2, nonce2) = match filled_tx2 {
+            SendableTx::Builder(_) => bail!("expected a raw transaction"),
+            SendableTx::Envelope(raw) => {
+                Self::log_transaction_details(
+                    &raw,
+                    "SIGNER3 MEMPOOL TX2 (0x000...002)",
+                    signer3.address(),
+                );
+                (raw.encoded_2718(), *raw.tx_hash(), raw.nonce())
+            }
+        };
+
+        let execution_url_clone2 = execution_url.clone();
+        let task2 = tokio::spawn(async move {
+            send_transaction_to_mempool(
+                hex::encode(&raw_tx2),
+                tx_hash2,
+                execution_url_clone2,
+                nonce2,
+                2,
+            )
+            .await
+        });
+        tasks.push(task2);
+
+        Ok(tasks)
     }
 }
 
@@ -464,7 +604,7 @@ impl AccessListType {
     fn create_access_list(self) -> AccessList {
         // Generate a random storage key that can be reused across addresses
         let random_storage_key = B256::from(rand::thread_rng().gen::<[u8; 32]>());
-        
+
         match self {
             AccessListType::SingleKey => {
                 // Single address: 0x000...001 with random storage key
@@ -480,9 +620,9 @@ impl AccessListType {
                 // Both can use the same random storage key (doesn't matter if same)
                 let mut addr1 = [0u8; 20];
                 addr1[19] = 1; // 0x000...001
-                let mut addr2 = [0u8; 20]; 
+                let mut addr2 = [0u8; 20];
                 addr2[19] = 2; // 0x000...002
-                
+
                 AccessList(vec![
                     AccessListItem {
                         address: Address::from(addr1),
@@ -599,6 +739,44 @@ fn prepare_rpc_request(method: &str, params: Value) -> Value {
         "method": method,
         "params": vec![params],
     })
+}
+
+/// Send a transaction directly to the execution layer mempool
+async fn send_transaction_to_mempool(
+    raw_tx: String,
+    tx_hash: B256,
+    execution_url: Url,
+    nonce: u64,
+    tx_number: usize,
+) -> Result<()> {
+    let request = prepare_rpc_request(
+        "eth_sendRawTransaction",
+        serde_json::json!("0x".to_string() + &raw_tx),
+    );
+
+    info!("📤 Sending SIGNER3 TX{} to EL mempool:", tx_number);
+    info!("  📍 EL URL: {}", execution_url);
+    info!("  🔗 TX Hash: {:?}", tx_hash);
+    info!("  🔢 Nonce: {}", nonce);
+    info!("  📊 Raw TX Length: {} bytes", raw_tx.len());
+
+    let response = reqwest::Client::new()
+        .post(execution_url)
+        .header("content-type", "application/json")
+        .body(serde_json::to_string(&request)?)
+        .send()
+        .await
+        .wrap_err("failed to send transaction to EL mempool")?;
+
+    let response_text = response.text().await?;
+
+    if response_text.contains("error") {
+        info!("⚠️  SIGNER3 TX{} mempool response: {}", tx_number, response_text);
+    } else {
+        info!("✅ SIGNER3 TX{} successfully submitted to mempool: {}", tx_number, response_text);
+    }
+
+    Ok(())
 }
 
 /// Info about a specific slot in the beacon chain lookahead.
