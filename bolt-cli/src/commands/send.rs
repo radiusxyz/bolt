@@ -361,7 +361,7 @@ impl SendCommand {
                 sidecar_url,
                 execution_url,
                 &signer1,
-                nonce1,
+                nonce1 - 1, // The nonce of Inclusiotn Request should be nonce1 - 1, since Exclusion request won't be stored in the block
             )
             .await?;
         } else {

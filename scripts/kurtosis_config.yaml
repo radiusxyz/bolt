@@ -44,9 +44,7 @@ mev_params:
     # firewall_rpcs: "ws://host.docker.internal:8015/api/v1/firewall_stream"
 
   # relay
-  helix_relay_image: ghcr.io/chainbound/helix:0.1.0
-  # mev_relay_image: ghcr.io/chainbound/bolt-relay:0.1.0
-  
+  helix_relay_image: ghcr.io/radiusxyz/helix:0.1.0
 
   # builder
   mev_builder_image: ghcr.io/radiusxyz/bolt-builder:0.1.0

@@ -274,8 +274,8 @@ build-local-bolt-boost:
 # build the docker image for radius helix locally
 [private]
 build-local-helix:
-    git clone https://github.com/chainbound/helix.git helix-temp && \
-    cd helix-temp && DOCKER_BUILDKIT=1 docker build -t ghcr.io/chainbound/helix:0.1.0 . && \
+    git clone https://github.com/radiusxyz/helix.git helix-temp && \
+    cd helix-temp && DOCKER_BUILDKIT=1 docker build -t ghcr.io/radiusxyz/helix:0.1.0 . && \
     cd .. && rm -rf helix-temp
 
 # build the docker image for radius builder locally
