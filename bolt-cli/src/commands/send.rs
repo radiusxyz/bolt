@@ -235,7 +235,7 @@ impl SendCommand {
         let (signer1, signer2, signer3) = Self::create_test_signers()?;
 
         info!("🚀 Starting integrated exclusion + inclusion flow:");
-        info!("Sending Exclusion Request1(Signer1), Exclusion Request2(Signer2)");
+        info!("Sending Exclusion Request1(Searcher1), Exclusion Request2(Searcher2)");
 
         // Create transactions for both signers
         let req1 = create_tx_request_with_hardcoded_access_list(
@@ -311,9 +311,11 @@ impl SendCommand {
         };
 
         // Send 2 async transactions from signer3 concurrently
-        info!("🔄 Sending 2 async transactions from signer3 into mempools: {}", signer3.address());
-        // Wait 4 seconds to allow commitment requests to be processed first
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        info!(
+            "\n\n\n\n🔄 Sending 2 async transactions from signer3(User) into mempools: {}",
+            signer3.address()
+        );
+        // Wait seconds to allow commitment requests to be processed first
         let signer3_tasks = self
             .send_signer3_async_transactions(target_slot, sidecar_url, execution_url, &signer3)
             .await?;
@@ -329,7 +331,7 @@ impl SendCommand {
         }
 
         if exclusion1_success {
-            info!("🚀 Sending Inclusion request from signer1 (Auction Winner)");
+            info!("\n\n\n\n🚀 Sending Inclusion request from signer1 (Auction Winner)");
             self.send_first_inclusion_request(
                 target_slot,
                 sidecar_url,
@@ -342,13 +344,11 @@ impl SendCommand {
             info!("⚠️ Signer1 exclusion failed, cannot send first inclusion request");
         }
 
-        tokio::time::sleep(Duration::from_secs(2)).await;
-
         // Wait for signer3 tasks to complete
         let signer3_results = future::join_all(signer3_tasks).await;
         let signer3_successes = signer3_results.iter().filter(|r| r.is_ok()).count();
         info!(
-            "✅ Signer3 mempool transactions completed: {}/{} successful",
+            "✅ Signer3(SEARCHER) transactions completed: {}/{} successful",
             signer3_successes,
             signer3_results.len()
         );
@@ -425,11 +425,11 @@ impl SendCommand {
         let mut tasks = Vec::new();
         let mut current_nonce: Option<u64> = None;
 
-        // Transaction 1: access list 0x000...001
-        info!("📝 Creating SIGNER3 TX1 with access list [0x000...001]");
+        // Transaction 1: access list 0x000...002
+        info!("📝 Creating SIGNER3(User) TX1 with access list [0x000...002]");
         let mut req1 = create_tx_request_with_hardcoded_access_list(
             signer3.address(),
-            AccessListType::SingleKey,
+            AccessListType::SingleKey2,
         );
         req1 = self.setup_mempool_gas_parameters(req1);
 
@@ -438,10 +438,10 @@ impl SendCommand {
             req1 = req1.with_nonce(nonce);
         }
 
-        info!("📋 SIGNER3 TX1 Request Details:");
-        info!("  To: {}", signer3.address());
-        info!("  Access List Type: SingleKey (0x000...001)");
-        info!("  Max Fee: 20 gwei, Priority Fee: 2 gwei");
+        // info!("📋 SIGNER3(User) TX1 Request Details:");
+        // info!("  To: {}", signer3.address());
+        // info!("  Access List Type: SingleKey (0x000...002)");
+        // info!("  Max Fee: 20 gwei, Priority Fee: 2 gwei");
 
         let filled_tx1 = provider3.fill(req1).await?;
         let (raw_tx1, tx_hash1, nonce1) = match filled_tx1 {
@@ -449,13 +449,15 @@ impl SendCommand {
             SendableTx::Envelope(raw) => {
                 Self::log_transaction_details(
                     &raw,
-                    "SIGNER3 MEMPOOL TX1 (0x000...001)",
+                    "SIGNER3(User) MEMPOOL TX1 (0x000...002)",
                     signer3.address(),
                 );
                 current_nonce = Some(raw.nonce() + 1); // Increment nonce for next transaction
                 (raw.encoded_2718(), *raw.tx_hash(), raw.nonce())
             }
         };
+
+        tokio::time::sleep(Duration::from_millis(2000)).await;
 
         let execution_url_clone1 = execution_url.clone();
         let task1 = tokio::spawn(async move {
@@ -471,7 +473,7 @@ impl SendCommand {
         tasks.push(task1);
 
         // Transaction 2: access list 0x000...002
-        info!("📝 Creating SIGNER3 TX2 with access list [0x000...001, 0x000...002]");
+        info!("\n\n📝 Creating SIGNER3(User) TX2 with access list [0x000...001, 0x000...002]");
         let mut req2 = create_tx_request_with_hardcoded_access_list(
             signer3.address(),
             AccessListType::DoubleKey,
@@ -483,10 +485,10 @@ impl SendCommand {
             req2 = req2.with_nonce(nonce);
         }
 
-        info!("📋 SIGNER3 TX2 Request Details:");
-        info!("  To: {}", signer3.address());
-        info!("  Access List Type: DoubleKey (0x000...001 + 0x000...002)");
-        info!("  Max Fee: 20 gwei, Priority Fee: 2 gwei");
+        // info!("📋 SIGNER3(User) TX2 Request Details:");
+        // info!("  To: {}", signer3.address());
+        // info!("  Access List Type: DoubleKey (0x000...001 + 0x000...002)");
+        // info!("  Max Fee: 20 gwei, Priority Fee: 2 gwei");
 
         let filled_tx2 = provider3.fill(req2).await?;
         let (raw_tx2, tx_hash2, nonce2) = match filled_tx2 {
@@ -494,7 +496,7 @@ impl SendCommand {
             SendableTx::Envelope(raw) => {
                 Self::log_transaction_details(
                     &raw,
-                    "SIGNER3 MEMPOOL TX2 (0x000...002)",
+                    "SIGNER3(User) MEMPOOL TX2 (0x000...002)",
                     signer3.address(),
                 );
                 (raw.encoded_2718(), *raw.tx_hash(), raw.nonce())
@@ -581,8 +583,9 @@ enum RequestType {
 
 #[derive(Debug, Clone, Copy)]
 enum AccessListType {
-    SingleKey = 1, // Address: 0x000...001 with random storage key
-    DoubleKey = 2, // Addresses: 0x000...001, 0x000...002 with random storage keys
+    SingleKey = 1,  // Address: 0x000...001 with random storage key
+    DoubleKey = 2,  // Addresses: 0x000...001, 0x000...002 with random storage keys
+    SingleKey2 = 3, // Addresses: 0x000...001, 0x000...002 with random storage keys
 }
 
 impl AccessListType {
@@ -595,6 +598,15 @@ impl AccessListType {
                 // Single address: 0x000...001 with random storage key
                 let mut addr = [0u8; 20];
                 addr[19] = 1; // 0x000...001
+                AccessList(vec![AccessListItem {
+                    address: Address::from(addr),
+                    storage_keys: vec![random_storage_key],
+                }])
+            }
+            AccessListType::SingleKey2 => {
+                // Single address: 0x000...001 with random storage key
+                let mut addr = [0u8; 20];
+                addr[19] = 2; // 0x000...001
                 AccessList(vec![AccessListItem {
                     address: Address::from(addr),
                     storage_keys: vec![random_storage_key],
@@ -739,7 +751,7 @@ async fn send_transaction_to_mempool(
         serde_json::json!("0x".to_string() + &raw_tx),
     );
 
-    info!("📤 Sending SIGNER3 TX{} to EL mempool:", tx_number);
+    info!("📤 Sending SIGNER3(User) TX{} to EL mempool:", tx_number);
     info!("  📍 EL URL: {}", execution_url);
     info!("  🔗 TX Hash: {:?}", tx_hash);
     info!("  🔢 Nonce: {}", nonce);
@@ -756,9 +768,12 @@ async fn send_transaction_to_mempool(
     let response_text = response.text().await?;
 
     if response_text.contains("error") {
-        info!("⚠️  SIGNER3 TX{} mempool response: {}", tx_number, response_text);
+        info!("⚠️  SIGNER3(User) TX{} mempool response: {}", tx_number, response_text);
     } else {
-        info!("✅ SIGNER3 TX{} successfully submitted to mempool: {}", tx_number, response_text);
+        info!(
+            "✅ SIGNER3(User) TX{} successfully submitted to mempool: {}",
+            tx_number, response_text
+        );
     }
 
     Ok(())
