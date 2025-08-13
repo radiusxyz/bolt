@@ -59,10 +59,10 @@ impl SendCommand {
         info!("  Hash: {}", tx.tx_hash());
         info!("  From: {signer_address}");
         info!("  To: {}", tx.to().unwrap_or_default());
-        info!("  Nonce: {}", tx.nonce());
-        info!("  Value: {} wei", tx.value());
-        info!("  Gas Limit: {}", tx.gas_limit());
-        info!("  Max Fee Per Gas: {} wei", tx.max_fee_per_gas());
+        // info!("  Nonce: {}", tx.nonce());
+        // info!("  Value: {} wei", tx.value());
+        // info!("  Gas Limit: {}", tx.gas_limit());
+        // info!("  Max Fee Per Gas: {} wei", tx.max_fee_per_gas());
         info!("  Access List: {:?}", tx.access_list());
     }
 
@@ -234,16 +234,8 @@ impl SendCommand {
     ) -> Result<()> {
         let (signer1, signer2, signer3) = Self::create_test_signers()?;
 
-        info!("🚀 Starting integrated exclusion + first inclusion flow:");
-        info!(
-            "  Signer 1: {} (access list: [0x000...001]) - EXPECTED TO SUCCEED",
-            signer1.address()
-        );
-        info!(
-            "  Signer 2: {} (access list: [0x000...001, 0x000...002]) - EXPECTED TO FAIL",
-            signer2.address()
-        );
-        info!("  First inclusion: Signer1 → [0x000...001] (subset of successful exclusion)");
+        info!("🚀 Starting integrated exclusion + inclusion flow:");
+        info!("Sending Exclusion Request1(Signer1), Exclusion Request2(Signer2)");
 
         // Create transactions for both signers
         let req1 = create_tx_request_with_hardcoded_access_list(
@@ -319,19 +311,15 @@ impl SendCommand {
         };
 
         // Send 2 async transactions from signer3 concurrently
-        info!(
-            "🔄 Sending 2 async transactions from signer3: {} (ACCOUNT_3_PRIVATE_KEY)",
-            signer3.address()
-        );
-        // Wait 2 seconds to allow commitment requests to be processed first
-        tokio::time::sleep(Duration::from_secs(4)).await;
+        info!("🔄 Sending 2 async transactions from signer3 into mempools: {}", signer3.address());
+        // Wait 4 seconds to allow commitment requests to be processed first
+        tokio::time::sleep(Duration::from_secs(2)).await;
         let signer3_tasks = self
             .send_signer3_async_transactions(target_slot, sidecar_url, execution_url, &signer3)
             .await?;
 
         let (result1, result2) = tokio::join!(task1, task2);
         let exclusion1_success = result1.is_ok();
-        let exclusion2_success = result2.is_ok();
 
         if let Err(e) = result1 {
             info!("Exclusion request 1 failed as expected: {:?}", e);
@@ -340,22 +328,8 @@ impl SendCommand {
             info!("Exclusion request 2 failed: {:?}", e);
         }
 
-        // Wait for signer3 tasks to complete
-        let signer3_results = future::join_all(signer3_tasks).await;
-        let signer3_successes = signer3_results.iter().filter(|r| r.is_ok()).count();
-        info!(
-            "✅ Signer3 mempool transactions completed: {}/{} successful",
-            signer3_successes,
-            signer3_results.len()
-        );
-
-        info!(
-            "Exclusion requests completed. Signer1 success: {}, Signer2 success: {}",
-            exclusion1_success, exclusion2_success
-        );
-
         if exclusion1_success {
-            info!("🚀 Sending first inclusion request from signer1 (successful exclusion)");
+            info!("🚀 Sending Inclusion request from signer1 (Auction Winner)");
             self.send_first_inclusion_request(
                 target_slot,
                 sidecar_url,
@@ -367,6 +341,17 @@ impl SendCommand {
         } else {
             info!("⚠️ Signer1 exclusion failed, cannot send first inclusion request");
         }
+
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        // Wait for signer3 tasks to complete
+        let signer3_results = future::join_all(signer3_tasks).await;
+        let signer3_successes = signer3_results.iter().filter(|r| r.is_ok()).count();
+        info!(
+            "✅ Signer3 mempool transactions completed: {}/{} successful",
+            signer3_successes,
+            signer3_results.len()
+        );
 
         info!("✅ Multi-exclusion + first inclusion flow completed!");
         Ok(())
@@ -486,7 +471,7 @@ impl SendCommand {
         tasks.push(task1);
 
         // Transaction 2: access list 0x000...002
-        info!("📝 Creating SIGNER3 TX2 with access list [0x000...002]");
+        info!("📝 Creating SIGNER3 TX2 with access list [0x000...001, 0x000...002]");
         let mut req2 = create_tx_request_with_hardcoded_access_list(
             signer3.address(),
             AccessListType::DoubleKey,
