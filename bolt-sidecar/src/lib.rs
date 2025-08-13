@@ -19,10 +19,6 @@ pub mod common;
 pub mod driver;
 pub use driver::SidecarDriver;
 
-#[cfg(test)]
-mod driver_test;
-
-
 /// Functionality for building local block templates that can
 /// be used as a fallback for proposers. It's also used to keep
 /// any intermediary state that is needed to simulate EVM execution
