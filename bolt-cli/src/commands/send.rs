@@ -311,8 +311,9 @@ impl SendCommand {
         };
 
         // Send 2 async transactions from signer3 concurrently
+        println!("\n\n\n\n");
         info!(
-            "\n\n\n\n🔄 Sending 2 async transactions from signer3(User) into mempools: {}",
+            "🔄 Sending 2 async transactions from signer3(User) into mempools: {}",
             signer3.address()
         );
         // Wait seconds to allow commitment requests to be processed first
@@ -329,9 +330,10 @@ impl SendCommand {
         if let Err(e) = result2 {
             info!("Exclusion request 2 failed: {:?}", e);
         }
+        println!("\n\n\n\n");
 
         if exclusion1_success {
-            info!("\n\n\n\n🚀 Sending Inclusion request from signer1 (Auction Winner)");
+            info!("🚀 Sending Inclusion request from signer1 (Auction Winner)");
             self.send_first_inclusion_request(
                 target_slot,
                 sidecar_url,
@@ -353,7 +355,7 @@ impl SendCommand {
             signer3_results.len()
         );
 
-        info!("✅ Multi-exclusion + first inclusion flow completed!");
+        info!("✅ Exclusion + Inclusion flow completed!");
         Ok(())
     }
 
@@ -438,11 +440,6 @@ impl SendCommand {
             req1 = req1.with_nonce(nonce);
         }
 
-        // info!("📋 SIGNER3(User) TX1 Request Details:");
-        // info!("  To: {}", signer3.address());
-        // info!("  Access List Type: SingleKey (0x000...002)");
-        // info!("  Max Fee: 20 gwei, Priority Fee: 2 gwei");
-
         let filled_tx1 = provider3.fill(req1).await?;
         let (raw_tx1, tx_hash1, nonce1) = match filled_tx1 {
             SendableTx::Builder(_) => bail!("expected a raw transaction"),
@@ -473,7 +470,7 @@ impl SendCommand {
         tasks.push(task1);
 
         // Transaction 2: access list 0x000...002
-        info!("\n\n📝 Creating SIGNER3(User) TX2 with access list [0x000...001, 0x000...002]");
+        info!("📝 Creating SIGNER3(User) TX2 with access list [0x000...001, 0x000...002]");
         let mut req2 = create_tx_request_with_hardcoded_access_list(
             signer3.address(),
             AccessListType::DoubleKey,
@@ -484,11 +481,6 @@ impl SendCommand {
         if let Some(nonce) = current_nonce {
             req2 = req2.with_nonce(nonce);
         }
-
-        // info!("📋 SIGNER3(User) TX2 Request Details:");
-        // info!("  To: {}", signer3.address());
-        // info!("  Access List Type: DoubleKey (0x000...001 + 0x000...002)");
-        // info!("  Max Fee: 20 gwei, Priority Fee: 2 gwei");
 
         let filled_tx2 = provider3.fill(req2).await?;
         let (raw_tx2, tx_hash2, nonce2) = match filled_tx2 {
@@ -671,7 +663,7 @@ async fn send_rpc_request(
     let response = response.text().await?;
 
     let response = response.replace(&"0".repeat(32), ".").replace(&".".repeat(4), "");
-    info!("Response: {:?}", response);
+    info!("Exclusion Response: {:?}", response);
     Ok(())
 }
 
